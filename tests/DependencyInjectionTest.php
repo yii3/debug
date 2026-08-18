@@ -43,8 +43,13 @@ final class DependencyInjectionTest extends TestCase
         $debug['collectors'] = [CustomCollector::class];
         $debug['panels'] = [CustomPanel::class];
         $params['yii3/debug'] = $debug;
-        $definitions = require dirname(__DIR__) . '/config/di.php';
-        self::assertIsArray($definitions, 'Package DI definitions must return an array.');
+        $di = require dirname(__DIR__) . '/config/di.php';
+        $diCollectors = require dirname(__DIR__) . '/config/di-collectors.php';
+        $diPanels = require dirname(__DIR__) . '/config/di-panels.php';
+        self::assertIsArray($di, 'Main DI config must return an array.');
+        self::assertIsArray($diCollectors, 'Collectors DI config must return an array.');
+        self::assertIsArray($diPanels, 'Panels DI config must return an array.');
+        $definitions = array_merge($di, $diCollectors, $diPanels);
 
         $aliases = $this->aliases();
         $container = new Container(

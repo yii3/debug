@@ -1,10 +1,13 @@
 {
-  "$schema": "vendor/infection/infection/resources/schema.json",
-  "source": {
-    "directories": ["src"]
-  },
-  "logs": {
-    "text": "runtime/infection.log"
-  },
-  "tmpDir": "runtime/infection"
+    $schema: "./vendor/infection/infection/resources/schema.json",
+    timeout: 30,
+    logs: {
+        text: "php://stderr",
+        stryker: {
+            report: "main",
+        },
+    },
+    source: {
+        directories: ["src"],
+    },
 }

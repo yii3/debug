@@ -7,15 +7,17 @@ namespace Yii3\Debug\Collector;
 use PHPForge\Debug\Collector\CollectorInterface;
 use PHPForge\Debug\Helper\Dump;
 use PHPForge\Debug\Panel\User\UserSnapshot;
+use Yiisoft\Rbac\ManagerInterface;
 use Yiisoft\User\CurrentUser;
 
 use function get_object_vars;
 
 /**
- * Captures the authenticated Yii3 identity for the User panel.
+ * Captures the authenticated Yii3 identity for the User panel, with optional RBAC roles and permissions.
  *
  * Snapshots the identity's ID and public attributes; guests capture a `null` ID, so the toolbar shows the Guest
- * chip in parity with the Yii2 adapter.
+ * chip in parity with the Yii2 adapter. When a {@see ManagerInterface} is wired, also captures the roles and
+ * permissions assigned to the authenticated user.
  *
  * Usage example:
  *
@@ -29,8 +31,13 @@ final class UserCollector implements CollectorInterface
 
     /**
      * @param CurrentUser $currentUser Authenticated-user service supplying the identity.
+     * @param ManagerInterface|null $rbacManager RBAC manager used to fetch roles and permissions, or `null` when
+     * the `yiisoft/rbac` package is not installed or not wired.
      */
-    public function __construct(private readonly CurrentUser $currentUser) {}
+    public function __construct(
+        private readonly CurrentUser $currentUser,
+        private readonly ManagerInterface|null $rbacManager = null,
+    ) {}
 
     /**
      * Snapshots the authenticated identity in the shared User payload shape.
@@ -68,13 +75,22 @@ final class UserCollector implements CollectorInterface
             $identityData[(string) $key] = Dump::export($value);
         }
 
+        $userId = $identity->getId();
+        $roles = null;
+        $permissions = null;
+
+        if ($this->rbacManager !== null && $userId !== null) {
+            $roles = $this->normalizeRbacItems($this->rbacManager->getRolesByUserId($userId));
+            $permissions = $this->normalizeRbacItems($this->rbacManager->getPermissionsByUserId($userId));
+        }
+
         return UserSnapshot::capture(
             [
-                'id' => $identity->getId(),
+                'id' => $userId,
                 'identity' => $identityData,
                 'attributes' => null,
-                'roles' => null,
-                'permissions' => null,
+                'roles' => $roles,
+                'permissions' => $permissions,
             ],
         );
     }
@@ -109,5 +125,30 @@ final class UserCollector implements CollectorInterface
     public function startup(): void
     {
         $this->active = true;
+    }
+
+    /**
+     * Normalizes an RBAC item map into the shared array shape expected by `UserSnapshot`.
+     *
+     * @param array<string, \Yiisoft\Rbac\Permission|\Yiisoft\Rbac\Role> $items Items indexed by name.
+     *
+     * @return list<array{name:string,description:string,ruleName:string,data:string,createdAt:int|null,updatedAt:int|null}>
+     */
+    private function normalizeRbacItems(array $items): array
+    {
+        $normalized = [];
+
+        foreach ($items as $item) {
+            $normalized[] = [
+                'name' => $item->getName(),
+                'description' => $item->getDescription(),
+                'ruleName' => $item->getRuleName() ?? '',
+                'data' => '',
+                'createdAt' => $item->getCreatedAt(),
+                'updatedAt' => $item->getUpdatedAt(),
+            ];
+        }
+
+        return $normalized;
     }
 }
