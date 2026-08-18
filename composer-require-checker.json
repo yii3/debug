@@ -1,0 +1,24 @@
+{
+    "symbol-whitelist": [
+        "Yiisoft\\Auth\\IdentityInterface",
+        "Yiisoft\\Auth\\IdentityRepositoryInterface",
+        "Yiisoft\\Csrf\\CsrfTokenInterface",
+        "Yiisoft\\Db\\Profiler\\ContextInterface",
+        "Yiisoft\\Db\\Profiler\\ProfilerInterface",
+        "Yiisoft\\Session\\SessionInterface",
+        "Yiisoft\\User\\CurrentUser"
+    ],
+    "php-core-extensions": [
+        "Core",
+        "date",
+        "json",
+        "hash",
+        "pcre",
+        "Phar",
+        "Reflection",
+        "SPL",
+        "random",
+        "standard"
+    ],
+    "scan-files": []
+}
