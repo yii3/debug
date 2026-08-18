@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use PHPForge\Debug\Panel\User\{UserDataNormalizer, UserIdentityRenderer, UserSnapshot};
+use ArrayObject;
+use PHPForge\Debug\Helper\Tabs;
+use PHPForge\Debug\Panel\User\{UserDataNormalizer, UserIdentityRenderer, UserRbacRow, UserSnapshot};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Form\{Button, Form, InputHidden, InputText};
@@ -17,6 +19,7 @@ use Yiisoft\Csrf\CsrfTokenInterface;
 use Yiisoft\Data\Reader\Iterable\IterableDataReader;
 use Yiisoft\Yii\DataView\GridView\Column\DataColumn;
 
+use function date;
 use function is_array;
 use function is_scalar;
 use function is_string;
@@ -77,16 +80,31 @@ final readonly class UserPanel implements PanelInterface
         $identity = [];
 
         foreach ($rawIdentity as $key => $value) {
-            if (is_string($value)) {
-                $identity[(string) $key] = $value;
-            }
+            $identity[(string) $key] = is_string($value) ? $value : (is_scalar($value) ? (string) $value : '');
         }
 
         $view = UserDataNormalizer::fromIdentity($identity, null);
 
-        return H1::tag()->class('yii-debug-sr-only')->content('User')->render()
-            . UserIdentityRenderer::render($view)
-            . $this->renderSwitch();
+        $tabs = [
+            [
+                'label' => 'Identity',
+                'content' => H1::tag()->class('yii-debug-sr-only')->content('User')->render()
+                    . UserIdentityRenderer::render($view),
+            ],
+        ];
+
+        $rolesVal = $data['roles'] ?? null;
+        $permissionsVal = $data['permissions'] ?? null;
+
+        if (is_array($rolesVal) || is_array($permissionsVal)) {
+            $tabs[] = ['label' => 'Roles & Permissions', 'content' => $this->renderRbac($data)];
+        }
+
+        if ($this->canSwitchUser()) {
+            $tabs[] = ['label' => 'Switch', 'content' => $this->renderSwitch()];
+        }
+
+        return Tabs::render('user', 'User data', $tabs);
     }
 
     public function toolbarItems(array $payload): array
@@ -161,6 +179,64 @@ final readonly class UserPanel implements PanelInterface
             ->id('debug-userswitch__filter')
             ->html($gridView->render())
             ->render();
+    }
+
+    /**
+     * Renders the Roles and Permissions section from the RBAC snapshot data.
+     *
+     * @param array<array-key, mixed> $data Snapshot data from {@see UserSnapshot::data()}.
+     */
+    private function renderRbac(array $data): string
+    {
+        $rolesVal = $data['roles'] ?? null;
+        $rolesRaw = is_array($rolesVal) ? $rolesVal : [];
+        $permissionsVal = $data['permissions'] ?? null;
+        $permissionsRaw = is_array($permissionsVal) ? $permissionsVal : [];
+        $html = '';
+
+        if ($rolesRaw !== []) {
+            $roles = [];
+
+            foreach ($rolesRaw as $rawRow) {
+                $roles[] = UserRbacRow::fromArray(is_array($rawRow) ? $rawRow : []);
+            }
+
+            $html .= H2::tag()->content('Roles')->render()
+                . $this->grid->create()
+                    ->dataReader(new IterableDataReader(new ArrayObject($roles)))
+                    ->columns(
+                        new DataColumn(header: 'Name', content: static fn(UserRbacRow $r): string => $r->name, withSorting: false),
+                        new DataColumn(header: 'Description', content: static fn(UserRbacRow $r): string => $r->description, withSorting: false),
+                        new DataColumn(header: 'Rule', content: static fn(UserRbacRow $r): string => $r->ruleName, withSorting: false),
+                        new DataColumn(header: 'Created at', content: static fn(UserRbacRow $r): string => $r->createdAt !== null ? date('Y-m-d H:i:s', $r->createdAt) : '', withSorting: false),
+                        new DataColumn(header: 'Updated at', content: static fn(UserRbacRow $r): string => $r->updatedAt !== null ? date('Y-m-d H:i:s', $r->updatedAt) : '', withSorting: false),
+                    )
+                    ->containerAttributes(['class' => 'yii-debug-grid'])
+                    ->render();
+        }
+
+        if ($permissionsRaw !== []) {
+            $permissions = [];
+
+            foreach ($permissionsRaw as $rawRow) {
+                $permissions[] = UserRbacRow::fromArray(is_array($rawRow) ? $rawRow : []);
+            }
+
+            $html .= H2::tag()->content('Permissions')->render()
+                . $this->grid->create()
+                    ->dataReader(new IterableDataReader(new ArrayObject($permissions)))
+                    ->columns(
+                        new DataColumn(header: 'Name', content: static fn(UserRbacRow $r): string => $r->name, withSorting: false),
+                        new DataColumn(header: 'Description', content: static fn(UserRbacRow $r): string => $r->description, withSorting: false),
+                        new DataColumn(header: 'Rule', content: static fn(UserRbacRow $r): string => $r->ruleName, withSorting: false),
+                        new DataColumn(header: 'Created at', content: static fn(UserRbacRow $r): string => $r->createdAt !== null ? date('Y-m-d H:i:s', $r->createdAt) : '', withSorting: false),
+                        new DataColumn(header: 'Updated at', content: static fn(UserRbacRow $r): string => $r->updatedAt !== null ? date('Y-m-d H:i:s', $r->updatedAt) : '', withSorting: false),
+                    )
+                    ->containerAttributes(['class' => 'yii-debug-grid'])
+                    ->render();
+        }
+
+        return $html;
     }
 
     /**

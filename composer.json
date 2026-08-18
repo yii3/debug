@@ -58,6 +58,7 @@
         "yiisoft/csrf": "^2.2",
         "yiisoft/db": "^2.0@dev || ^1.3",
         "yiisoft/di": "^1.4",
+        "yiisoft/rbac": "^2.1",
         "yiisoft/router-fastroute": "^4.0",
         "yiisoft/session": "^3.0",
         "yiisoft/user": "^2.2"
@@ -81,7 +82,7 @@
         },
         "config-plugin": {
             "params": "params.php",
-            "di": "di.php",
+            "di": ["di.php", "di-collectors.php", "di-panels.php"],
             "routes": "routes.php"
         },
         "scaffold": {
@@ -113,6 +114,7 @@
     },
     "suggest": {
         "yiisoft/db": "Enables the Database panel: bind Yii3\\Debug\\Collector\\DbCollector as the connection profiler.",
+        "yiisoft/rbac": "Enables role and permission capture in the User panel: wire Yiisoft\\Rbac\\ManagerInterface.",
         "yiisoft/user": "Enables the User panel and the user-switch actions.",
         "yiisoft/session": "Required by the user-switch main-user tracking.",
         "yiisoft/csrf": "Embeds the CSRF token into the user-switch forms."

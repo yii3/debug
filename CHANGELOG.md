@@ -8,3 +8,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.1.0 Under development
 
 - feat: add the Yii3 storage adapter for `php-forge/debug-core` and the official Yii debug collectors.
+- feat: enhance User panel with RBAC support and add related configuration files.
