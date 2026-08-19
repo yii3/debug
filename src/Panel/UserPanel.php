@@ -4,23 +4,38 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use ArrayObject;
+use PHPForge\Debug\Data\{FilterPrefix, QueryInput};
 use PHPForge\Debug\Helper\Tabs;
-use PHPForge\Debug\Panel\User\{UserDataNormalizer, UserIdentityRenderer, UserRbacRow, UserSnapshot};
+use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Panel\User\{
+    UserDataNormalizer,
+    UserGuestRenderer,
+    UserIdentityRenderer,
+    UserRbacRenderer,
+    UserRbacRow,
+    UserSnapshot,
+};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Form\{Button, Form, InputHidden, InputText};
 use UIAwesome\Html\Form\Values\ButtonType;
 use UIAwesome\Html\Heading\{H1, H2};
 use UIAwesome\Html\Phrasing\{Label, Span};
+use Yii3\Debug\Grid\PrefixedTextFilter;
+use Yii3\Debug\Search\UserSearch;
 use Yii3\Debug\User\{IdentityListProviderInterface, UserSwitch};
 use Yiisoft\Auth\IdentityInterface;
 use Yiisoft\Csrf\CsrfTokenInterface;
 use Yiisoft\Data\Reader\Iterable\IterableDataReader;
+use Yiisoft\Data\Reader\Sort;
 use Yiisoft\Yii\DataView\GridView\Column\DataColumn;
 
+use function array_key_exists;
+use function count;
 use function date;
+use function get_object_vars;
 use function is_array;
+use function is_numeric;
 use function is_scalar;
 use function is_string;
 use function rtrim;
@@ -31,7 +46,7 @@ use function rtrim;
  * The switch controls render only when user switching is enabled and a main user is authenticated; the shared
  * `userswitch.js` runtime drives the forms through their fixed element IDs.
  */
-final readonly class UserPanel implements PanelInterface
+final readonly class UserPanel implements ContextAwarePanelInterface
 {
     use PanelContentTrait;
 
@@ -75,41 +90,17 @@ final readonly class UserPanel implements PanelInterface
 
     public function render(array $payload): string
     {
-        $data = UserSnapshot::fromArray($payload, 'panels.user')->data();
+        return $this->renderPanel(
+            $payload,
+        );
+    }
 
-        $rawIdentity = is_array($data['identity'] ?? null) ? $data['identity'] : [];
-
-        $identity = [];
-
-        foreach ($rawIdentity as $key => $value) {
-            $identity[(string) $key] = is_string($value) ? $value : (is_scalar($value) ? (string) $value : '');
-        }
-
-        $view = UserDataNormalizer::fromIdentity($identity, null);
-
-        $tabs = [
-            [
-                'label' => 'Identity',
-                'content' => H1::tag()
-                    ->class('yii-debug-sr-only')
-                    ->content('User')
-                    ->render()
-                    . UserIdentityRenderer::render($view),
-            ],
-        ];
-
-        $rolesVal = $data['roles'] ?? null;
-        $permissionsVal = $data['permissions'] ?? null;
-
-        if (is_array($rolesVal) || is_array($permissionsVal)) {
-            $tabs[] = ['label' => 'Roles & Permissions', 'content' => $this->renderRbac($data)];
-        }
-
-        if ($this->canSwitchUser()) {
-            $tabs[] = ['label' => 'Switch', 'content' => $this->renderSwitch()];
-        }
-
-        return Tabs::render('user', 'User data', $tabs);
+    public function renderWithContext(array $payload, PanelRenderContext $context): string
+    {
+        return $this->renderPanel(
+            $payload,
+            $context,
+        );
     }
 
     public function toolbarItems(array $payload): array
@@ -152,38 +143,240 @@ final readonly class UserPanel implements PanelInterface
     }
 
     /**
+     * Formats a switch-grid timestamp using the Yii2 `Y-m-d H:i` vocabulary.
+     */
+    private static function formatTimestamp(string $value): string
+    {
+        return $value !== '' && is_numeric($value) ? date('Y-m-d H:i', (int) $value) : $value;
+    }
+
+    /**
+     * Builds one Yii2-compatible identity-list column.
+     *
+     * @return DataColumn<array<array-key, mixed>>
+     */
+    private function identityColumn(
+        string $property,
+        string $header,
+        bool $full,
+        bool $timestamp = false,
+    ): DataColumn {
+        return new DataColumn(
+            property: $property,
+            header: $header,
+            content: $timestamp
+                ? static fn(array $row): string => self::formatTimestamp(self::identityRowValue($row, $property))
+                : static fn(array $row): string => self::identityRowValue($row, $property),
+            withSorting: $full,
+            filter: $full
+                ? new PrefixedTextFilter(FilterPrefix::USER, ['aria-label' => "Filter by {$header}"])
+                : false,
+            filterEmpty: $full ? static fn(): bool => true : null,
+            bodyClass: $timestamp ? 'yii-debug-cell-mono yii-debug-nowrap' : null,
+        );
+    }
+
+    /**
+     * Normalizes identity objects into the configurable Yii2 switch-grid vocabulary.
+     *
+     * @param list<IdentityInterface> $identities Switchable identities.
+     *
+     * @return list<array{id:string,username:string,email:string,status:string,created_at:string,updated_at:string}>
+     */
+    private function identityRows(array $identities): array
+    {
+        $rows = [];
+
+        foreach ($identities as $identity) {
+            $values = [];
+
+            foreach (get_object_vars($identity) as $key => $value) {
+                $values[(string) $key] = $value;
+            }
+
+            $rows[] = [
+                'id' => $identity->getId() ?? '',
+                'username' => self::identityValue($values, 'username'),
+                'email' => self::identityValue($values, 'email'),
+                'status' => self::identityValue($values, 'status'),
+                'created_at' => self::identityValue($values, 'created_at', 'createdAt'),
+                'updated_at' => self::identityValue($values, 'updated_at', 'updatedAt'),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Returns a scalar identity-grid row value as a string.
+     *
+     * @param array<array-key, mixed> $row Normalized identity row.
+     */
+    private static function identityRowValue(array $row, string $property): string
+    {
+        $value = $row[$property] ?? '';
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * Returns the first scalar public identity value matching the supplied aliases.
+     *
+     * @param array<string, mixed> $values Public identity properties.
+     */
+    private static function identityValue(array $values, string ...$aliases): string
+    {
+        foreach ($aliases as $alias) {
+            if (array_key_exists($alias, $values) && is_scalar($values[$alias])) {
+                return (string) $values[$alias];
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Renders the switchable-identity grid consumed by the shared user-switch runtime.
      *
      * @param list<IdentityInterface> $identities Switchable identities.
      */
-    private function renderIdentityGrid(array $identities): string
+    private function renderIdentityGrid(array $identities, PanelRenderContext|null $context): string
     {
-        $gridView = $this->grid->create()
-            ->dataReader(new IterableDataReader($identities))
-            ->columns(
-                new DataColumn(
-                    header: 'ID',
-                    content: static fn(IdentityInterface $identity): string => $identity->getId() ?? '',
-                    withSorting: false,
-                ),
-                new DataColumn(
-                    header: 'Identity',
-                    content: static fn(IdentityInterface $identity): string => $identity::class,
-                    withSorting: false,
-                ),
-            )
+        $rows = $this->identityRows($identities);
+
+        $queryParams = $context === null ? [] : $context->queryParams;
+
+        $search = UserSearch::fromQueryParams($queryParams);
+
+        $filtered = $search->filter($rows);
+
+        $full = $context !== null;
+
+        $columns = [
+            $this->identityColumn('id', 'Id', $full),
+            $this->identityColumn('username', 'Username', $full),
+            $this->identityColumn('email', 'Email', $full),
+            $this->identityColumn('status', 'Status', $full),
+            $this->identityColumn('created_at', 'Created At', $full, timestamp: true),
+            $this->identityColumn('updated_at', 'Updated At', $full, timestamp: true),
+        ];
+
+        if ($context === null) {
+            $grid = $this->grid->create()
+                ->dataReader(new IterableDataReader($filtered));
+        } else {
+            $gridQuery = $queryParams;
+
+            $userQuery = QueryInput::group($gridQuery, FilterPrefix::USER);
+
+            $userQuery['_active'] = 'switch';
+            $gridQuery[FilterPrefix::USER] = $userQuery;
+
+            $grid = $this->grid
+                ->full(
+                    $context->panelUrl(queryParams: []),
+                    $gridQuery,
+                    FilterPrefix::USER,
+                    'yii-debug-user-filters',
+                )
+                ->dataReader(
+                    $this->grid->paginator(
+                        $filtered,
+                        $queryParams,
+                        Sort::only(['id', 'username', 'email', 'status', 'created_at', 'updated_at'])
+                            ->withOrder(['id' => 'desc']),
+                        10,
+                    ),
+                );
+        }
+
+        $gridHtml = $grid
+            ->columns(...$columns)
             ->bodyRowAttributes(
                 static fn(array|object $identity): array => [
-                    'data-key' => $identity instanceof IdentityInterface ? ($identity->getId() ?? '') : '',
+                    'data-key' => is_array($identity) ? ($identity['id'] ?? '') : '',
                 ],
             )
             ->containerAttributes(['class' => 'yii-debug-grid'])
-            ->tableAttributes(['class' => 'yii-debug-table yii-debug-table-pointer yii-debug-table-userswitch']);
+            ->tableAttributes(['class' => 'yii-debug-table yii-debug-table-pointer yii-debug-table-userswitch'])
+            ->render();
 
         return Div::tag()
             ->id('debug-userswitch__filter')
-            ->html($gridView->render())
+            ->html(
+                $context === null
+                    ? ''
+                    : $this->grid->activeFilterBanner(
+                        $context,
+                        FilterPrefix::USER,
+                        $search->activeFilters,
+                        ['_active' => 'switch'],
+                    ),
+                $gridHtml,
+            )
             ->render();
+    }
+
+    /**
+     * Renders the context-free fallback or the complete searchable identity grid used by snapshot pages.
+     *
+     * @param array<string, mixed> $payload Decoded User payload.
+     */
+    private function renderPanel(array $payload, PanelRenderContext|null $context = null): string
+    {
+        $data = UserSnapshot::fromArray($payload, 'panels.user')->data();
+
+        $title = H1::tag()
+            ->class('yii-debug-sr-only')
+            ->content('User')
+            ->render();
+
+        if (($data['id'] ?? null) === null) {
+            return $title . UserGuestRenderer::render();
+        }
+
+        $rawIdentity = is_array($data['identity'] ?? null) ? $data['identity'] : [];
+
+        $identity = [];
+
+        foreach ($rawIdentity as $key => $value) {
+            $identity[(string) $key] = is_string($value) ? $value : (is_scalar($value) ? (string) $value : '');
+        }
+
+        $view = UserDataNormalizer::fromIdentity($identity, null);
+
+        $tabs = [
+            [
+                'label' => 'User',
+                'content' => UserIdentityRenderer::render($view),
+            ],
+        ];
+
+        $rolesVal = $data['roles'] ?? null;
+        $permissionsVal = $data['permissions'] ?? null;
+
+        if (is_array($rolesVal) || is_array($permissionsVal)) {
+            $tabs[] = ['label' => 'Roles and Permissions', 'content' => $this->renderRbac($data)];
+        }
+
+        $switchTab = null;
+
+        if ($this->canSwitchUser()) {
+            $switchTab = count($tabs);
+            $tabs[] = ['label' => 'Switch User', 'content' => $this->renderSwitch($context)];
+        }
+
+        $activeTab = 0;
+
+        if ($context !== null && $switchTab !== null) {
+            $userQuery = QueryInput::group($context->queryParams, FilterPrefix::USER);
+
+            if ($userQuery !== []) {
+                $activeTab = $switchTab;
+            }
+        }
+
+        return $title . Tabs::render('user', 'User data', $tabs, $activeTab);
     }
 
     /**
@@ -194,58 +387,69 @@ final readonly class UserPanel implements PanelInterface
     private function renderRbac(array $data): string
     {
         $rolesVal = $data['roles'] ?? null;
-
-        $rolesRaw = is_array($rolesVal) ? $rolesVal : [];
-
         $permissionsVal = $data['permissions'] ?? null;
 
-        $permissionsRaw = is_array($permissionsVal) ? $permissionsVal : [];
+        return UserRbacRenderer::render(
+            is_array($rolesVal) ? $this->renderRbacGrid($rolesVal) : null,
+            is_array($permissionsVal) ? $this->renderRbacGrid($permissionsVal) : null,
+        );
+    }
 
-        $html = '';
+    /**
+     * Renders one RBAC category with the shared six-column vocabulary.
+     *
+     * @param array<array-key, mixed> $rawRows Captured role or permission rows.
+     */
+    private function renderRbacGrid(array $rawRows): string
+    {
+        $rows = [];
 
-        if ($rolesRaw !== []) {
-            $roles = [];
-
-            foreach ($rolesRaw as $rawRow) {
-                $roles[] = UserRbacRow::fromArray(is_array($rawRow) ? $rawRow : []);
-            }
-
-            $html .= H2::tag()->content('Roles')->render()
-                . $this->grid->create()
-                    ->dataReader(new IterableDataReader(new ArrayObject($roles)))
-                    ->columns(
-                        new DataColumn(header: 'Name', content: static fn(UserRbacRow $r): string => $r->name, withSorting: false),
-                        new DataColumn(header: 'Description', content: static fn(UserRbacRow $r): string => $r->description, withSorting: false),
-                        new DataColumn(header: 'Rule', content: static fn(UserRbacRow $r): string => $r->ruleName, withSorting: false),
-                        new DataColumn(header: 'Created at', content: static fn(UserRbacRow $r): string => $r->createdAt !== null ? date('Y-m-d H:i:s', $r->createdAt) : '', withSorting: false),
-                        new DataColumn(header: 'Updated at', content: static fn(UserRbacRow $r): string => $r->updatedAt !== null ? date('Y-m-d H:i:s', $r->updatedAt) : '', withSorting: false),
-                    )
-                    ->containerAttributes(['class' => 'yii-debug-grid'])
-                    ->render();
+        foreach ($rawRows as $rawRow) {
+            $rows[] = UserRbacRow::fromArray(is_array($rawRow) ? $rawRow : []);
         }
 
-        if ($permissionsRaw !== []) {
-            $permissions = [];
-
-            foreach ($permissionsRaw as $rawRow) {
-                $permissions[] = UserRbacRow::fromArray(is_array($rawRow) ? $rawRow : []);
-            }
-
-            $html .= H2::tag()->content('Permissions')->render()
-                . $this->grid->create()
-                    ->dataReader(new IterableDataReader(new ArrayObject($permissions)))
-                    ->columns(
-                        new DataColumn(header: 'Name', content: static fn(UserRbacRow $r): string => $r->name, withSorting: false),
-                        new DataColumn(header: 'Description', content: static fn(UserRbacRow $r): string => $r->description, withSorting: false),
-                        new DataColumn(header: 'Rule', content: static fn(UserRbacRow $r): string => $r->ruleName, withSorting: false),
-                        new DataColumn(header: 'Created at', content: static fn(UserRbacRow $r): string => $r->createdAt !== null ? date('Y-m-d H:i:s', $r->createdAt) : '', withSorting: false),
-                        new DataColumn(header: 'Updated at', content: static fn(UserRbacRow $r): string => $r->updatedAt !== null ? date('Y-m-d H:i:s', $r->updatedAt) : '', withSorting: false),
-                    )
-                    ->containerAttributes(['class' => 'yii-debug-grid'])
-                    ->render();
-        }
-
-        return $html;
+        return $this->grid->create()
+            ->layout('<div class="yii-debug-table-wrap">{items}</div>')
+            ->dataReader(new IterableDataReader($rows))
+            ->columns(
+                new DataColumn(
+                    header: 'Name',
+                    content: static fn(UserRbacRow $r): string => $r->name,
+                    withSorting: false,
+                ),
+                new DataColumn(
+                    header: 'Description',
+                    content: static fn(UserRbacRow $r): string => $r->description,
+                    withSorting: false,
+                ),
+                new DataColumn(
+                    header: 'Rule Name',
+                    content: static fn(UserRbacRow $r): string => $r->ruleName,
+                    withSorting: false,
+                ),
+                new DataColumn(
+                    header: 'Data',
+                    content: static fn(UserRbacRow $r): string => $r->data,
+                    withSorting: false,
+                ),
+                new DataColumn(
+                    header: 'Created At',
+                    content: static fn(UserRbacRow $r): string => $r->createdAt !== null
+                        ? date('Y-m-d H:i:s', $r->createdAt)
+                        : '',
+                    withSorting: false,
+                ),
+                new DataColumn(
+                    header: 'Updated At',
+                    content: static fn(UserRbacRow $r): string => $r->updatedAt !== null
+                        ? date('Y-m-d H:i:s', $r->updatedAt)
+                        : '',
+                    withSorting: false,
+                ),
+            )
+            ->containerAttributes(['class' => 'yii-debug-grid'])
+            ->tableAttributes(['class' => 'yii-debug-table'])
+            ->render();
     }
 
     /**
@@ -280,7 +484,7 @@ final readonly class UserPanel implements PanelInterface
     /**
      * Renders the switch-user section: header with the reset action, the switch form, and the identity grid.
      */
-    private function renderSwitch(): string
+    private function renderSwitch(PanelRenderContext|null $context): string
     {
         if (!$this->canSwitchUser()) {
             return '';
@@ -292,7 +496,11 @@ final readonly class UserPanel implements PanelInterface
 
         $header = Div::tag()
             ->class('yii-debug-section-header')
-            ->html(H2::tag()->content('Switch user'), $this->renderResetForm());
+            ->html(
+                H2::tag()
+                    ->content('Switch user'),
+                $this->renderResetForm(),
+            );
         $setForm = Form::tag()
             ->action($this->routePrefix . '/set-identity')
             ->class('yii-debug-stack')
@@ -318,6 +526,6 @@ final readonly class UserPanel implements PanelInterface
 
         return $header->render()
             . $setForm->render()
-            . ($hasGrid ? $this->renderIdentityGrid($identities) : '');
+            . ($hasGrid ? $this->renderIdentityGrid($identities, $context) : '');
     }
 }

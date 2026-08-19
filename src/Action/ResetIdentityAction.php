@@ -6,7 +6,7 @@ namespace Yii3\Debug\Action;
 
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Yii3\Debug\User\UserSwitch;
-use Yii3\Debug\Web\{LocalAccessChecker, ResponseBuilder};
+use Yii3\Debug\Web\{CsrfRequestValidator, LocalAccessChecker, ResponseBuilder};
 
 /**
  * Restores the main (pre-switch) identity for an allowed debug client.
@@ -21,12 +21,14 @@ final readonly class ResetIdentityAction
      * @param ResponseBuilder $responseBuilder JSON response factory.
      * @param UserSwitch $userSwitch Identity switch service.
      * @param bool $switchEnabled Whether user switching is enabled (deny by default).
+     * @param CsrfRequestValidator|null $csrfValidator Optional CSRF validator for state-changing requests.
      */
     public function __construct(
         private LocalAccessChecker $accessChecker,
         private ResponseBuilder $responseBuilder,
         private UserSwitch $userSwitch,
         private bool $switchEnabled = false,
+        private CsrfRequestValidator|null $csrfValidator = null,
     ) {}
 
     /**
@@ -44,6 +46,10 @@ final readonly class ResetIdentityAction
 
         if (!$this->switchEnabled || $this->userSwitch->getMainUserId() === null) {
             return $this->responseBuilder->json(['error' => 'User switching is not allowed.'], 403);
+        }
+
+        if ($this->csrfValidator !== null && !$this->csrfValidator->validates($request)) {
+            return $this->responseBuilder->json(['error' => 'Invalid CSRF token.'], 422);
         }
 
         $this->userSwitch->reset();

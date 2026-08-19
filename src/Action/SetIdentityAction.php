@@ -6,7 +6,7 @@ namespace Yii3\Debug\Action;
 
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Yii3\Debug\User\UserSwitch;
-use Yii3\Debug\Web\{LocalAccessChecker, ResponseBuilder};
+use Yii3\Debug\Web\{CsrfRequestValidator, LocalAccessChecker, ResponseBuilder};
 use Yiisoft\Auth\IdentityRepositoryInterface;
 
 use function is_array;
@@ -27,6 +27,7 @@ final readonly class SetIdentityAction
      * @param UserSwitch $userSwitch Identity switch service.
      * @param IdentityRepositoryInterface $identityRepository Repository resolving identities by ID.
      * @param bool $switchEnabled Whether user switching is enabled (deny by default).
+     * @param CsrfRequestValidator|null $csrfValidator Optional CSRF validator for state-changing requests.
      */
     public function __construct(
         private LocalAccessChecker $accessChecker,
@@ -34,6 +35,7 @@ final readonly class SetIdentityAction
         private UserSwitch $userSwitch,
         private IdentityRepositoryInterface $identityRepository,
         private bool $switchEnabled = false,
+        private CsrfRequestValidator|null $csrfValidator = null,
     ) {}
 
     /**
@@ -51,6 +53,10 @@ final readonly class SetIdentityAction
 
         if (!$this->switchEnabled || $this->userSwitch->getMainUserId() === null) {
             return $this->responseBuilder->json(['error' => 'User switching is not allowed.'], 403);
+        }
+
+        if ($this->csrfValidator !== null && !$this->csrfValidator->validates($request)) {
+            return $this->responseBuilder->json(['error' => 'Invalid CSRF token.'], 422);
         }
 
         $body = $request->getParsedBody();

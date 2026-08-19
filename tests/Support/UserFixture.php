@@ -27,11 +27,11 @@ final readonly class UserFixture
      *
      * @return self Wired fixture.
      */
-    public static function create(array $identities): self
+    public static function create(array $identities, EventDispatcherInterface|null $dispatcher = null): self
     {
         $repository = new InMemoryIdentityRepository($identities);
         $session = new FakeSession();
-        $dispatcher = new class implements EventDispatcherInterface {
+        $dispatcher ??= new class implements EventDispatcherInterface {
             public function dispatch(object $event): object
             {
                 return $event;

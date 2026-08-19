@@ -18,7 +18,7 @@ use Yii3\Debug\Panel\{
 };
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\User\{IdentityListProviderInterface, UserSwitch};
-use Yii3\Debug\Web\DebugPageRenderer;
+use Yii3\Debug\Web\{CsrfRequestValidator, DebugPageRenderer};
 use Yiisoft\Csrf\CsrfTokenInterface;
 use Yiisoft\Db\Profiler\ProfilerInterface;
 use Yiisoft\Definitions\{Reference, ReferencesArray};
@@ -52,6 +52,11 @@ return [
         ],
     ],
     ...($hasUser ? [
+        CsrfRequestValidator::class => [
+            '__construct()' => [
+                'token' => Reference::optional(CsrfTokenInterface::class),
+            ],
+        ],
         UserPanel::class => [
             '__construct()' => [
                 'userSwitch' => Reference::to(UserSwitch::class),
@@ -64,11 +69,13 @@ return [
         SetIdentityAction::class => [
             '__construct()' => [
                 'switchEnabled' => $config['userSwitch']['enabled'],
+                'csrfValidator' => Reference::to(CsrfRequestValidator::class),
             ],
         ],
         ResetIdentityAction::class => [
             '__construct()' => [
                 'switchEnabled' => $config['userSwitch']['enabled'],
+                'csrfValidator' => Reference::to(CsrfRequestValidator::class),
             ],
         ],
     ] : []),
