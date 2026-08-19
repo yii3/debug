@@ -68,10 +68,16 @@ For example, both classes may return `app.example` from `id()`. Package DI conve
 container references and retains the built-in `request` collector and panel. Stored payloads without a registered
 panel remain inspectable through the escaped JSON fallback.
 
+Panels that need the current tag, query parameters, theme, or adapter-generated URLs may additionally implement
+`Yii3\Debug\Panel\ContextAwarePanelInterface`. The renderer then calls `renderWithContext()` with a
+`PHPForge\Debug\Panel\PanelRenderContext`; the original `PanelInterface::render()` contract remains available as the
+context-free fallback and existing panels require no changes.
+
 ## Architecture
 
 - `php-forge/debug-core` owns collector contracts and coordination, failure isolation, strict snapshot hydration, JSON
-  persistence, the request manifest, frontend primitives, and portable toolbar data contracts.
+  persistence, the request manifest, shared filter and pagination contracts, panel render context, frontend
+  primitives, and portable toolbar data contracts.
 - `yii3/debug` owns PSR-7 request collection, Yii3 DI and middleware lifecycle wiring, optional panel renderers, routes,
   actions, URL mapping, asset publication, and response injection.
 - The adapter resolves shared templates through `@yii3DebugViews` and renders them with `Yiisoft\View\WebView`; Core

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Asset\Icon;
-use Yii3\Debug\Panel\{PanelContentTrait, PanelInterface};
+use Yii3\Debug\Panel\{ContextAwarePanelInterface, PanelContentTrait, PanelInterface};
 use Yii3\Debug\Tests\Support\{CustomPanel, GridFactory};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
@@ -232,6 +233,75 @@ final class DebugPageRendererTest extends TestCase
         self::assertStringContainsString('App Failed', $html, 'Failure-only panel ID must remain navigable.');
         self::assertStringContainsString('Panel capture failed.', $html, 'Capture failure must be rendered explicitly.');
         self::assertStringContainsString('Collector failed.', $html, 'Captured exception must remain inspectable.');
+    }
+
+    public function testSnapshotSuppliesContextToContextAwarePanel(): void
+    {
+        $panel = new readonly class implements ContextAwarePanelInterface {
+            use PanelContentTrait;
+
+            public function icon(): string|null
+            {
+                return null;
+            }
+
+            public function id(): string
+            {
+                return 'app.context';
+            }
+
+            public function name(): string
+            {
+                return 'Context panel';
+            }
+
+            public function render(array $payload): string
+            {
+                return 'legacy fallback';
+            }
+
+            public function renderWithContext(array $payload, PanelRenderContext $context): string
+            {
+                return '<div class="context-panel">'
+                    . $context->tag . '|'
+                    . $context->panel . '|'
+                    . $context->theme . '|'
+                    . $context->panelUrl(queryParams: []) . '|'
+                    . $context->historyUrl([]) . '|'
+                    . $context->actionUrl('download', ['file' => 'report.txt'])
+                    . '</div>';
+            }
+
+            public function toolbarItems(array $payload): array
+            {
+                return [];
+            }
+        };
+        $snapshot = new DebugSnapshot(
+            $this->summary(),
+            ['app.context' => ['value' => 'stored']],
+            [],
+        );
+
+        $html = $this->renderer([$panel])->snapshot(
+            $snapshot,
+            'app.context',
+            queryParams: ['page' => 2],
+            theme: 'dark',
+        );
+
+        self::assertStringContainsString(
+            '<div class="context-panel">request-1|app.context|dark|'
+                . '/debug/view?tag=request-1&panel=app.context|/debug|'
+                . '/debug/download?tag=request-1&file=report.txt</div>',
+            $html,
+            'Context-aware panels must receive the tag, panel, theme, and adapter-owned URLs.',
+        );
+        self::assertStringNotContainsString(
+            'legacy fallback',
+            $html,
+            'The context-free fallback must not run for context-aware panels.',
+        );
     }
 
     public function testSnapshotUsesConfiguredPanelRenderer(): void

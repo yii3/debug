@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Grid;
 
-use Yii3\Debug\Data\QueryInput;
+use PHPForge\Debug\Data\QueryInput;
 use Yiisoft\Yii\DataView\Url\{UrlParameterProviderInterface, UrlParameterType};
 
 use function in_array;

@@ -10,12 +10,11 @@ use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure};
 use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
 use Throwable;
 use Yii3\Debug\Panel\PanelInterface;
+use Yii3\Debug\Web\DebugUrlGenerator;
 use Yiisoft\Assets\AssetManager;
 
 use function array_key_exists;
 use function is_string;
-use function rawurlencode;
-use function rtrim;
 use function strlen;
 use function substr;
 use function trim;
@@ -37,6 +36,7 @@ final readonly class ToolbarDataFactory
     private array $panels;
 
     private string $routePrefix;
+    private DebugUrlGenerator $urls;
 
     /**
      * @param AssetManager $assetManager Yii3 asset publisher.
@@ -52,7 +52,10 @@ final readonly class ToolbarDataFactory
         private string $position = 'bottom',
         private int $height = 50,
     ) {
-        $this->routePrefix = rtrim($routePrefix, '/');
+        $this->urls = new DebugUrlGenerator($routePrefix);
+
+        $this->routePrefix = $this->urls->routePrefix();
+
         $resolvedPanels = [];
 
         foreach ($panels as $panel) {
@@ -225,6 +228,6 @@ final readonly class ToolbarDataFactory
      */
     private function viewUrl(string $tag, string $panel): string
     {
-        return $this->routePrefix . '/view?tag=' . rawurlencode($tag) . '&panel=' . rawurlencode($panel);
+        return $this->urls->panel($tag, $panel);
     }
 }

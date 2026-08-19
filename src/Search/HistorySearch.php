@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Search;
 
+use PHPForge\Debug\Data\{FilterEngine, FilterPrefix, QueryInput};
 use PHPForge\Debug\View\History\HistoryRow;
-use Yii3\Debug\Data\{FilterEngine, FilterPrefix, QueryInput};
 
 use function array_filter;
 use function array_values;
