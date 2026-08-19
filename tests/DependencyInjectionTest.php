@@ -9,6 +9,7 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\{RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Log\NullLogger;
 use Yii3\Debug\Collector\RequestCollector;
 use Yii3\Debug\Tests\Support\{CustomCollector, CustomPanel, FakeSession, InMemoryIdentityRepository};
 use Yii3\Debug\Web\DebugPageRenderer;
@@ -16,6 +17,7 @@ use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\Auth\IdentityRepositoryInterface;
 use Yiisoft\Di\{Container, ContainerConfig};
+use Yiisoft\Profiler\{Profiler, ProfilerInterface};
 use Yiisoft\Session\SessionInterface;
 
 use function is_dir;
@@ -65,6 +67,7 @@ final class DependencyInjectionTest extends TestCase
                         }
                     },
                     IdentityRepositoryInterface::class => new InMemoryIdentityRepository(),
+                    ProfilerInterface::class => new Profiler(new NullLogger()),
                     SessionInterface::class => new FakeSession(),
                 ],
             ),
@@ -78,6 +81,7 @@ final class DependencyInjectionTest extends TestCase
         self::assertTrue($coordinator->hasCollector('config'), 'DI must register the configuration collector.');
         self::assertTrue($coordinator->hasCollector('request'), 'DI must register the native request collector.');
         self::assertTrue($coordinator->hasCollector('profiling'), 'DI must register the profiling collector.');
+        self::assertTrue($coordinator->hasCollector('timeline'), 'DI must register the Timeline collector.');
         self::assertTrue($coordinator->hasCollector('app.example'), 'DI must register the application collector.');
 
         $coordinator->startup();

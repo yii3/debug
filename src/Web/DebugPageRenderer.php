@@ -284,6 +284,7 @@ final readonly class DebugPageRenderer
                             $queryParams,
                             $theme,
                             $this->urls,
+                            $snapshot->panels,
                         ),
                     )
                     : $renderer->render($payload);

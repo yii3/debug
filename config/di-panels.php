@@ -9,9 +9,11 @@ use Yii3\Debug\Panel\{
     DbPanel,
     EventPanel,
     LogPanel,
+    PanelGrid,
     ProfilingPanel,
     RequestPanel,
     RouterPanel,
+    TimelinePanel,
     UserPanel,
 };
 use Yii3\Debug\ToolbarDataFactory;
@@ -38,11 +40,17 @@ $corePanels = [
     Reference::to(LogPanel::class),
     ...($hasDb ? [Reference::to(DbPanel::class)] : []),
     Reference::to(ProfilingPanel::class),
+    Reference::to(TimelinePanel::class),
     Reference::to(EventPanel::class),
     Reference::to(AssetPanel::class),
 ];
 
 return [
+    ProfilingPanel::class => [
+        '__construct()' => [
+            'grid' => Reference::to(PanelGrid::class),
+        ],
+    ],
     ...($hasUser ? [
         UserPanel::class => [
             '__construct()' => [

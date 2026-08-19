@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Yii3\Debug\Collector;
 
 use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\Helper\Coerce;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
 use Yiisoft\Db\Profiler\{ContextInterface, ProfilerInterface};
+use Yiisoft\Profiler\ProfilerInterface as ApplicationProfilerInterface;
 
 use function array_splice;
 use function count;
 use function debug_backtrace;
+use function error_reporting;
 use function hash;
 use function hash_algos;
 use function in_array;
@@ -21,8 +24,11 @@ use function memory_get_usage;
 use function microtime;
 use function preg_match;
 use function str_contains;
+use function strrpos;
+use function substr;
 
 use const DEBUG_BACKTRACE_IGNORE_ARGS;
+use const E_DEPRECATED;
 
 /**
  * Captures every database query profiled by `yiisoft/db` for the Database panel.
@@ -43,8 +49,13 @@ final class DbCollector implements CollectorInterface, ProfilerInterface
     private bool $active = false;
 
     /**
-     * @var list<array{token: string, start: float, memory: int, trace: list<array<string, mixed>>}> Open profile
-     * blocks in nesting order.
+     * @var list<array{
+     *   token: string,
+     *   category: string,
+     *   start: float,
+     *   memory: int,
+     *   trace: list<array<string, mixed>>
+     * }> Open profile blocks in nesting order.
      */
     private array $open = [];
 
@@ -66,6 +77,11 @@ final class DbCollector implements CollectorInterface, ProfilerInterface
     private static string|null $traceHashAlgo = null;
 
     /**
+     * @param ApplicationProfilerInterface|null $profiler Optional application profiler receiving the same DB spans.
+     */
+    public function __construct(private readonly ApplicationProfilerInterface|null $profiler = null) {}
+
+    /**
      * Marks the beginning of a profiled query block.
      *
      * Usage example:
@@ -83,11 +99,17 @@ final class DbCollector implements CollectorInterface, ProfilerInterface
             return;
         }
 
+        $trace = self::backtrace();
+        $category = self::profileCategory($context);
+
+        $this->beginApplicationProfile($token, $category, $trace);
+
         $this->open[] = [
             'token' => $token,
+            'category' => $category,
             'start' => microtime(true),
             'memory' => memory_get_usage(),
-            'trace' => self::backtrace(),
+            'trace' => $trace,
         ];
     }
 
@@ -153,8 +175,11 @@ final class DbCollector implements CollectorInterface, ProfilerInterface
             return;
         }
 
+        $this->profiler?->end($token, ['category' => $block['category']]);
+
         $now = microtime(true);
         $memory = memory_get_usage();
+
         $this->timings[] = [
             'info' => $token,
             'category' => $context instanceof ContextInterface ? $context->getType() : 'query',
@@ -250,11 +275,39 @@ final class DbCollector implements CollectorInterface, ProfilerInterface
     }
 
     /**
+     * Opens the mirrored application profile while isolating the stable profiler release's PHP 8.4 DTO deprecation.
+     *
+     * @param list<array<string, mixed>> $trace Captured DB caller trace.
+     */
+    private function beginApplicationProfile(string $token, string $category, array $trace): void
+    {
+        if ($this->profiler === null) {
+            return;
+        }
+
+        $errorReporting = error_reporting();
+
+        try {
+            error_reporting($errorReporting & ~E_DEPRECATED);
+
+            $this->profiler->begin($token, ['category' => $category, 'trace' => $trace]);
+        } finally {
+            error_reporting($errorReporting);
+        }
+    }
+
+    /**
      * Removes and returns the innermost open block matching the token, or `null` when none matches.
      *
      * @param string $token Profiled token.
      *
-     * @return array{token: string, start: float, memory: int, trace: list<array<string, mixed>>}|null Matched block.
+     * @return array{
+     *   token: string,
+     *   category: string,
+     *   start: float,
+     *   memory: int,
+     *   trace: list<array<string, mixed>>
+     * }|null Matched block.
      */
     private function popBlock(string $token): array|null
     {
@@ -269,6 +322,32 @@ final class DbCollector implements CollectorInterface, ProfilerInterface
         }
 
         return null;
+    }
+
+    /**
+     * Builds the Yii3 profile category matching the profiled database operation.
+     *
+     * @param array<array-key, mixed>|ContextInterface $context Database profiling context.
+     */
+    private static function profileCategory(array|ContextInterface $context): string
+    {
+        if (!$context instanceof ContextInterface) {
+            return 'Yiisoft\\Db\\Command::query';
+        }
+
+        $type = $context->getType();
+
+        $method = Coerce::string($context->asArray()['method'] ?? null, $type);
+
+        $separator = strrpos($method, '::');
+
+        if ($separator !== false) {
+            $method = substr($method, $separator + 2);
+        }
+
+        return $type === 'connection'
+            ? "Yiisoft\\Db\\Connection::{$method}"
+            : "Yiisoft\\Db\\Command::{$method}";
     }
 
     /**

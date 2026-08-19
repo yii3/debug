@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Helper\Coerce;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPUnit\Framework\Attributes\Group;
@@ -268,7 +269,8 @@ final class DebugPageRendererTest extends TestCase
                     . $context->theme . '|'
                     . $context->panelUrl(queryParams: []) . '|'
                     . $context->historyUrl([]) . '|'
-                    . $context->actionUrl('download', ['file' => 'report.txt'])
+                    . $context->actionUrl('download', ['file' => 'report.txt']) . '|'
+                    . Coerce::string($context->panelPayload('app.context')['value'] ?? null)
                     . '</div>';
             }
 
@@ -292,10 +294,10 @@ final class DebugPageRendererTest extends TestCase
 
         self::assertStringContainsString(
             '<div class="context-panel">request-1|app.context|dark|'
-                . '/debug/view?tag=request-1&panel=app.context|/debug|'
-                . '/debug/download?tag=request-1&file=report.txt</div>',
+                    . '/debug/view?tag=request-1&panel=app.context|/debug|'
+                    . '/debug/download?tag=request-1&file=report.txt|stored</div>',
             $html,
-            'Context-aware panels must receive the tag, panel, theme, and adapter-owned URLs.',
+            'Context-aware panels must receive the tag, panel, theme, adapter-owned URLs, and sibling payloads.',
         );
         self::assertStringNotContainsString(
             'legacy fallback',
