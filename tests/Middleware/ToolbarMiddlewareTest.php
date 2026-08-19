@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
+use RuntimeException;
 use Yii3\Debug\Collector\RequestCollector;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Tests\Support\CustomCollector;
@@ -71,6 +72,76 @@ final class ToolbarMiddlewareTest extends TestCase
             $store->readSnapshot($response->getHeaderLine('X-Debug-Tag')),
             'AJAX request snapshot must still be persisted.',
         );
+    }
+
+    public function testProcessDoesNotInjectIntoBodylessOrNonHtmlResponses(): void
+    {
+        $cases = [
+            ['GET', new Response(103, ['Content-Type' => 'text/html'], '')],
+            ['HEAD', new Response(200, ['Content-Type' => 'text/html'], '<p>Head</p>')],
+            ['GET', new Response(204, ['Content-Type' => 'text/html'], '')],
+            ['GET', new Response(205, ['Content-Type' => 'text/html'], '')],
+            ['GET', new Response(304, ['Content-Type' => 'text/html'], '')],
+            ['GET', new Response(200, ['Content-Type' => 'application/json'], '{"ok":true}')],
+        ];
+
+        foreach ($cases as [$method, $expectedResponse]) {
+            [$middleware, $store] = $this->middleware();
+            $request = new ServerRequest(
+                $method,
+                'https://example.test/data',
+                serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+            );
+            $response = $middleware->process($request, $this->handler($expectedResponse));
+
+            self::assertSame(
+                (string) $expectedResponse->getBody(),
+                (string) $response->getBody(),
+                "{$method} {$expectedResponse->getStatusCode()} body must remain unchanged.",
+            );
+            self::assertStringNotContainsString(
+                '<yii-debug-toolbar',
+                (string) $response->getBody(),
+                "{$method} {$expectedResponse->getStatusCode()} response must not receive toolbar markup.",
+            );
+            self::assertNotSame(
+                '',
+                $response->getHeaderLine('X-Debug-Tag'),
+                "{$method} {$expectedResponse->getStatusCode()} response must retain debug metadata.",
+            );
+            self::assertNotNull(
+                $store->readSnapshot($response->getHeaderLine('X-Debug-Tag')),
+                "{$method} {$expectedResponse->getStatusCode()} request must remain inspectable.",
+            );
+        }
+    }
+
+    public function testProcessInjectsToolbarIntoRedirectAndErrorHtmlResponses(): void
+    {
+        foreach ([302, 404, 500] as $statusCode) {
+            [$middleware] = $this->middleware();
+            $response = $middleware->process(
+                new ServerRequest(
+                    'GET',
+                    'https://example.test/status',
+                    serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+                ),
+                $this->handler(
+                    new Response(
+                        $statusCode,
+                        ['Content-Type' => 'text/html'],
+                        "<html><body>Status {$statusCode}</body></html>",
+                    ),
+                ),
+            );
+
+            self::assertSame($statusCode, $response->getStatusCode(), 'Middleware must preserve response status.');
+            self::assertStringContainsString(
+                '<yii-debug-toolbar',
+                (string) $response->getBody(),
+                "HTML response {$statusCode} must remain debuggable.",
+            );
+        }
     }
 
     public function testProcessIsolatesFailingCustomCollector(): void
@@ -141,6 +212,54 @@ final class ToolbarMiddlewareTest extends TestCase
             $snapshot->panels['app.example'] ?? null,
             'Custom collector payload must be persisted by its application ID.',
         );
+    }
+
+    public function testProcessShutsDownCollectorsWhenTheHandlerThrows(): void
+    {
+        $collector = new CustomCollector();
+        [$middleware, $store] = $this->middleware([$collector]);
+        $handler = new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                throw new RuntimeException('Application failed.');
+            }
+        };
+
+        try {
+            $middleware->process(
+                new ServerRequest(
+                    'GET',
+                    'https://example.test/failure',
+                    serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+                ),
+                $handler,
+            );
+
+            self::fail('Unhandled application exceptions must propagate.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Application failed.', $exception->getMessage(), 'Original exception must propagate.');
+        }
+
+        self::assertSame(1, $collector->startupCount, 'Collector must start before request handling.');
+        self::assertSame(1, $collector->shutdownCount, 'Collector must shut down after an application exception.');
+        self::assertSame([], $store->loadManifest(), 'A request without a response must not persist a partial snapshot.');
+    }
+
+    public function testProcessSkipsCaptureForDeniedClients(): void
+    {
+        [$middleware, $store] = $this->middleware(accessChecker: new LocalAccessChecker(['127.0.0.2']));
+        $response = $middleware->process(
+            new ServerRequest(
+                'GET',
+                'https://example.test/',
+                serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+            ),
+            $this->handler(new Response(200, ['Content-Type' => 'text/html'], '<p>Home</p>')),
+        );
+
+        self::assertSame('<p>Home</p>', (string) $response->getBody(), 'Denied response body must remain unchanged.');
+        self::assertFalse($response->hasHeader('X-Debug-Tag'), 'Denied response must not expose debug metadata.');
+        self::assertSame([], $store->loadManifest(), 'Denied request must not create a debug snapshot.');
     }
 
     /**
@@ -227,8 +346,10 @@ final class ToolbarMiddlewareTest extends TestCase
      *
      * @return array{ToolbarMiddleware, SnapshotStore} Configured middleware and its store.
      */
-    private function middleware(array $collectors = []): array
-    {
+    private function middleware(
+        array $collectors = [],
+        LocalAccessChecker $accessChecker = new LocalAccessChecker(),
+    ): array {
         $aliases = $this->aliases();
         $requestCollector = new RequestCollector();
         $store = new SnapshotStore($this->path, 0o777, null);
@@ -242,7 +363,7 @@ final class ToolbarMiddlewareTest extends TestCase
                 $aliases->get('@yii3DebugViews'),
             ),
             new HttpFactory(),
-            new LocalAccessChecker(),
+            $accessChecker,
         );
 
         return [$middleware, $store];

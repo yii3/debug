@@ -30,6 +30,10 @@ and can inject the toolbar into every eligible HTML response:
 The toolbar and debug pages accept requests from `127.0.0.1` and `::1` by default. Configure `allowedIPs` explicitly
 when the development application runs behind a trusted container or proxy.
 
+The drawer moves focus to its close control and restores the activating chip when closed. Use `Escape` to close it,
+or resize it from the keyboard with `ArrowUp`, `ArrowDown`, `Home`, and `End` on the separator. Eligible HTML
+redirect and error responses remain inspectable; bodyless, AJAX, and non-HTML responses are captured without markup.
+
 The default path is `runtime/debug`, relative to the application's working directory. Override it in application
 parameters when an absolute runtime path is required:
 

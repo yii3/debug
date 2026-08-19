@@ -13,6 +13,9 @@ use RuntimeException;
  */
 final class CustomCollector implements CollectorInterface
 {
+    public int $shutdownCount = 0;
+    public int $startupCount = 0;
+
     public function __construct(
         private readonly string $collectorId = 'app.example',
         private readonly bool $failCapture = false,
@@ -32,7 +35,13 @@ final class CustomCollector implements CollectorInterface
         return $this->collectorId;
     }
 
-    public function shutdown(): void {}
+    public function shutdown(): void
+    {
+        $this->shutdownCount++;
+    }
 
-    public function startup(): void {}
+    public function startup(): void
+    {
+        $this->startupCount++;
+    }
 }

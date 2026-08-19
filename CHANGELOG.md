@@ -14,3 +14,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(ui): capture Yii3 profiler spans and add complete Profiling and Timeline panels.
 - feat(ui): align User guest, RBAC, searchable switch grids, CSRF validation, and safe identity restoration.
 - feat(ui): add Yii3 Dump, Mail, and Queue collectors, panels, secure actions, decorators, redaction, tests, and demo fixtures.
+- fix(ui): harden response capture and ship the keyboard-resizable drawer with focus restoration.
