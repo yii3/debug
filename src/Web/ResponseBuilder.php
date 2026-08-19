@@ -8,6 +8,7 @@ use JsonException;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, StreamFactoryInterface};
 
 use function json_encode;
+use function str_replace;
 
 use const JSON_PRETTY_PRINT;
 use const JSON_THROW_ON_ERROR;
@@ -23,6 +24,20 @@ final readonly class ResponseBuilder
         private ResponseFactoryInterface $responseFactory,
         private StreamFactoryInterface $streamFactory,
     ) {}
+
+    /**
+     * Creates an attachment response for captured debugger artifacts.
+     */
+    public function download(
+        string $content,
+        string $filename,
+        string $contentType = 'application/octet-stream',
+    ): ResponseInterface {
+        $safeFilename = str_replace(["\r", "\n", '"'], '', $filename);
+
+        return $this->response($content, $contentType, 200)
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $safeFilename . '"');
+    }
 
     /**
      * Creates an HTML response.

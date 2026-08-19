@@ -49,7 +49,7 @@ final class RouteConfigTest extends TestCase
         $routes = require dirname(__DIR__) . '/config/routes.php';
 
         self::assertIsArray($routes, 'Route configuration must return an array.');
-        self::assertCount(7, $routes, 'Configuration must expose the debug, EXPLAIN, and identity endpoints.');
+        self::assertCount(9, $routes, 'Configuration must expose the debug, panel-action, EXPLAIN, and identity endpoints.');
 
         foreach ($routes as $route) {
             self::assertInstanceOf(Route::class, $route, 'Every configured endpoint must be a router route.');
@@ -60,14 +60,18 @@ final class RouteConfigTest extends TestCase
         $toolbar = $routes[2] ?? null;
         $phpInfo = $routes[3] ?? null;
         $dbExplain = $routes[4] ?? null;
-        $setIdentity = $routes[5] ?? null;
-        $resetIdentity = $routes[6] ?? null;
+        $downloadMail = $routes[5] ?? null;
+        $queueJob = $routes[6] ?? null;
+        $setIdentity = $routes[7] ?? null;
+        $resetIdentity = $routes[8] ?? null;
 
         self::assertInstanceOf(Route::class, $history, 'History endpoint must be present.');
         self::assertInstanceOf(Route::class, $snapshot, 'Snapshot endpoint must be present.');
         self::assertInstanceOf(Route::class, $toolbar, 'Toolbar endpoint must be present.');
         self::assertInstanceOf(Route::class, $phpInfo, 'Phpinfo endpoint must be present.');
         self::assertInstanceOf(Route::class, $dbExplain, 'Database EXPLAIN endpoint must be present.');
+        self::assertInstanceOf(Route::class, $downloadMail, 'Mail download endpoint must be present.');
+        self::assertInstanceOf(Route::class, $queueJob, 'Queue job endpoint must be present.');
         self::assertInstanceOf(Route::class, $setIdentity, 'Set-identity endpoint must be present.');
         self::assertInstanceOf(Route::class, $resetIdentity, 'Reset-identity endpoint must be present.');
         self::assertSame('/developer/debug', $history->getData('pattern'), 'History route must use the prefix.');
@@ -78,6 +82,16 @@ final class RouteConfigTest extends TestCase
             '/developer/debug/db-explain',
             $dbExplain->getData('pattern'),
             'Database EXPLAIN route must use the prefix.',
+        );
+        self::assertSame(
+            '/developer/debug/download-mail',
+            $downloadMail->getData('pattern'),
+            'Mail download route must use the prefix.',
+        );
+        self::assertSame(
+            '/developer/debug/queue-job',
+            $queueJob->getData('pattern'),
+            'Queue job route must use the prefix.',
         );
         self::assertSame(
             '/developer/debug/set-identity',

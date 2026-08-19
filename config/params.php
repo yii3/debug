@@ -16,6 +16,24 @@ return [
         'userSwitch' => [
             'enabled' => false,
         ],
+        'dump' => [
+            'depth' => 10,
+            'highlight' => true,
+        ],
+        'mail' => [
+            'path' => 'runtime/debug/mail',
+        ],
+        'queue' => [
+            'redactedProperties' => [
+                'accessToken',
+                'apiKey',
+                'authorization',
+                'password',
+                'refreshToken',
+                'secret',
+                'token',
+            ],
+        ],
         'viewPath' => '@yii3DebugViews',
         'toolbar' => [
             'skipUrls' => [],

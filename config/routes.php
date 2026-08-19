@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 use Yii3\Debug\Action\{
     DbExplainAction,
+    DownloadMailAction,
     HistoryAction,
     PhpInfoAction,
+    QueueJobAction,
     ResetIdentityAction,
     SetIdentityAction,
     SnapshotAction,
     ToolbarDataAction,
 };
 use Yiisoft\Db\Connection\ConnectionInterface;
+use Yiisoft\Mailer\MailerInterface;
+use Yiisoft\Queue\QueueProducerInterface;
 use Yiisoft\Router\Route;
 use Yiisoft\User\CurrentUser;
 
@@ -37,6 +41,18 @@ if (interface_exists(ConnectionInterface::class)) {
     $routes[] = Route::get($prefix . '/db-explain')
         ->action(DbExplainAction::class)
         ->name('yii3-debug/db-explain');
+}
+
+if (interface_exists(MailerInterface::class)) {
+    $routes[] = Route::get($prefix . '/download-mail')
+        ->action(DownloadMailAction::class)
+        ->name('yii3-debug/download-mail');
+}
+
+if (interface_exists(QueueProducerInterface::class)) {
+    $routes[] = Route::get($prefix . '/queue-job')
+        ->action(QueueJobAction::class)
+        ->name('yii3-debug/queue-job');
 }
 
 if (class_exists(CurrentUser::class)) {

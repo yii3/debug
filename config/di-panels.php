@@ -7,12 +7,15 @@ use Yii3\Debug\Panel\{
     AssetPanel,
     ConfigPanel,
     DbPanel,
+    DumpPanel,
     EventPanel,
     LogPanel,
+    MailPanel,
     PanelGrid,
     ProfilingPanel,
     RequestPanel,
     RouterPanel,
+    QueuePanel,
     TimelinePanel,
     UserPanel,
 };
@@ -22,6 +25,8 @@ use Yii3\Debug\Web\{CsrfRequestValidator, DebugPageRenderer};
 use Yiisoft\Csrf\CsrfTokenInterface;
 use Yiisoft\Db\Profiler\ProfilerInterface;
 use Yiisoft\Definitions\{Reference, ReferencesArray};
+use Yiisoft\Mailer\MailerInterface;
+use Yiisoft\Queue\QueueProducerInterface;
 use Yiisoft\User\CurrentUser;
 
 /**
@@ -30,6 +35,8 @@ use Yiisoft\User\CurrentUser;
 $config = $params['yii3/debug'];
 
 $hasDb = interface_exists(ProfilerInterface::class);
+$hasMail = interface_exists(MailerInterface::class);
+$hasQueue = interface_exists(QueueProducerInterface::class);
 $hasUser = class_exists(CurrentUser::class);
 
 $corePanels = [
@@ -42,6 +49,9 @@ $corePanels = [
     Reference::to(ProfilingPanel::class),
     Reference::to(TimelinePanel::class),
     Reference::to(EventPanel::class),
+    ...($hasMail ? [Reference::to(MailPanel::class)] : []),
+    ...($hasQueue ? [Reference::to(QueuePanel::class)] : []),
+    Reference::to(DumpPanel::class),
     Reference::to(AssetPanel::class),
 ];
 

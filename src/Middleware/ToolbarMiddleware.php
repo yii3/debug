@@ -8,7 +8,7 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\{RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
-use Yii3\Debug\Collector\{DbCollector, RequestCollector};
+use Yii3\Debug\Collector\{DbCollector, MailCollector, RequestCollector};
 use Yii3\Debug\Web\{LocalAccessChecker, ToolbarRenderer};
 
 use function is_float;
@@ -105,6 +105,8 @@ final class ToolbarMiddleware implements MiddlewareInterface
             $serverParams = $request->getServerParams();
             $ip = $serverParams['REMOTE_ADDR'] ?? '';
             $dbCollector = $this->coordinator->collector('db');
+            $mailCollector = $this->coordinator->collector('mail');
+            $mailFiles = $mailCollector instanceof MailCollector ? $mailCollector->messageFiles() : [];
             $summary = new RequestSummary(
                 tag: $tag,
                 url: (string) $request->getUri(),
@@ -115,13 +117,19 @@ final class ToolbarMiddleware implements MiddlewareInterface
                 statusCode: $response->getStatusCode(),
                 sqlCount: $dbCollector instanceof DbCollector ? $dbCollector->queryCount() : 0,
                 excessiveCallersCount: 0,
-                mailCount: 0,
-                mailFiles: [],
+                mailCount: count($mailFiles),
+                mailFiles: $mailFiles,
                 processingTime: $processingTime,
                 peakMemory: memory_get_peak_usage(true),
             );
 
-            $this->store->writeSnapshot($this->coordinator->capture($summary), $this->historySize);
+            $removed = $this->store->writeSnapshot($this->coordinator->capture($summary), $this->historySize);
+
+            if ($mailCollector instanceof MailCollector) {
+                foreach ($removed as $removedSummary) {
+                    $mailCollector->removeFiles($removedSummary->mailFiles);
+                }
+            }
         } finally {
             $this->coordinator->shutdown();
         }
