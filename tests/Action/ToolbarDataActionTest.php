@@ -30,6 +30,42 @@ final class ToolbarDataActionTest extends TestCase
 {
     private string $path = '';
 
+    public function testInvokeRejectsForbiddenMissingMalformedAndExpiredTags(): void
+    {
+        $store = new SnapshotStore($this->path, 0o777, null);
+        $action = $this->action($store);
+
+        $forbidden = $action(
+            new ServerRequest(
+                'GET',
+                'https://example.test/debug/toolbar?tag=request-1',
+                serverParams: ['REMOTE_ADDR' => '203.0.113.10'],
+            ),
+        );
+        self::assertSame(403, $forbidden->getStatusCode(), 'Unknown clients must not read toolbar data.');
+
+        foreach (
+            [
+                [[], 400, 'A debug snapshot tag is required.'],
+                [['tag' => ['request-1']], 400, 'A debug snapshot tag is required.'],
+                [['tag' => '../index'], 404, 'Debug snapshot not found.'],
+                [['tag' => 'expired-request'], 404, 'Debug snapshot not found.'],
+            ] as [$query, $statusCode, $message]
+        ) {
+            $request = (new ServerRequest(
+                'GET',
+                'https://example.test/debug/toolbar',
+                serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+            ))->withQueryParams($query);
+            $response = $action($request);
+            $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+            self::assertSame($statusCode, $response->getStatusCode(), 'Invalid toolbar tag must fail safely.');
+            self::assertIsArray($payload, 'Invalid toolbar tag response must decode to an object.');
+            self::assertSame($message, $payload['error'] ?? null, 'Invalid toolbar tag must explain the failure.');
+        }
+    }
+
     public function testInvokeReturnsToolbarDataForKnownTag(): void
     {
         $store = new SnapshotStore($this->path, 0o777, null);
@@ -54,6 +90,26 @@ final class ToolbarDataActionTest extends TestCase
         self::assertSame('application/json; charset=UTF-8', $response->getHeaderLine('Content-Type'), 'Media type must be JSON.');
         self::assertIsArray($payload, 'Response body must decode to an object.');
         self::assertSame('request-1', $payload['tag'] ?? null, 'Payload must identify the requested snapshot.');
+    }
+
+    public function testInvokeTreatsCorruptSnapshotAsUnavailable(): void
+    {
+        $store = new SnapshotStore($this->path, 0o777, null);
+        $store->writeSnapshot($this->snapshot(), 10);
+        file_put_contents($this->path . '/request-1.json', '{not-json');
+        $request = (new ServerRequest(
+            'GET',
+            'https://example.test/debug/toolbar?tag=request-1',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        ))->withQueryParams(['tag' => 'request-1']);
+        $response = ($this->action($store))($request);
+
+        self::assertSame(404, $response->getStatusCode(), 'Corrupt snapshot must be treated as unavailable.');
+        self::assertSame(
+            ['error' => 'Debug snapshot not found.'],
+            json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR),
+            'Corrupt snapshot must return the stable toolbar error payload.',
+        );
     }
 
     /**
@@ -82,6 +138,18 @@ final class ToolbarDataActionTest extends TestCase
         }
 
         parent::tearDown();
+    }
+
+    private function action(SnapshotStore $store): ToolbarDataAction
+    {
+        $factory = new HttpFactory();
+
+        return new ToolbarDataAction(
+            $store,
+            new LocalAccessChecker(),
+            new ToolbarDataFactory($this->assetManager()),
+            new ResponseBuilder($factory, $factory),
+        );
     }
 
     /**

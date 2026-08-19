@@ -198,7 +198,15 @@ final class ToolbarMiddleware implements MiddlewareInterface
      */
     private function shouldInject(ServerRequestInterface $request, ResponseInterface $response): bool
     {
-        if (strtoupper($request->getMethod()) === 'HEAD' || $response->getStatusCode() === 204) {
+        $statusCode = $response->getStatusCode();
+
+        if (
+            strtoupper($request->getMethod()) === 'HEAD'
+            || $statusCode < 200
+            || $statusCode === 204
+            || $statusCode === 205
+            || $statusCode === 304
+        ) {
             return false;
         }
 

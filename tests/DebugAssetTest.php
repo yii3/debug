@@ -16,6 +16,14 @@ use Yii3\Debug\{DebugAsset, ToolbarAsset};
 #[Group('toolbar')]
 final class DebugAssetTest extends TestCase
 {
+    public function testDefinitionsShipSharedFocusRuntime(): void
+    {
+        self::assertFileExists(
+            dirname(__DIR__) . '/vendor/php-forge/debug-core/resources/assets/dist/js/focus.min.js',
+            'Published shared assets must include the toolbar keyboard-focus runtime.',
+        );
+    }
+
     public function testDefinitionUsesCoreAssets(): void
     {
         $asset = new DebugAsset();
