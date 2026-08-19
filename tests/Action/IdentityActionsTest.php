@@ -9,7 +9,8 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\{ResetIdentityAction, SetIdentityAction};
 use Yii3\Debug\Tests\Support\{FakeIdentity, UserFixture};
-use Yii3\Debug\Web\{LocalAccessChecker, ResponseBuilder};
+use Yii3\Debug\Web\{CsrfRequestValidator, LocalAccessChecker, ResponseBuilder};
+use Yiisoft\Csrf\StubCsrfToken;
 
 use function json_decode;
 
@@ -34,8 +35,45 @@ final class IdentityActionsTest extends TestCase
 
         $response = $action($this->request([]));
 
-        self::assertSame(403, $response->getStatusCode(), 'Deny-by-default must reject the reset.');
-        self::assertSame('2', $fixture->currentUser->getId(), 'Impersonation must stay in place.');
+        self::assertSame(
+            403,
+            $response->getStatusCode(),
+            'Deny-by-default must reject the reset.',
+        );
+        self::assertSame(
+            '2',
+            $fixture->currentUser->getId(),
+            'Impersonation must stay in place.',
+        );
+    }
+
+    public function testResetIdentityRejectsInvalidCsrfToken(): void
+    {
+        $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
+
+        $fixture->currentUser->login(new FakeIdentity('1'));
+        $fixture->userSwitch->setUser(new FakeIdentity('2'));
+
+        $action = new ResetIdentityAction(
+            new LocalAccessChecker(),
+            $this->responseBuilder(),
+            $fixture->userSwitch,
+            true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
+        );
+
+        $response = $action($this->request(['_csrf' => 'invalid']));
+
+        self::assertSame(
+            422,
+            $response->getStatusCode(),
+            'Invalid CSRF data must reject the reset.',
+        );
+        self::assertSame(
+            '2',
+            $fixture->currentUser->getId(),
+            'Rejected reset must retain impersonation.',
+        );
     }
 
     public function testResetIdentityRestoresMainUser(): void
@@ -59,6 +97,35 @@ final class IdentityActionsTest extends TestCase
         self::assertIsArray($payload, 'Response body must decode to an object.');
         self::assertSame('1', $payload['id'] ?? null, 'Response must expose the restored main ID.');
         self::assertSame('1', $fixture->currentUser->getId(), 'Main identity must be restored.');
+    }
+
+    public function testSetIdentityAcceptsAValidCsrfToken(): void
+    {
+        $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
+
+        $fixture->currentUser->login(new FakeIdentity('1'));
+
+        $action = new SetIdentityAction(
+            new LocalAccessChecker(),
+            $this->responseBuilder(),
+            $fixture->userSwitch,
+            $fixture->repository,
+            true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
+        );
+
+        $response = $action($this->request(['user_id' => '2', '_csrf' => 'valid']));
+
+        self::assertSame(
+            200,
+            $response->getStatusCode(),
+            'A valid CSRF token must allow the switch.',
+        );
+        self::assertSame(
+            '2',
+            $fixture->currentUser->getId(),
+            'Validated request must switch identity.',
+        );
     }
 
     public function testSetIdentityDeniesDisallowedClientIp(): void
@@ -114,6 +181,27 @@ final class IdentityActionsTest extends TestCase
 
         self::assertSame(403, $response->getStatusCode(), 'Deny-by-default must reject the switch.');
         self::assertSame('1', $fixture->currentUser->getId(), 'Identity must stay unchanged.');
+    }
+
+    public function testSetIdentityRejectsInvalidCsrfToken(): void
+    {
+        $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
+
+        $fixture->currentUser->login(new FakeIdentity('1'));
+
+        $action = new SetIdentityAction(
+            new LocalAccessChecker(),
+            $this->responseBuilder(),
+            $fixture->userSwitch,
+            $fixture->repository,
+            true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
+        );
+
+        $response = $action($this->request(['user_id' => '2', '_csrf' => 'invalid']));
+
+        self::assertSame(422, $response->getStatusCode(), 'Invalid CSRF data must reject the switch.');
+        self::assertSame('1', $fixture->currentUser->getId(), 'Rejected switch must retain the main identity.');
     }
 
     public function testSetIdentityRejectsMissingUserIdParameter(): void

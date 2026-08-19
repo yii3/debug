@@ -40,21 +40,25 @@ final readonly class PanelGrid
      * Renders removable active-filter pills with panel-aware URLs.
      *
      * @param array<string, string> $activeFilters Active filter values.
+     * @param array<string, string> $persistentFilters Internal group values retained when filters are removed.
      */
     public function activeFilterBanner(
         PanelRenderContext $context,
         string $prefix,
         array $activeFilters,
+        array $persistentFilters = [],
     ): string {
         return ActiveFilterBanner::render(
             $activeFilters,
-            static function (array $without) use ($context, $prefix): string {
+            static function (array $without) use ($context, $persistentFilters, $prefix): string {
                 $params = $context->queryParams;
                 $group = is_array($params[$prefix] ?? null) ? $params[$prefix] : [];
 
                 foreach ($without as $attribute) {
                     unset($group[$attribute]);
                 }
+
+                $group = [...$group, ...$persistentFilters];
 
                 if ($group === []) {
                     unset($params[$prefix]);
@@ -167,12 +171,13 @@ final readonly class PanelGrid
      * Renders the shared page-size selector in its current request state.
      *
      * @param array<array-key, mixed> $queryParams Parsed query parameters.
+     * @param positive-int $default Default page size selected when the query omits `per-page`.
      */
-    public function pageSizeSelector(array $queryParams): string
+    public function pageSizeSelector(array $queryParams, int $default = PageSize::DEFAULT): string
     {
         $raw = QueryInput::scalar($queryParams, 'per-page');
 
-        return PageSize::selectorHtml(PageSize::current($raw));
+        return PageSize::selectorHtml(PageSize::current($raw, $default));
     }
 
     /**
@@ -180,12 +185,17 @@ final readonly class PanelGrid
      *
      * @param array<array-key, array<array-key, mixed>|object> $rows Pre-filtered rows.
      * @param array<array-key, mixed> $queryParams Parsed query parameters.
+     * @param positive-int $defaultPageSize Page size used when the query omits `per-page`.
      *
      * @return OffsetPaginator<array-key, array<array-key, mixed>|object>
      */
-    public function paginator(array $rows, array $queryParams, Sort $sort): OffsetPaginator
-    {
-        $pageSize = PageSize::resolve(QueryInput::scalar($queryParams, 'per-page'));
+    public function paginator(
+        array $rows,
+        array $queryParams,
+        Sort $sort,
+        int $defaultPageSize = PageSize::DEFAULT,
+    ): OffsetPaginator {
+        $pageSize = PageSize::resolve(QueryInput::scalar($queryParams, 'per-page'), $defaultPageSize);
 
         $effectiveSize = $pageSize ?? max(1, count($rows));
 

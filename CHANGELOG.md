@@ -12,3 +12,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: consume shared UI contracts, retain data facades, and add context-aware panel rendering.
 - feat(ui): align Logs, Database, Events, EXPLAIN, and toolbar links with Yii2.
 - feat(ui): capture Yii3 profiler spans and add complete Profiling and Timeline panels.
+- feat(ui): align User guest, RBAC, searchable switch grids, CSRF validation, and safe identity restoration.

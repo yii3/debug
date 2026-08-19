@@ -15,7 +15,8 @@ use function is_string;
  * Switches the authenticated Yii3 identity while tracking the original (main) user in the session.
  *
  * The session key `main_user` holds the pre-switch user ID; access decisions keep evaluating against that main
- * user, so an impersonated identity can never escalate the switch itself.
+ * user, so an impersonated identity can never escalate the switch itself. Identity changes delegate to
+ * {@see CurrentUser::login()}, which regenerates the attached session ID before persisting the new authentication ID.
  *
  * Usage example:
  *
@@ -85,7 +86,7 @@ final readonly class UserSwitch
      * $userSwitch->reset();
      * ```
      *
-     * @throws RuntimeException When the stored main identity can no longer be resolved.
+     * @throws RuntimeException When the stored main identity cannot be resolved or restored.
      */
     public function reset(): void
     {
@@ -101,8 +102,11 @@ final readonly class UserSwitch
             throw new RuntimeException('The main user identity could not be restored.');
         }
 
+        if (!$this->currentUser->login($identity) || $this->currentUser->getId() !== $identity->getId()) {
+            throw new RuntimeException('The main user identity could not be restored.');
+        }
+
         $this->session->remove(self::SESSION_KEY);
-        $this->currentUser->login($identity);
     }
 
     /**
@@ -115,22 +119,21 @@ final readonly class UserSwitch
      * ```
      *
      * @param IdentityInterface $identity Identity to impersonate.
+     *
+     * @throws RuntimeException When the identity cannot be authenticated.
      */
     public function setUser(IdentityInterface $identity): void
     {
         $mainId = $this->getMainUserId();
 
+        if (!$this->currentUser->login($identity) || $this->currentUser->getId() !== $identity->getId()) {
+            throw new RuntimeException('The requested user identity could not be authenticated.');
+        }
+
         if ($mainId !== null && $identity->getId() === $mainId) {
             $this->session->remove(self::SESSION_KEY);
-            $this->currentUser->login($identity);
-
-            return;
-        }
-
-        if ($mainId !== null && !is_string($this->session->get(self::SESSION_KEY))) {
+        } elseif ($mainId !== null && !is_string($this->session->get(self::SESSION_KEY))) {
             $this->session->set(self::SESSION_KEY, $mainId);
         }
-
-        $this->currentUser->login($identity);
     }
 }
