@@ -7,19 +7,25 @@ use Yii3\Debug\Collector\{
     AssetCollector,
     ConfigCollector,
     DbCollector,
+    DumpCollector,
     EventCollector,
     LogCollector,
+    MailCollector,
     ProfilingCollector,
+    QueueCollector,
     RequestCollector,
     RouterCollector,
     TimelineCollector,
     UserCollector,
 };
 use Yiisoft\Db\Profiler\ProfilerInterface as DbProfilerInterface;
-use Yiisoft\Definitions\{Reference, ReferencesArray};
+use Yiisoft\Definitions\{DynamicReference, Reference, ReferencesArray};
+use Yiisoft\Mailer\MailerInterface;
 use Yiisoft\Profiler\ProfilerInterface as ApplicationProfilerInterface;
+use Yiisoft\Queue\QueueProducerInterface;
 use Yiisoft\Rbac\ManagerInterface;
 use Yiisoft\User\CurrentUser;
+use Yiisoft\Aliases\Aliases;
 
 /**
  * @var array<string, mixed> $params
@@ -27,6 +33,8 @@ use Yiisoft\User\CurrentUser;
 $config = $params['yii3/debug'];
 
 $hasDb = interface_exists(DbProfilerInterface::class);
+$hasMail = interface_exists(MailerInterface::class);
+$hasQueue = interface_exists(QueueProducerInterface::class);
 $hasUser = class_exists(CurrentUser::class);
 
 return [
@@ -41,6 +49,30 @@ return [
             'profiler' => Reference::to(ApplicationProfilerInterface::class),
         ],
     ],
+    DumpCollector::class => [
+        '__construct()' => [
+            'depth' => $config['dump']['depth'],
+            'highlight' => $config['dump']['highlight'],
+        ],
+    ],
+    ...($hasMail ? [
+        MailCollector::class => [
+            '__construct()' => [
+                'mailPath' => DynamicReference::to(
+                    static fn(Aliases $aliases): string => $aliases->get($config['mail']['path']),
+                ),
+                'dirMode' => $config['dirMode'],
+                'fileMode' => $config['fileMode'],
+            ],
+        ],
+    ] : []),
+    ...($hasQueue ? [
+        QueueCollector::class => [
+            '__construct()' => [
+                'redactedProperties' => $config['queue']['redactedProperties'],
+            ],
+        ],
+    ] : []),
     ...($hasUser ? [
         UserCollector::class => [
             '__construct()' => [
@@ -60,6 +92,9 @@ return [
                 Reference::to(ProfilingCollector::class),
                 Reference::to(TimelineCollector::class),
                 Reference::to(EventCollector::class),
+                ...($hasMail ? [Reference::to(MailCollector::class)] : []),
+                ...($hasQueue ? [Reference::to(QueueCollector::class)] : []),
+                Reference::to(DumpCollector::class),
                 Reference::to(AssetCollector::class),
                 ...ReferencesArray::from($config['collectors']),
             ],

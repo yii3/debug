@@ -9,12 +9,14 @@ use InvalidArgumentException;
 use JsonException;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Panel\Queue\{JobRecord, QueueCardRenderer};
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, HistorySummary};
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
 use Throwable;
+use UIAwesome\Html\Palpable\A;
 use Yii3\Debug\Asset\Icon;
 use Yii3\Debug\Grid\{PrefixedDropdownFilter, PrefixedTextFilter};
 use Yii3\Debug\Panel\{ContextAwarePanelInterface, PanelGrid, PanelInterface};
@@ -233,6 +235,51 @@ final readonly class DebugPageRenderer
         );
 
         return $this->renderPage($view, 'PHP Info', $content, $sidebar, $theme, null, null, 'History', 'View request history', $this->routePrefix);
+    }
+
+    /**
+     * Renders one queue record inside the standard debugger shell.
+     *
+     * @param array<string, RequestSummary> $manifest Captured requests ordered newest first.
+     */
+    public function queueJob(
+        DebugSnapshot $snapshot,
+        JobRecord $record,
+        array $manifest = [],
+        string $theme = 'light',
+    ): string {
+        $summary = $snapshot->summary;
+        $view = $this->view->withClearedState();
+        $backUrl = $this->viewUrl($summary->tag, 'queue');
+        $content = '<div class="yii-debug-queue-job-page"><header class="yii-debug-queue-job-head">'
+            . A::tag()
+                ->class('yii-debug-btn yii-debug-btn-ghost')
+                ->content('← Back to grid')
+                ->href($backUrl)
+                ->render()
+            . '</header>' . QueueCardRenderer::renderItem($record)->render() . '</div>';
+        $sidebar = SidebarRenderer::render(
+            new SidebarView(
+                snapshot: $this->viewSnapshotCard($summary, $manifest, 'queue'),
+                navItems: $this->viewNavItems($snapshot, 'queue'),
+            ),
+        );
+        $configUrl = array_key_exists('config', $snapshot->panels)
+            ? $this->viewUrl($summary->tag, 'config')
+            : null;
+
+        return $this->renderPage(
+            $view,
+            'Queue job',
+            $content,
+            $sidebar,
+            $theme,
+            self::memory($summary->peakMemory),
+            $this->icon->render('config'),
+            'Config',
+            'Open configuration',
+            $configUrl,
+        );
     }
 
     /**

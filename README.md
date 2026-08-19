@@ -73,6 +73,74 @@ Panels that need the current tag, query parameters, theme, or adapter-generated 
 `PHPForge\Debug\Panel\PanelRenderContext`; the original `PanelInterface::render()` contract remains available as the
 context-free fallback and existing panels require no changes.
 
+## Dump, Mail, and Queue panels
+
+The Dump panel is always available. Inject `Yii3\Debug\Collector\DumpCollector` and submit values explicitly during
+the request:
+
+```php
+final readonly class ExampleAction
+{
+    public function __construct(private \Yii3\Debug\Collector\DumpCollector $dumpCollector) {}
+
+    public function __invoke(): void
+    {
+        $this->dumpCollector->collect(['phase' => 5, 'ready' => true]);
+    }
+}
+```
+
+The Mail panel is registered when `yiisoft/mailer` is installed. Wrap the application's concrete mailer so successful
+and failed messages are captured after the transport reports its outcome:
+
+```php
+use Yii3\Debug\Integration\MailerInterfaceProxy;
+use Yiisoft\Definitions\Reference;
+use Yiisoft\Mailer\{FileMailer, MailerInterface};
+
+return [
+    MailerInterfaceProxy::class => [
+        '__construct()' => [
+            'decorated' => Reference::to(FileMailer::class),
+        ],
+    ],
+    MailerInterface::class => MailerInterfaceProxy::class,
+];
+```
+
+Captured `.eml` files are stored under `yii3/debug.mail.path`. Downloads require an allowed client IP plus a valid
+snapshot tag and message sequence; arbitrary file names are never accepted by the route.
+
+The Queue panel is registered when `yiisoft/queue` is installed. Decorate the concrete producer, and optionally the
+worker, while keeping the public interfaces bound to the decorators:
+
+```php
+use App\Queue\{AppQueueProducer, AppQueueWorker};
+use Yii3\Debug\Integration\{QueueProducerDecorator, QueueWorkerDecorator};
+use Yiisoft\Definitions\Reference;
+use Yiisoft\Queue\QueueProducerInterface;
+use Yiisoft\Queue\Worker\WorkerInterface;
+
+return [
+    QueueProducerDecorator::class => [
+        '__construct()' => [
+            'decorated' => Reference::to(AppQueueProducer::class),
+        ],
+    ],
+    QueueProducerInterface::class => QueueProducerDecorator::class,
+    QueueWorkerDecorator::class => [
+        '__construct()' => [
+            'decorated' => Reference::to(AppQueueWorker::class),
+        ],
+    ],
+    WorkerInterface::class => QueueWorkerDecorator::class,
+];
+```
+
+Queue payload values under `accessToken`, `apiKey`, `authorization`, `password`, `refreshToken`, `secret`, and `token`
+are redacted by default. Replace `yii3/debug.queue.redactedProperties` to use an application-specific exact,
+case-insensitive key list.
+
 ## Architecture
 
 - `php-forge/debug-core` owns collector contracts and coordination, failure isolation, strict snapshot hydration, JSON
