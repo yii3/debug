@@ -12,10 +12,12 @@ use Yii3\Debug\Collector\{
     ProfilingCollector,
     RequestCollector,
     RouterCollector,
+    TimelineCollector,
     UserCollector,
 };
-use Yiisoft\Db\Profiler\ProfilerInterface;
+use Yiisoft\Db\Profiler\ProfilerInterface as DbProfilerInterface;
 use Yiisoft\Definitions\{Reference, ReferencesArray};
+use Yiisoft\Profiler\ProfilerInterface as ApplicationProfilerInterface;
 use Yiisoft\Rbac\ManagerInterface;
 use Yiisoft\User\CurrentUser;
 
@@ -24,11 +26,21 @@ use Yiisoft\User\CurrentUser;
  */
 $config = $params['yii3/debug'];
 
-$hasDb = interface_exists(ProfilerInterface::class);
+$hasDb = interface_exists(DbProfilerInterface::class);
 $hasUser = class_exists(CurrentUser::class);
 
 return [
-    ...($hasDb ? [ProfilerInterface::class => Reference::to(DbCollector::class)] : []),
+    ...($hasDb ? [DbProfilerInterface::class => Reference::to(DbCollector::class)] : []),
+    DbCollector::class => [
+        '__construct()' => [
+            'profiler' => Reference::to(ApplicationProfilerInterface::class),
+        ],
+    ],
+    ProfilingCollector::class => [
+        '__construct()' => [
+            'profiler' => Reference::to(ApplicationProfilerInterface::class),
+        ],
+    ],
     ...($hasUser ? [
         UserCollector::class => [
             '__construct()' => [
@@ -46,6 +58,7 @@ return [
                 Reference::to(LogCollector::class),
                 ...($hasDb ? [Reference::to(DbCollector::class)] : []),
                 Reference::to(ProfilingCollector::class),
+                Reference::to(TimelineCollector::class),
                 Reference::to(EventCollector::class),
                 Reference::to(AssetCollector::class),
                 ...ReferencesArray::from($config['collectors']),
