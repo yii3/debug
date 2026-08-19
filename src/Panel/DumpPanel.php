@@ -103,7 +103,7 @@ final readonly class DumpPanel implements ContextAwarePanelInterface
                                     ->content('0'),
                                 ' dumps captured',
                             ),
-                        )
+                    )
                     ->render()
                 . EmptyState::card(
                     'No variables dumped in this request',
