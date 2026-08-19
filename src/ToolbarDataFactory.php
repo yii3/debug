@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Yii3\Debug;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Data\FilterPrefix;
+use PHPForge\Debug\Helper\LogLevel;
 use PHPForge\Debug\Panel\Config\ConfigSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure};
 use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
@@ -122,6 +124,10 @@ final readonly class ToolbarDataFactory
                 continue;
             }
 
+            if ($id === 'log') {
+                $chips = $this->logFilterLinks($tag, $chips);
+            }
+
             $items[] = new ToolbarPanel(
                 id: $id,
                 title: $id === 'profiling' ? '' : $panel->name(),
@@ -216,6 +222,47 @@ final readonly class ToolbarDataFactory
                 ),
             ],
         );
+    }
+
+    /**
+     * Adds Yii3 panel URLs to the built-in error and warning chips without coupling the panel to adapter routing.
+     *
+     * @param list<ToolbarItem> $chips Log toolbar chips.
+     *
+     * @return list<ToolbarItem> Chips with filter links attached where applicable.
+     */
+    private function logFilterLinks(string $tag, array $chips): array
+    {
+        $linked = [];
+
+        foreach ($chips as $chip) {
+            $level = match ($chip->label) {
+                'Errors' => LogLevel::ERROR,
+                'Warnings' => LogLevel::WARNING,
+                default => null,
+            };
+
+            if ($level === null) {
+                $linked[] = $chip;
+
+                continue;
+            }
+
+            $linked[] = new ToolbarItem(
+                value: $chip->value,
+                label: $chip->label,
+                icon: $chip->icon,
+                status: $chip->status,
+                title: $chip->title,
+                url: $this->urls->panel(
+                    $tag,
+                    'log',
+                    [FilterPrefix::LOG => ['level' => (string) $level]],
+                ),
+            );
+        }
+
+        return $linked;
     }
 
     /**

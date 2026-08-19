@@ -76,7 +76,9 @@ final readonly class UserPanel implements PanelInterface
     public function render(array $payload): string
     {
         $data = UserSnapshot::fromArray($payload, 'panels.user')->data();
+
         $rawIdentity = is_array($data['identity'] ?? null) ? $data['identity'] : [];
+
         $identity = [];
 
         foreach ($rawIdentity as $key => $value) {
@@ -88,7 +90,10 @@ final readonly class UserPanel implements PanelInterface
         $tabs = [
             [
                 'label' => 'Identity',
-                'content' => H1::tag()->class('yii-debug-sr-only')->content('User')->render()
+                'content' => H1::tag()
+                    ->class('yii-debug-sr-only')
+                    ->content('User')
+                    ->render()
                     . UserIdentityRenderer::render($view),
             ],
         ];
@@ -112,16 +117,16 @@ final readonly class UserPanel implements PanelInterface
         $id = UserSnapshot::fromArray($payload, 'panels.user')->data()['id'] ?? null;
 
         if ($id === null) {
-            return [new ToolbarItem(value: 'Guest', label: 'User')];
+            return [new ToolbarItem(value: 'Guest')];
         }
 
         $idLabel = is_scalar($id) ? (string) $id : 'unknown';
 
         if ($this->userSwitch === null || $this->userSwitch->isMainUser()) {
-            return [new ToolbarItem(value: $idLabel, label: $this->name(), status: 'info')];
+            return [new ToolbarItem(value: $idLabel, status: 'info')];
         }
 
-        return [new ToolbarItem(value: $idLabel, label: $this->name() . ' switching', status: 'warning')];
+        return [new ToolbarItem(value: $idLabel, label: 'switching', status: 'warning')];
     }
 
     /**
@@ -189,9 +194,13 @@ final readonly class UserPanel implements PanelInterface
     private function renderRbac(array $data): string
     {
         $rolesVal = $data['roles'] ?? null;
+
         $rolesRaw = is_array($rolesVal) ? $rolesVal : [];
+
         $permissionsVal = $data['permissions'] ?? null;
+
         $permissionsRaw = is_array($permissionsVal) ? $permissionsVal : [];
+
         $html = '';
 
         if ($rolesRaw !== []) {
@@ -278,7 +287,9 @@ final readonly class UserPanel implements PanelInterface
         }
 
         $identities = $this->identities?->identities() ?? [];
+
         $hasGrid = $identities !== [];
+
         $header = Div::tag()
             ->class('yii-debug-section-header')
             ->html(H2::tag()->content('Switch user'), $this->renderResetForm());

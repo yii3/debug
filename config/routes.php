@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Yii3\Debug\Action\{
+    DbExplainAction,
     HistoryAction,
     PhpInfoAction,
     ResetIdentityAction,
@@ -10,6 +11,7 @@ use Yii3\Debug\Action\{
     SnapshotAction,
     ToolbarDataAction,
 };
+use Yiisoft\Db\Connection\ConnectionInterface;
 use Yiisoft\Router\Route;
 use Yiisoft\User\CurrentUser;
 
@@ -30,6 +32,12 @@ $routes = [
         ->action(PhpInfoAction::class)
         ->name('yii3-debug/php-info'),
 ];
+
+if (interface_exists(ConnectionInterface::class)) {
+    $routes[] = Route::get($prefix . '/db-explain')
+        ->action(DbExplainAction::class)
+        ->name('yii3-debug/db-explain');
+}
 
 if (class_exists(CurrentUser::class)) {
     $routes[] = Route::post($prefix . '/set-identity')

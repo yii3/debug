@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Panel;
 
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
+use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\EventPanel;
 use Yii3\Debug\Tests\Support\GridFactory;
+use Yii3\Debug\Web\DebugUrlGenerator;
+
+use function preg_match;
+use function substr_count;
 
 /**
  * Unit tests for {@see EventPanel} presenting the shared Events payload and its count chip.
@@ -38,6 +43,39 @@ final class EventPanelTest extends TestCase
 
         self::assertStringContainsString('2', $html, 'Summary must render the event count.');
         self::assertStringContainsString('App\Event\UserCreated', $html, 'Event class must be listed.');
+    }
+
+    public function testRenderWithContextProvidesTheCompleteFilteredEventGrid(): void
+    {
+        $html = (new EventPanel(GridFactory::panelGrid()))->renderWithContext(
+            $this->snapshot()->jsonSerialize(),
+            new PanelRenderContext(
+                'request-1',
+                'event',
+                ['Event' => ['name' => 'MailSent']],
+                'light',
+                new DebugUrlGenerator(),
+            ),
+        );
+
+        preg_match('/<tbody>(.*?)<\/tbody>/s', $html, $matches);
+        $body = $matches[1] ?? '';
+
+        self::assertSame(0, substr_count($body, 'UserCreated'), 'The unmatched event must be filtered out.');
+        self::assertSame(
+            3,
+            substr_count($body, 'MailSent'),
+            'The matching name and two-tone class label must remain visible.',
+        );
+        self::assertSame(1, substr_count($html, '>Name<'), 'The event-name column must be present once.');
+        self::assertSame(1, substr_count($html, '>Class<'), 'The event-class column must be present once.');
+        self::assertSame(1, substr_count($html, '>Static<'), 'The static-event column must be present once.');
+        self::assertSame(
+            1,
+            substr_count($html, 'class="yii-debug-active-filters"'),
+            'The active-filter banner must render once.',
+        );
+        self::assertSame(1, substr_count($html, 'yii-debug-grid-footer'), 'The full grid footer must render once.');
     }
 
     public function testToolbarItemsExposeEventCountChip(): void

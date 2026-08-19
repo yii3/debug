@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Panel;
 
 use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
+use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Tests\Support\GridFactory;
+use Yii3\Debug\Web\DebugUrlGenerator;
+
+use function preg_match;
+use function substr_count;
 
 /**
  * Unit tests for {@see DbPanel} presenting the shared Database payload and its query chips.
@@ -37,6 +42,39 @@ final class DbPanelTest extends TestCase
         self::assertStringContainsString('queries', $html, 'Summary must label the query total.');
         self::assertStringContainsString('SELECT', $html, 'Query type must be listed.');
         self::assertStringContainsString('users', $html, 'Query text must be listed.');
+    }
+
+    public function testRenderWithContextProvidesFiltersColumnsPaginationAndExplain(): void
+    {
+        $html = (new DbPanel(GridFactory::panelGrid()))->renderWithContext(
+            $this->snapshot()->jsonSerialize(),
+            new PanelRenderContext(
+                'request-1',
+                'db',
+                ['Db' => ['type' => 'SELECT']],
+                'light',
+                new DebugUrlGenerator(),
+            ),
+        );
+
+        preg_match('/<tbody>(.*?)<\/tbody>/s', $html, $matches);
+        $body = $matches[1] ?? '';
+
+        self::assertSame(1, substr_count($body, 'users'), 'Only the SELECT query must remain visible.');
+        self::assertSame(0, substr_count($body, 'logs'), 'The INSERT query must be filtered out.');
+        self::assertSame(
+            2,
+            substr_count($html, '>Rows<'),
+            'The rows column and page-size label must both be present.',
+        );
+        self::assertSame(1, substr_count($html, '>Dup<'), 'The duplicate column must be present once.');
+        self::assertSame(1, substr_count($html, 'Toggle EXPLAIN output'), 'The supported query must expose EXPLAIN.');
+        self::assertSame(
+            1,
+            substr_count($html, '/debug/db-explain?tag=request-1&amp;seq=0'),
+            'The EXPLAIN toggle must use the adapter-owned action URL.',
+        );
+        self::assertSame(1, substr_count($html, 'yii-debug-grid-footer'), 'The full grid footer must render once.');
     }
 
     public function testToolbarItemsExposeQueryCountAndTotalTimeChips(): void
