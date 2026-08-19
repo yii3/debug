@@ -3,6 +3,7 @@
         "Yiisoft\\Auth\\IdentityInterface",
         "Yiisoft\\Auth\\IdentityRepositoryInterface",
         "Yiisoft\\Csrf\\CsrfTokenInterface",
+        "Yiisoft\\Db\\Connection\\ConnectionInterface",
         "Yiisoft\\Db\\Profiler\\ContextInterface",
         "Yiisoft\\Db\\Profiler\\ProfilerInterface",
         "Yiisoft\\Session\\SessionInterface",

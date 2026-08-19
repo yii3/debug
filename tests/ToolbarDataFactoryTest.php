@@ -6,12 +6,13 @@ namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
 use PHPForge\Debug\Panel\Config\ConfigSnapshot;
+use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Yii3\Debug\Panel\{ConfigPanel, ProfilingPanel, RequestPanel};
-use Yii3\Debug\Tests\Support\CustomPanel;
+use Yii3\Debug\Panel\{ConfigPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Tests\Support\{CustomPanel, GridFactory};
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -26,6 +27,37 @@ use const PHP_VERSION;
 #[Group('toolbar')]
 final class ToolbarDataFactoryTest extends TestCase
 {
+    public function testCreateAddsFilteredPanelLinksToLogSeverityChips(): void
+    {
+        $factory = new ToolbarDataFactory(
+            $this->assetManager(),
+            [new LogPanel(GridFactory::panelGrid())],
+        );
+        $snapshot = new DebugSnapshot(
+            $this->summary(),
+            [
+                'log' => LogSnapshot::capture(
+                    [
+                        ['error', 0x01, 'app', 1.0, [], 0],
+                        ['warning', 0x02, 'app', 2.0, [], 0],
+                    ],
+                )->jsonSerialize(),
+            ],
+            [],
+        );
+        $items = $factory->create($snapshot)->jsonSerialize()['items'][0]['items'] ?? [];
+
+        self::assertSame(
+            '/debug/view?tag=request-1&panel=log&Log%5Blevel%5D=1',
+            $items[1]['url'] ?? null,
+            'The Errors chip must deep-link to the error-level filter.',
+        );
+        self::assertSame(
+            '/debug/view?tag=request-1&panel=log&Log%5Blevel%5D=2',
+            $items[2]['url'] ?? null,
+            'The Warnings chip must deep-link to the warning-level filter.',
+        );
+    }
     public function testCreateAggregatesPanelChipsInRegistrationOrder(): void
     {
         $factory = new ToolbarDataFactory(

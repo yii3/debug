@@ -105,7 +105,7 @@ final class UserPanelTest extends TestCase
 
         self::assertCount(1, $items, 'Exactly one identity chip must be emitted.');
         self::assertSame('Guest', $items[0]->value, 'Guest chip must read `Guest`.');
-        self::assertSame('User', $items[0]->label, 'Guest chip must be labelled `User`.');
+        self::assertNull($items[0]->label, 'Panel title must identify the guest chip without a duplicate label.');
     }
 
     public function testToolbarItemsShowInfoChipForMainUser(): void
@@ -122,7 +122,7 @@ final class UserPanelTest extends TestCase
 
         self::assertNotNull($chip, 'Exactly one identity chip must be emitted.');
         self::assertSame('7', $chip->value, 'Chip value must expose the identity ID.');
-        self::assertSame('User', $chip->label, 'Main-user chip must be labelled `User`.');
+        self::assertNull($chip->label, 'Panel title must identify the main-user chip without a duplicate label.');
         self::assertSame('info', $chip->status, 'Main-user chip must use info status.');
     }
 
@@ -141,7 +141,7 @@ final class UserPanelTest extends TestCase
 
         self::assertNotNull($chip, 'Exactly one identity chip must be emitted.');
         self::assertSame('2', $chip->value, 'Chip value must expose the impersonated ID.');
-        self::assertSame('User switching', $chip->label, 'Chip must be labelled as switching.');
+        self::assertSame('switching', $chip->label, 'Chip must add only the non-duplicated switching state.');
         self::assertSame('warning', $chip->status, 'Switching chip must use warning status.');
     }
 }

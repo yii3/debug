@@ -37,6 +37,20 @@ final class GridUrlCreatorTest extends TestCase
         );
     }
 
+    public function testInvokeMergesParametersFromAPanelBaseUrlWithoutDuplicatingThem(): void
+    {
+        $creator = new GridUrlCreator(
+            '/debug/view?tag=request-1&panel=log',
+            ['Log' => ['level' => '1'], 'tag' => 'stale-request', 'panel' => 'event'],
+        );
+
+        self::assertSame(
+            '/debug/view?tag=request-1&panel=log&Log%5Blevel%5D=1&sort=-time',
+            $creator([], ['sort' => '-time']),
+            'Context-owned tag and panel parameters must override stale request values exactly once.',
+        );
+    }
+
     public function testInvokeRemovesNullParameters(): void
     {
         $creator = new GridUrlCreator('/debug', ['page' => '3', 'per-page' => '25']);

@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Panel;
 
 use PHPForge\Debug\Panel\Log\LogSnapshot;
+use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\LogPanel;
 use Yii3\Debug\Tests\Support\GridFactory;
+use Yii3\Debug\Web\DebugUrlGenerator;
+
+use function substr_count;
 
 /**
  * Unit tests for {@see LogPanel} presenting the shared Logs payload and its count chips.
@@ -37,6 +41,32 @@ final class LogPanelTest extends TestCase
         self::assertStringContainsString('messages', $html, 'Summary must label the message total.');
         self::assertStringContainsString('database went away', $html, 'Message text must be listed.');
         self::assertStringContainsString('app.db', $html, 'Category must be listed.');
+    }
+
+    public function testRenderWithContextProvidesTheCompleteFilteredGridContract(): void
+    {
+        $html = (new LogPanel(GridFactory::panelGrid()))->renderWithContext(
+            $this->snapshot()->jsonSerialize(),
+            new PanelRenderContext(
+                'request-1',
+                'log',
+                ['Log' => ['level' => '1'], 'per-page' => '25'],
+                'light',
+                new DebugUrlGenerator(),
+            ),
+        );
+
+        self::assertSame(1, substr_count($html, 'database went away'), 'Only the error row must remain visible.');
+        self::assertSame(0, substr_count($html, 'slow query detected'), 'The warning row must be filtered out.');
+        self::assertSame(1, substr_count($html, 'yii-debug-row-danger'), 'The error row must keep its danger state.');
+        self::assertSame(1, substr_count($html, 'Since previous'), 'The relative-time column must be present once.');
+        self::assertSame(
+            1,
+            substr_count($html, 'class="yii-debug-active-filters"'),
+            'The active-filter banner must render once.',
+        );
+        self::assertSame(1, substr_count($html, 'yii-debug-grid-footer'), 'The full grid footer must render once.');
+        self::assertSame(1, substr_count($html, 'option value="25" selected'), 'The page-size selector must restore 25.');
     }
 
     public function testToolbarItemsExposeOnlyTotalWithoutErrorsAndWarnings(): void

@@ -6,7 +6,9 @@ namespace Yii3\Debug\Grid;
 
 use Stringable;
 
+use function explode;
 use function http_build_query;
+use function parse_str;
 
 /**
  * Builds grid navigation URLs (sort, pager, page size) on top of the current request's path and query parameters.
@@ -17,14 +19,24 @@ use function http_build_query;
  */
 final readonly class GridUrlCreator
 {
+    private string $path;
+
+    /**
+     * @var array<array-key, mixed>
+     */
+    private array $queryParams;
+
     /**
      * @param string $path Path of the current request (for example, `/debug`).
      * @param array<array-key, mixed> $queryParams Parsed query parameters of the current request.
      */
-    public function __construct(
-        private string $path,
-        private array $queryParams,
-    ) {}
+    public function __construct(string $path, array $queryParams)
+    {
+        [$normalizedPath, $baseQuery] = self::splitUrl($path);
+
+        $this->path = $normalizedPath;
+        $this->queryParams = $baseQuery + $queryParams;
+    }
 
     /**
      * Returns the URL for the given grid state.
@@ -56,5 +68,23 @@ final readonly class GridUrlCreator
         }
 
         return $this->path . '?' . http_build_query($query);
+    }
+
+    /**
+     * Splits a base URL into its path and parsed query so context-owned parameters are merged exactly once.
+     *
+     * @return array{string, array<array-key, mixed>}
+     */
+    private static function splitUrl(string $url): array
+    {
+        $parts = explode('?', $url, 2);
+
+        $query = [];
+
+        if (isset($parts[1])) {
+            parse_str($parts[1], $query);
+        }
+
+        return [$parts[0], $query];
     }
 }

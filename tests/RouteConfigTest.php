@@ -49,7 +49,7 @@ final class RouteConfigTest extends TestCase
         $routes = require dirname(__DIR__) . '/config/routes.php';
 
         self::assertIsArray($routes, 'Route configuration must return an array.');
-        self::assertCount(6, $routes, 'Configuration must expose the debug and identity endpoints.');
+        self::assertCount(7, $routes, 'Configuration must expose the debug, EXPLAIN, and identity endpoints.');
 
         foreach ($routes as $route) {
             self::assertInstanceOf(Route::class, $route, 'Every configured endpoint must be a router route.');
@@ -59,19 +59,26 @@ final class RouteConfigTest extends TestCase
         $snapshot = $routes[1] ?? null;
         $toolbar = $routes[2] ?? null;
         $phpInfo = $routes[3] ?? null;
-        $setIdentity = $routes[4] ?? null;
-        $resetIdentity = $routes[5] ?? null;
+        $dbExplain = $routes[4] ?? null;
+        $setIdentity = $routes[5] ?? null;
+        $resetIdentity = $routes[6] ?? null;
 
         self::assertInstanceOf(Route::class, $history, 'History endpoint must be present.');
         self::assertInstanceOf(Route::class, $snapshot, 'Snapshot endpoint must be present.');
         self::assertInstanceOf(Route::class, $toolbar, 'Toolbar endpoint must be present.');
         self::assertInstanceOf(Route::class, $phpInfo, 'Phpinfo endpoint must be present.');
+        self::assertInstanceOf(Route::class, $dbExplain, 'Database EXPLAIN endpoint must be present.');
         self::assertInstanceOf(Route::class, $setIdentity, 'Set-identity endpoint must be present.');
         self::assertInstanceOf(Route::class, $resetIdentity, 'Reset-identity endpoint must be present.');
         self::assertSame('/developer/debug', $history->getData('pattern'), 'History route must use the prefix.');
         self::assertSame('/developer/debug/view', $snapshot->getData('pattern'), 'Snapshot route must use the prefix.');
         self::assertSame('/developer/debug/toolbar', $toolbar->getData('pattern'), 'Toolbar route must use the prefix.');
         self::assertSame('/developer/debug/php-info', $phpInfo->getData('pattern'), 'Phpinfo route must use the prefix.');
+        self::assertSame(
+            '/developer/debug/db-explain',
+            $dbExplain->getData('pattern'),
+            'Database EXPLAIN route must use the prefix.',
+        );
         self::assertSame(
             '/developer/debug/set-identity',
             $setIdentity->getData('pattern'),
