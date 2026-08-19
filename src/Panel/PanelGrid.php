@@ -62,7 +62,7 @@ final readonly class PanelGrid
      *
      * @param string $path Path of the current request used as the base for grid navigation URLs.
      * @param array<array-key, mixed> $queryParams Parsed query parameters of the current request.
-     * @param string $prefix Filter-group prefix (one of the {@see \Yii3\Debug\Data\FilterPrefix} constants).
+     * @param string $prefix Filter-group prefix (one of the {@see \PHPForge\Debug\Data\FilterPrefix} constants).
      * @param string $filterFormId Identifier of the hidden filter form the filter inputs bind to.
      *
      * @return GridView<array<array-key, mixed>|object> Preconfigured grid.

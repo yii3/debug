@@ -7,6 +7,8 @@ namespace Yii3\Debug\Web;
 use Closure;
 use InvalidArgumentException;
 use JsonException;
+use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
+use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
@@ -14,9 +16,8 @@ use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, 
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
 use Throwable;
 use Yii3\Debug\Asset\Icon;
-use Yii3\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use Yii3\Debug\Grid\{PrefixedDropdownFilter, PrefixedTextFilter};
-use Yii3\Debug\Panel\{PanelGrid, PanelInterface};
+use Yii3\Debug\Panel\{ContextAwarePanelInterface, PanelGrid, PanelInterface};
 use Yii3\Debug\Search\HistorySearch;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\AssetManager;
@@ -76,6 +77,7 @@ final readonly class DebugPageRenderer
     private array $panels;
 
     private string $routePrefix;
+    private DebugUrlGenerator $urls;
     private string $viewPath;
 
     /**
@@ -98,7 +100,8 @@ final readonly class DebugPageRenderer
         string $routePrefix = '/debug',
         iterable $panels = [],
     ) {
-        $this->routePrefix = rtrim($routePrefix, '/');
+        $this->urls = new DebugUrlGenerator($routePrefix);
+        $this->routePrefix = $this->urls->routePrefix();
         $this->viewPath = rtrim($aliases->get($viewPath), '/');
         $resolvedPanels = [];
 
@@ -270,7 +273,20 @@ final readonly class DebugPageRenderer
 
         if ($panel !== 'summary' && isset($this->panels[$panel]) && array_key_exists($panel, $snapshot->panels)) {
             try {
-                $panelContent = $this->panels[$panel]->render($payload);
+                $renderer = $this->panels[$panel];
+
+                $panelContent = $renderer instanceof ContextAwarePanelInterface
+                    ? $renderer->renderWithContext(
+                        $payload,
+                        new PanelRenderContext(
+                            $summary->tag,
+                            $panel,
+                            $queryParams,
+                            $theme,
+                            $this->urls,
+                        ),
+                    )
+                    : $renderer->render($payload);
             } catch (Throwable $throwable) {
                 $renderError = $throwable->getMessage();
             }
@@ -864,6 +880,6 @@ final readonly class DebugPageRenderer
      */
     private function viewUrl(string $tag, string $panel): string
     {
-        return $this->routePrefix . '/view?tag=' . rawurlencode($tag) . '&panel=' . rawurlencode($panel);
+        return $this->urls->panel($tag, $panel);
     }
 }

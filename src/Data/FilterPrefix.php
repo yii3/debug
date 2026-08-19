@@ -4,33 +4,34 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Data;
 
+use PHPForge\Debug\Data\FilterPrefix as CoreFilterPrefix;
+
 /**
- * Freezes the `Prefix[attribute]` query-parameter vocabulary shared by every debug-panel filter form.
+ * Backward-compatible Yii3 facade for the shared filter-prefix vocabulary.
  *
- * Both adapters emit filter inputs named `<prefix>[<attribute>]` using these constants, so deep links and the shared
- * JavaScript filter bridge behave identically across frameworks.
+ * New integrations should use {@see CoreFilterPrefix} directly.
  */
 final class FilterPrefix
 {
-    public const string ASSET = 'Asset';
+    public const string ASSET = CoreFilterPrefix::ASSET;
 
-    public const string DB = 'Db';
+    public const string DB = CoreFilterPrefix::DB;
 
-    public const string DEBUG = 'Debug';
+    public const string DEBUG = CoreFilterPrefix::DEBUG;
 
-    public const string EVENT = 'Event';
+    public const string EVENT = CoreFilterPrefix::EVENT;
 
-    public const string LOG = 'Log';
+    public const string LOG = CoreFilterPrefix::LOG;
 
-    public const string MAIL = 'Mail';
+    public const string MAIL = CoreFilterPrefix::MAIL;
 
-    public const string PROFILE = 'Profile';
+    public const string PROFILE = CoreFilterPrefix::PROFILE;
 
-    public const string QUEUE = 'Queue';
+    public const string QUEUE = CoreFilterPrefix::QUEUE;
 
-    public const string ROUTER = 'Router';
+    public const string ROUTER = CoreFilterPrefix::ROUTER;
 
-    public const string TIMELINE = 'Timeline';
+    public const string TIMELINE = CoreFilterPrefix::TIMELINE;
 
-    public const string USER = 'User';
+    public const string USER = CoreFilterPrefix::USER;
 }

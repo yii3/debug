@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Data;
 
+use PHPForge\Debug\Data\FilterEngine as CoreFilterEngine;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
@@ -141,10 +142,13 @@ final class FilterEngineTest extends TestCase
     public function testFilterRejectsMalformedInternalConditions(): void
     {
         $engine = new FilterEngine();
+        $core = new CoreFilterEngine();
 
-        $property = new ReflectionProperty($engine, 'conditions');
+        $property = new ReflectionProperty($core, 'conditions');
+        $facadeProperty = new ReflectionProperty($engine, 'engine');
 
-        $property->setValue($engine, [['attribute' => 'value', 'operator' => '>', 'value' => '5']]);
+        $property->setValue($core, [['attribute' => 'value', 'operator' => '>', 'value' => '5']]);
+        $facadeProperty->setValue($engine, $core);
 
         self::assertSame(
             [],
@@ -152,7 +156,7 @@ final class FilterEngineTest extends TestCase
             'Numeric conditions with a non-float boundary must reject the row.',
         );
 
-        $property->setValue($engine, [['attribute' => 'value', 'operator' => 'same', 'value' => 5.0]]);
+        $property->setValue($core, [['attribute' => 'value', 'operator' => 'same', 'value' => 5.0]]);
 
         self::assertSame(
             [],

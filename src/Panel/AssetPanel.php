@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Helper\EmptyState;
-use PHPForge\Debug\Panel\Asset\{AssetBundleNormalizer, AssetCardRenderer, AssetSnapshot};
+use PHPForge\Debug\Panel\Asset\{AssetBundleNormalizer, AssetSectionRenderer, AssetSnapshot};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\P;
-use UIAwesome\Html\Heading\H1;
-use UIAwesome\Html\Phrasing\{Span, Strong};
-use UIAwesome\Html\Root\Header;
 
 use function count;
 use function is_array;
@@ -41,32 +38,17 @@ final readonly class AssetPanel implements PanelInterface
     {
         $snapshot = AssetSnapshot::fromArray($payload, 'panels.asset');
         $summary = (new AssetBundleNormalizer())->normalize($snapshot->bundles());
-        $title = H1::tag()->class('yii-debug-sr-only')->content('Asset Bundles')->render();
+        $header = AssetSectionRenderer::renderHeader($summary);
 
         if ($summary->isEmpty()) {
-            return $title
+            return $header
                 . EmptyState::card(
                     'No asset bundles registered',
                     P::tag()->content('This request did not register bundles on the Yii3 asset manager.'),
                 );
         }
 
-        $header = Header::tag()
-            ->class('yii-debug-grid-summary')
-            ->html(
-                Span::tag()->html(Strong::tag()->content((string) $summary->totalBundles), ' bundles'),
-                Span::tag()->class('yii-debug-grid-summary-sep')->content('·'),
-                Span::tag()->html(Strong::tag()->content((string) $summary->totalCss), ' css'),
-                Span::tag()->class('yii-debug-grid-summary-sep')->content('·'),
-                Span::tag()->html(Strong::tag()->content((string) $summary->totalJs), ' js'),
-            );
-        $cards = '';
-
-        foreach ($summary->bundles as $bundle) {
-            $cards .= AssetCardRenderer::renderCard($bundle, $summary)->render();
-        }
-
-        return $title . $header->render() . $cards;
+        return $header . AssetSectionRenderer::renderInventory($summary);
     }
 
     public function toolbarItems(array $payload): array
