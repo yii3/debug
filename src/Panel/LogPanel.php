@@ -118,9 +118,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface
 
         $summaryItems = [
             Span::tag()
-                ->html(Strong::tag()
+                ->html(
+                    Strong::tag()
                 ->content(
-                    (string) $counts->total),
+                    (string) $counts->total
+                ),
                     ' messages',
                 ),
         ];
@@ -134,7 +136,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface
                 ->html(
                     Strong::tag()
                         ->content((string) $counts->errors),
-                        ' errors',
+                    ' errors',
                 );
         }
 
@@ -156,9 +158,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface
                 ->class('yii-debug-grid-summary-sep')
                 ->content('·');
             $summaryItems[] = Span::tag()
-                ->html(Strong::tag()
+                ->html(
+                    Strong::tag()
                 ->content(
-                    (string) $counts->info),
+                    (string) $counts->info
+                ),
                     ' info',
                 );
         }
