@@ -21,7 +21,7 @@ final readonly class ResetIdentityAction
      * @param ResponseBuilder $responseBuilder JSON response factory.
      * @param UserSwitch $userSwitch Identity switch service.
      * @param bool $switchEnabled Whether user switching is enabled (deny by default).
-     * @param CsrfRequestValidator|null $csrfValidator Optional CSRF validator for state-changing requests.
+     * @param CsrfRequestValidator|null $csrfValidator CSRF validator, or `null` while switching is disabled.
      */
     public function __construct(
         private LocalAccessChecker $accessChecker,
@@ -48,7 +48,7 @@ final readonly class ResetIdentityAction
             return $this->responseBuilder->json(['error' => 'User switching is not allowed.'], 403);
         }
 
-        if ($this->csrfValidator !== null && !$this->csrfValidator->validates($request)) {
+        if ($this->csrfValidator === null || !$this->csrfValidator->validates($request)) {
             return $this->responseBuilder->json(['error' => 'Invalid CSRF token.'], 422);
         }
 

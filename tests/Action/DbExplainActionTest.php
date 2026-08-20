@@ -118,6 +118,30 @@ final class DbExplainActionTest extends TestCase
         );
     }
 
+    public function testInvokeReturnsNotFoundForCorruptDatabasePanel(): void
+    {
+        $store = new SnapshotStore($this->path, 0o777, null);
+        $valid = $this->snapshot();
+        $store->writeSnapshot(new DebugSnapshot($valid->summary, ['db' => ['corrupt' => true]], []), 10);
+        $factory = new HttpFactory();
+        $action = new DbExplainAction(
+            $store,
+            new LocalAccessChecker(),
+            self::createStub(ConnectionInterface::class),
+            new ResponseBuilder($factory, $factory),
+        );
+        $request = (new ServerRequest(
+            'GET',
+            'https://example.test/debug/db-explain',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        ))->withQueryParams(['tag' => 'request-1', 'seq' => '7']);
+
+        $response = $action($request);
+
+        self::assertSame(404, $response->getStatusCode(), 'A corrupt database panel must not become a server error.');
+        self::assertSame('Database query not found.', (string) $response->getBody(), 'Corruption response must be stable.');
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

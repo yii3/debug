@@ -68,13 +68,14 @@ final readonly class QueuePanel implements ContextAwarePanelInterface
 
         $snapshot = QueueSnapshot::fromArray($payload, 'panels.queue');
         $summary = QueueSummary::fromRecords($snapshot->entries());
-        $items = [new ToolbarItem(value: (string) $summary->totalEvents())];
+        $items = [new ToolbarItem(value: (string) $summary->totalEvents(), id: 'total')];
 
         if ($summary->hasErrors()) {
             $items[] = new ToolbarItem(
                 value: (string) $summary->totalErrors(),
                 label: 'Errors',
                 status: 'danger',
+                id: 'errors',
             );
         }
 

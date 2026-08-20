@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Middleware;
 
+use Closure;
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\{RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
+use Throwable;
 use Yii3\Debug\Collector\{DbCollector, MailCollector, RequestCollector};
 use Yii3\Debug\Web\{LocalAccessChecker, ToolbarRenderer};
 
@@ -31,6 +34,11 @@ use function uniqid;
  */
 final class ToolbarMiddleware implements MiddlewareInterface
 {
+    private readonly CapturePolicy $capturePolicy;
+    /**
+     * @var (Closure(Throwable): void)|null
+     */
+    private readonly Closure|null $cleanupFailureHandler;
     private readonly string $routePrefix;
 
     /**
@@ -44,6 +52,9 @@ final class ToolbarMiddleware implements MiddlewareInterface
      * @param list<string> $skipUrls Same-origin URLs excluded from AJAX tracking.
      * @param string $position Initial toolbar position.
      * @param int $height Initial drawer height percentage.
+     * @param CapturePolicy|null $capturePolicy Persistent-capture policy, or `null` to use secure defaults.
+     * @param (callable(\Throwable): void)|null $cleanupFailureHandler Optional observer for cleanup failures
+     * suppressed behind a primary application failure.
      */
     public function __construct(
         private readonly CollectorCoordinator $coordinator,
@@ -57,7 +68,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         private readonly array $skipUrls = [],
         private readonly string $position = 'bottom',
         private readonly int $height = 50,
+        CapturePolicy|null $capturePolicy = null,
+        callable|null $cleanupFailureHandler = null,
     ) {
+        $this->capturePolicy = $capturePolicy ?? new CapturePolicy();
+        $this->cleanupFailureHandler = $cleanupFailureHandler === null
+            ? null
+            : Closure::fromCallable($cleanupFailureHandler);
         $this->routePrefix = rtrim($routePrefix, '/');
     }
 
@@ -85,14 +102,10 @@ final class ToolbarMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $this->coordinator->startup();
-        $this->requestCollector->collectRequest($request);
-
         $tag = str_replace('.', '', uniqid('', true));
         $start = self::requestStart($request);
-        $response = null;
-
-        try {
+        $response = $this->coordinator->run(function () use ($handler, $request, $start, $tag): ResponseInterface {
+            $this->requestCollector->collectRequest($request);
             $response = $handler->handle($request);
 
             // Force lazy response bodies (for example the deferred view renderer) to materialize now, so
@@ -109,7 +122,7 @@ final class ToolbarMiddleware implements MiddlewareInterface
             $mailFiles = $mailCollector instanceof MailCollector ? $mailCollector->messageFiles() : [];
             $summary = new RequestSummary(
                 tag: $tag,
-                url: (string) $request->getUri(),
+                url: $this->capturePolicy->redactUrl((string) $request->getUri()),
                 ajax: strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest',
                 method: $request->getMethod(),
                 ip: is_string($ip) ? $ip : '',
@@ -123,16 +136,36 @@ final class ToolbarMiddleware implements MiddlewareInterface
                 peakMemory: memory_get_peak_usage(true),
             );
 
-            $removed = $this->store->writeSnapshot($this->coordinator->capture($summary), $this->historySize);
+            try {
+                $removed = $this->store->writeSnapshot($this->coordinator->capture($summary), $this->historySize);
+            } catch (Throwable $failure) {
+                if ($mailCollector instanceof MailCollector) {
+                    $mailCollector->removeFiles($mailFiles);
+                }
+
+                throw $failure;
+            }
 
             if ($mailCollector instanceof MailCollector) {
                 foreach ($removed as $removedSummary) {
                     $mailCollector->removeFiles($removedSummary->mailFiles);
                 }
+
+                $manifest = $this->store->loadManifestResult();
+
+                if ($manifest->error === null) {
+                    $referencedFiles = [];
+
+                    foreach ($manifest->entries as $entry) {
+                        $referencedFiles = [...$referencedFiles, ...$entry->mailFiles];
+                    }
+
+                    $mailCollector->reconcileFiles($referencedFiles);
+                }
             }
-        } finally {
-            $this->coordinator->shutdown();
-        }
+
+            return $response;
+        }, $this->cleanupFailureHandler);
 
         $viewUrl = $this->viewUrl($tag);
         $response = $response

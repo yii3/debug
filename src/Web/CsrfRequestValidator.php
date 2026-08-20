@@ -11,19 +11,19 @@ use function is_array;
 use function is_string;
 
 /**
- * Validates optional CSRF protection for debugger POST actions.
+ * Validates CSRF protection for debugger POST actions and rejects requests when no token service is available.
  */
 final readonly class CsrfRequestValidator
 {
     public function __construct(private CsrfTokenInterface|null $token = null) {}
 
     /**
-     * Returns whether the request carries a valid token, or `true` when CSRF protection is unavailable.
+     * Returns whether the request carries a valid token.
      */
     public function validates(ServerRequestInterface $request): bool
     {
         if ($this->token === null) {
-            return true;
+            return false;
         }
 
         $body = $request->getParsedBody();

@@ -9,17 +9,20 @@ use PHPForge\Debug\Collector\{CollectorCoordinator, CollectorInterface};
 use PHPForge\Debug\Storage\SnapshotStore;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
+use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamInterface};
 use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
-use Yii3\Debug\Collector\RequestCollector;
+use Throwable;
+use Yii3\Debug\Collector\{MailCollector, RequestCollector};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Tests\Support\CustomCollector;
 use Yii3\Debug\Web\{LocalAccessChecker, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
+use Yiisoft\Mailer\Message;
 use Yiisoft\View\WebView;
 
+use function file_get_contents;
 use function is_dir;
 use function rmdir;
 use function sys_get_temp_dir;
@@ -114,6 +117,33 @@ final class ToolbarMiddlewareTest extends TestCase
                 "{$method} {$expectedResponse->getStatusCode()} request must remain inspectable.",
             );
         }
+    }
+
+    public function testProcessDoesNotPersistRequestSecretsToJson(): void
+    {
+        [$middleware] = $this->middleware();
+        $request = (new ServerRequest(
+            method: 'POST',
+            uri: 'https://example.test/login?token=query-secret',
+            headers: ['Authorization' => 'Bearer header-secret', 'Content-Type' => 'application/json'],
+            body: '{"password":"body-secret"}',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        ))
+            ->withQueryParams(['token' => 'query-secret'])
+            ->withParsedBody(['password' => 'body-secret'])
+            ->withCookieParams(['session_id' => 'cookie-secret']);
+        $response = $middleware->process(
+            $request,
+            $this->handler(new Response(200, ['Content-Type' => 'application/json'], '{}')),
+        );
+        $json = file_get_contents($this->path . '/' . $response->getHeaderLine('X-Debug-Tag') . '.json');
+
+        self::assertIsString($json, 'The persisted snapshot must be readable.');
+        self::assertStringNotContainsString('query-secret', $json, 'Persisted URLs must not contain query secrets.');
+        self::assertStringNotContainsString('body-secret', $json, 'Persisted bodies must not contain body secrets.');
+        self::assertStringNotContainsString('header-secret', $json, 'Persisted headers must not contain credentials.');
+        self::assertStringNotContainsString('cookie-secret', $json, 'Persisted cookies must not contain session values.');
+        self::assertStringContainsString('[redacted]', $json, 'Persisted snapshots must retain an explicit marker.');
     }
 
     public function testProcessInjectsToolbarIntoRedirectAndErrorHtmlResponses(): void
@@ -212,6 +242,149 @@ final class ToolbarMiddlewareTest extends TestCase
             $snapshot->panels['app.example'] ?? null,
             'Custom collector payload must be persisted by its application ID.',
         );
+    }
+
+    public function testProcessPreservesPrimaryFailureAndReportsSecondaryCleanupFailure(): void
+    {
+        $collector = new CustomCollector(failShutdown: true);
+        $cleanupFailure = null;
+        [$middleware] = $this->middleware(
+            [$collector],
+            cleanupFailureHandler: static function (Throwable $throwable) use (&$cleanupFailure): void {
+                $cleanupFailure = $throwable;
+            },
+        );
+        $primary = new RuntimeException('Application failed.');
+        $handler = new readonly class ($primary) implements RequestHandlerInterface {
+            public function __construct(private RuntimeException $failure) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                throw $this->failure;
+            }
+        };
+
+        try {
+            $middleware->process(
+                new ServerRequest(
+                    'GET',
+                    'https://example.test/failure',
+                    serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+                ),
+                $handler,
+            );
+
+            self::fail('An application failure must propagate.');
+        } catch (RuntimeException $throwable) {
+            self::assertSame($primary, $throwable, 'Cleanup must not replace the exact primary throwable.');
+        }
+
+        self::assertInstanceOf(RuntimeException::class, $cleanupFailure, 'Secondary cleanup failure must be observable.');
+        self::assertSame(
+            'Custom collector shutdown failed.',
+            $cleanupFailure->getMessage(),
+            'The cleanup observer must receive the secondary failure.',
+        );
+    }
+
+    public function testProcessRemovesCapturedMailWhenSnapshotPersistenceFails(): void
+    {
+        $mailPath = $this->path . '-mail';
+        $mailCollector = new MailCollector($mailPath, 0o700, 0o600);
+        [$middleware] = $this->middleware([$mailCollector], historySize: -1);
+        $handler = new readonly class ($mailCollector) implements RequestHandlerInterface {
+            public function __construct(private MailCollector $collector) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->collectMessage(new Message(textBody: 'orphan candidate'), true);
+
+                return new Response(200, ['Content-Type' => 'application/json'], '{}');
+            }
+        };
+
+        try {
+            $middleware->process(
+                new ServerRequest('GET', 'https://example.test/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                $handler,
+            );
+
+            self::fail('An invalid history limit must make snapshot persistence fail.');
+        } catch (RuntimeException $exception) {
+            self::assertSame(
+                'Invalid debug history size: -1',
+                $exception->getMessage(),
+                'Mail cleanup must preserve the snapshot persistence failure.',
+            );
+        }
+
+        $files = glob($mailPath . '/*.eml');
+
+        self::assertSame([], $files === false ? [] : $files, 'A failed snapshot must not leave captured mail files.');
+
+        if (is_dir($mailPath)) {
+            rmdir($mailPath);
+        }
+    }
+
+    public function testProcessRetainsMailReferencedByCommittedSnapshot(): void
+    {
+        $mailPath = $this->path . '-mail';
+        $mailCollector = new MailCollector($mailPath, 0o700, 0o600);
+        [$middleware, $store] = $this->middleware([$mailCollector]);
+        $handler = new readonly class ($mailCollector) implements RequestHandlerInterface {
+            public function __construct(private MailCollector $collector) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->collectMessage(new Message(textBody: 'retained message'), true);
+
+                return new Response(200, ['Content-Type' => 'application/json'], '{}');
+            }
+        };
+
+        $response = $middleware->process(
+            new ServerRequest('GET', 'https://example.test/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            $handler,
+        );
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+        self::assertNotNull($snapshot, 'Mail request snapshot must be committed.');
+        $file = $snapshot->summary->mailFiles[0] ?? self::fail('Snapshot must reference the captured mail file.');
+        self::assertFileExists("{$mailPath}/{$file}", 'Manifest-referenced mail must survive orphan reconciliation.');
+
+        $mailCollector->removeFiles([$file]);
+        rmdir($mailPath);
+    }
+
+    public function testProcessShutsDownCollectorsWhenInitialRequestCaptureFails(): void
+    {
+        $collector = new CustomCollector();
+        [$middleware, $store] = $this->middleware([$collector]);
+        $primary = new RuntimeException('Request body failed.');
+        $body = self::createStub(StreamInterface::class);
+
+        $body->method('isSeekable')->willReturn(true);
+        $body->method('__toString')->willThrowException($primary);
+
+        try {
+            $middleware->process(
+                (new ServerRequest(
+                    'POST',
+                    'https://example.test/failure',
+                    serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+                ))->withBody($body),
+                $this->handler(new Response()),
+            );
+
+            self::fail('An initial request-capture failure must propagate.');
+        } catch (RuntimeException $throwable) {
+            self::assertSame($primary, $throwable, 'The exact request-capture failure must propagate.');
+        }
+
+        self::assertSame(1, $collector->startupCount, 'Collector must start before request capture.');
+        self::assertSame(1, $collector->shutdownCount, 'Collector must shut down after request capture fails.');
+        self::assertSame([], $store->loadManifest(), 'Failed request capture must not persist a partial snapshot.');
     }
 
     public function testProcessShutsDownCollectorsWhenTheHandlerThrows(): void
@@ -343,12 +516,15 @@ final class ToolbarMiddlewareTest extends TestCase
      * Creates middleware with native collectors and shared storage.
      *
      * @param list<CollectorInterface> $collectors Additional application collectors.
+     * @param (callable(Throwable): void)|null $cleanupFailureHandler Cleanup failure observer.
      *
      * @return array{ToolbarMiddleware, SnapshotStore} Configured middleware and its store.
      */
     private function middleware(
         array $collectors = [],
         LocalAccessChecker $accessChecker = new LocalAccessChecker(),
+        callable|null $cleanupFailureHandler = null,
+        int $historySize = 50,
     ): array {
         $aliases = $this->aliases();
         $requestCollector = new RequestCollector();
@@ -364,6 +540,8 @@ final class ToolbarMiddlewareTest extends TestCase
             ),
             new HttpFactory(),
             $accessChecker,
+            historySize: $historySize,
+            cleanupFailureHandler: $cleanupFailureHandler,
         );
 
         return [$middleware, $store];

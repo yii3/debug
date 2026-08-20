@@ -123,6 +123,6 @@
         "yiisoft/rbac": "Enables role and permission capture in the User panel: wire Yiisoft\\Rbac\\ManagerInterface.",
         "yiisoft/user": "Enables the User panel and the user-switch actions.",
         "yiisoft/session": "Required by the user-switch main-user tracking.",
-        "yiisoft/csrf": "Embeds the CSRF token into the user-switch forms."
+        "yiisoft/csrf": "Required when user switching is enabled; protects the identity mutation forms and actions."
     }
 }

@@ -236,9 +236,9 @@ final readonly class ToolbarDataFactory
         $linked = [];
 
         foreach ($chips as $chip) {
-            $level = match ($chip->label) {
-                'Errors' => LogLevel::ERROR,
-                'Warnings' => LogLevel::WARNING,
+            $level = match ($chip->id) {
+                'errors' => LogLevel::ERROR,
+                'warnings' => LogLevel::WARNING,
                 default => null,
             };
 
@@ -259,6 +259,7 @@ final readonly class ToolbarDataFactory
                     'log',
                     [FilterPrefix::LOG => ['level' => (string) $level]],
                 ),
+                id: $chip->id,
             );
         }
 

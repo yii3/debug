@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Integration;
 
+use PHPForge\Debug\Instrumentation\InstrumentationGuard;
 use Throwable;
 use Yii3\Debug\Collector\QueueCollector;
 use Yiisoft\Queue\Message\MessageInterface;
@@ -17,10 +18,15 @@ use function microtime;
  */
 final readonly class QueueWorkerDecorator implements WorkerInterface
 {
+    private InstrumentationGuard $guard;
+
     public function __construct(
         private WorkerInterface $decorated,
         private QueueCollector $collector,
-    ) {}
+        InstrumentationGuard|null $guard = null,
+    ) {
+        $this->guard = $guard ?? new InstrumentationGuard();
+    }
 
     public function process(
         MessageInterface $message,
@@ -32,12 +38,21 @@ final readonly class QueueWorkerDecorator implements WorkerInterface
         try {
             $result = $this->decorated->process($message, $queueName, $retryProducer);
         } catch (Throwable $throwable) {
-            $this->collector->recordExecution($queueName, $message, microtime(true) - $start, $throwable);
+            $this->guard->observe(
+                fn() => $this->collector->recordExecution(
+                    $queueName,
+                    $message,
+                    microtime(true) - $start,
+                    $throwable,
+                ),
+            );
 
             throw $throwable;
         }
 
-        $this->collector->recordExecution($queueName, $result, microtime(true) - $start);
+        $this->guard->observe(
+            fn() => $this->collector->recordExecution($queueName, $result, microtime(true) - $start),
+        );
 
         return $result;
     }

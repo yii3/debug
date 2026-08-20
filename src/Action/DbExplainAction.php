@@ -6,7 +6,7 @@ namespace Yii3\Debug\Action;
 
 use PHPForge\Debug\Data\QueryInput;
 use PHPForge\Debug\Panel\Db\{DbExplainRenderer, DbQueryRenderer, DbSnapshot, QueryRow};
-use PHPForge\Debug\Storage\SnapshotStore;
+use PHPForge\Debug\Storage\{HydrationException, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Throwable;
 use Yii3\Debug\Web\{LocalAccessChecker, ResponseBuilder};
@@ -57,7 +57,13 @@ final readonly class DbExplainAction
             );
         }
 
-        $row = self::findRow(DbSnapshot::fromArray($payload, 'panels.db')->entries(), (int) $seq);
+        try {
+            $rows = DbSnapshot::fromArray($payload, 'panels.db')->entries();
+        } catch (HydrationException) {
+            return $this->responseBuilder->text('Database query not found.', 404);
+        }
+
+        $row = self::findRow($rows, (int) $seq);
 
         if ($row === null) {
             return $this->responseBuilder->text('Database query not found.', 404);

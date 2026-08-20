@@ -119,7 +119,7 @@ final class UserPanelTest extends TestCase
             GridFactory::panelGrid(),
             $fixture->userSwitch,
             $fixture->repository,
-            null,
+            new StubCsrfToken('valid'),
             true,
             '/debug',
         );
@@ -145,7 +145,13 @@ final class UserPanelTest extends TestCase
         $fixture->currentUser->login(new FakeIdentity('1'));
         $fixture->userSwitch->setUser(new FakeIdentity('2'));
 
-        $panel = new UserPanel(GridFactory::panelGrid(), $fixture->userSwitch, $fixture->repository, null, true);
+        $panel = new UserPanel(
+            GridFactory::panelGrid(),
+            $fixture->userSwitch,
+            $fixture->repository,
+            new StubCsrfToken('valid'),
+            true,
+        );
         $payload = UserSnapshot::capture(['id' => '2'])->jsonSerialize();
 
         $html = $panel->render($payload);
@@ -157,6 +163,24 @@ final class UserPanelTest extends TestCase
             'Reset button must keep its runtime ID.',
         );
         self::assertStringContainsString('/debug/reset-identity', $html, 'Reset form must target its endpoint.');
+    }
+
+    public function testRenderSwitchControlsFailClosedWithoutCsrfToken(): void
+    {
+        $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
+
+        $fixture->currentUser->login(new FakeIdentity('1'));
+
+        $panel = new UserPanel(GridFactory::panelGrid(), $fixture->userSwitch, $fixture->repository, null, true);
+        $payload = UserSnapshot::capture(['id' => '1'])->jsonSerialize();
+
+        $html = $panel->render($payload);
+
+        self::assertStringNotContainsString(
+            'debug-userswitch__set-identity',
+            $html,
+            'Switch controls must stay hidden without a CSRF token service.',
+        );
     }
 
     public function testRenderSwitchFormIncludesTheConfiguredCsrfToken(): void
@@ -200,7 +224,13 @@ final class UserPanelTest extends TestCase
 
         $fixture->currentUser->login($identities[0]);
 
-        $panel = new UserPanel(GridFactory::panelGrid(), $fixture->userSwitch, $fixture->repository, null, true);
+        $panel = new UserPanel(
+            GridFactory::panelGrid(),
+            $fixture->userSwitch,
+            $fixture->repository,
+            new StubCsrfToken('valid'),
+            true,
+        );
         $payload = UserSnapshot::capture(['id' => '1', 'identity' => ['username' => "'user-1'"]])->jsonSerialize();
         $context = new PanelRenderContext(
             'request-1',

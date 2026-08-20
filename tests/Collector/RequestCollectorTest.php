@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Collector;
 
 use GuzzleHttp\Psr7\{Response, ServerRequest};
 use LogicException;
+use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -17,6 +18,69 @@ use Yiisoft\Router\{CurrentRoute, Route, RouteCollection, RouteCollector};
  */
 final class RequestCollectorTest extends TestCase
 {
+    public function testCaptureRedactsDefaultRequestAndResponseSecrets(): void
+    {
+        $collector = new RequestCollector();
+        $request = (new ServerRequest(
+            'POST',
+            'https://example.test/login?token=query-secret',
+            ['Authorization' => 'Bearer header-secret', 'Content-Type' => 'application/json'],
+            '{"password":"body-secret"}',
+        ))
+            ->withQueryParams(['token' => 'query-secret'])
+            ->withParsedBody(['password' => 'body-secret'])
+            ->withCookieParams(['session_id' => 'cookie-secret']);
+
+        $collector->startup();
+        $collector->collectRequest($request);
+        $collector->collectResponse(new Response(200, ['Set-Cookie' => 'session_id=response-secret']));
+
+        $data = $collector->capture()?->data() ?? [];
+        $requestHeaders = $data['requestHeaders'] ?? null;
+        $requestBody = $data['requestBody'] ?? null;
+        $query = $data['GET'] ?? null;
+        $responseHeaders = $data['responseHeaders'] ?? null;
+
+        self::assertIsArray($requestHeaders, 'Request headers must remain an array.');
+        self::assertIsArray($requestBody, 'Request body must remain an array.');
+        self::assertIsArray($query, 'Query parameters must remain an array.');
+        self::assertIsArray($responseHeaders, 'Response headers must remain an array.');
+
+        $decodedBody = $requestBody['Decoded'] ?? null;
+
+        self::assertIsArray($decodedBody, 'Decoded request body must remain an array.');
+
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $requestHeaders['Authorization'] ?? null,
+            'Authorization headers must be redacted by default.',
+        );
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $decodedBody['password'] ?? null,
+            'Decoded body secrets must be redacted by default.',
+        );
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $requestBody['Raw'] ?? null,
+            'Raw bodies must be suppressed when decoded values require redaction.',
+        );
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $query['token'] ?? null,
+            'Query tokens must be redacted by default.',
+        );
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $data['COOKIE'] ?? null,
+            'Cookie values must be redacted by default.',
+        );
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $responseHeaders['Set-Cookie'] ?? null,
+            'Response cookies must be redacted by default.',
+        );
+    }
     public function testCaptureReturnsNullBeforeRequestMetadataIsCollected(): void
     {
         $collector = new RequestCollector();
@@ -73,9 +137,9 @@ final class RequestCollectorTest extends TestCase
         self::assertSame(['status' => 'open'], $data['GET'] ?? null, 'Query parameters must fill the GET bucket.');
         self::assertSame(['order' => 42], $data['POST'] ?? null, 'Parsed body must fill the POST bucket.');
         self::assertSame(
-            ['session' => 'cookie-1'],
+            SensitiveDataRedactor::PLACEHOLDER,
             $data['COOKIE'] ?? null,
-            'Cookie parameters must fill the COOKIE bucket.',
+            'Cookie parameters must be redacted as a sensitive bucket.',
         );
         self::assertSame(
             ['REMOTE_ADDR' => '127.0.0.1'],

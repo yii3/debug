@@ -76,7 +76,7 @@ final class IdentityActionsTest extends TestCase
         );
     }
 
-    public function testResetIdentityRestoresMainUser(): void
+    public function testResetIdentityRejectsMissingCsrfService(): void
     {
         $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
 
@@ -91,6 +91,27 @@ final class IdentityActionsTest extends TestCase
         );
 
         $response = $action($this->request([]));
+
+        self::assertSame(422, $response->getStatusCode(), 'Missing CSRF service must reject the reset.');
+        self::assertSame('2', $fixture->currentUser->getId(), 'Rejected reset must retain impersonation.');
+    }
+
+    public function testResetIdentityRestoresMainUser(): void
+    {
+        $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
+
+        $fixture->currentUser->login(new FakeIdentity('1'));
+        $fixture->userSwitch->setUser(new FakeIdentity('2'));
+
+        $action = new ResetIdentityAction(
+            new LocalAccessChecker(),
+            $this->responseBuilder(),
+            $fixture->userSwitch,
+            true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
+        );
+
+        $response = $action($this->request(['_csrf' => 'valid']));
         $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(200, $response->getStatusCode(), 'Allowed reset must succeed.');
@@ -203,6 +224,25 @@ final class IdentityActionsTest extends TestCase
         self::assertSame(422, $response->getStatusCode(), 'Invalid CSRF data must reject the switch.');
         self::assertSame('1', $fixture->currentUser->getId(), 'Rejected switch must retain the main identity.');
     }
+    public function testSetIdentityRejectsMissingCsrfService(): void
+    {
+        $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
+
+        $fixture->currentUser->login(new FakeIdentity('1'));
+
+        $action = new SetIdentityAction(
+            new LocalAccessChecker(),
+            $this->responseBuilder(),
+            $fixture->userSwitch,
+            $fixture->repository,
+            true,
+        );
+
+        $response = $action($this->request(['user_id' => '2']));
+
+        self::assertSame(422, $response->getStatusCode(), 'Missing CSRF service must reject the switch.');
+        self::assertSame('1', $fixture->currentUser->getId(), 'Rejected switch must retain the main identity.');
+    }
 
     public function testSetIdentityRejectsMissingUserIdParameter(): void
     {
@@ -216,9 +256,10 @@ final class IdentityActionsTest extends TestCase
             $fixture->userSwitch,
             $fixture->repository,
             true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
         );
 
-        $response = $action($this->request([]));
+        $response = $action($this->request(['_csrf' => 'valid']));
 
         self::assertSame(400, $response->getStatusCode(), 'Missing `user_id` must yield a validation error.');
     }
@@ -235,12 +276,14 @@ final class IdentityActionsTest extends TestCase
             $fixture->userSwitch,
             $fixture->repository,
             true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
         );
 
-        $response = $action($this->request(['user_id' => '404']));
+        $response = $action($this->request(['user_id' => '404', '_csrf' => 'valid']));
 
         self::assertSame(404, $response->getStatusCode(), 'Unknown identity must yield not-found.');
     }
+
     public function testSetIdentitySwitchesUserForAllowedAuthenticatedRequest(): void
     {
         $fixture = UserFixture::create([new FakeIdentity('1'), new FakeIdentity('2')]);
@@ -253,9 +296,10 @@ final class IdentityActionsTest extends TestCase
             $fixture->userSwitch,
             $fixture->repository,
             true,
+            new CsrfRequestValidator(new StubCsrfToken('valid')),
         );
 
-        $response = $action($this->request(['user_id' => '2']));
+        $response = $action($this->request(['user_id' => '2', '_csrf' => 'valid']));
         $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(200, $response->getStatusCode(), 'Allowed switch must succeed.');

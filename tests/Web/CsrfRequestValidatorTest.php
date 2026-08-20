@@ -10,18 +10,10 @@ use Yii3\Debug\Web\CsrfRequestValidator;
 use Yiisoft\Csrf\StubCsrfToken;
 
 /**
- * Unit tests for {@see CsrfRequestValidator} covering optional, body, header, and invalid token paths.
+ * Unit tests for {@see CsrfRequestValidator} covering unavailable, body, header, and invalid token paths.
  */
 final class CsrfRequestValidatorTest extends TestCase
 {
-    public function testAllowsRequestsWhenCsrfProtectionIsUnavailable(): void
-    {
-        self::assertTrue(
-            (new CsrfRequestValidator())->validates(new ServerRequest('POST', '/')),
-            'Applications without the optional CSRF package must retain the existing access gates.',
-        );
-    }
-
     public function testRejectsMissingInvalidAndNonStringBodyTokens(): void
     {
         $validator = new CsrfRequestValidator(new StubCsrfToken('valid'));
@@ -34,6 +26,13 @@ final class CsrfRequestValidatorTest extends TestCase
         self::assertFalse(
             $validator->validates((new ServerRequest('POST', '/'))->withParsedBody(['_csrf' => ['invalid']])),
             'A non-string body token must be rejected.',
+        );
+    }
+    public function testRejectsRequestsWhenCsrfProtectionIsUnavailable(): void
+    {
+        self::assertFalse(
+            (new CsrfRequestValidator())->validates(new ServerRequest('POST', '/')),
+            'User switching must fail closed without a CSRF token service.',
         );
     }
     public function testValidatesBodyAndHeaderTokens(): void

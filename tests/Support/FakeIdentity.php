@@ -18,6 +18,7 @@ final readonly class FakeIdentity implements IdentityInterface
         public string $status = '',
         public string $created_at = '',
         public string $updated_at = '',
+        public string $access_token = '',
     ) {}
 
     public function getId(): string

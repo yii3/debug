@@ -127,11 +127,12 @@ final readonly class UserPanel implements ContextAwarePanelInterface
     {
         return $this->switchEnabled
             && $this->userSwitch !== null
+            && $this->csrfToken !== null
             && $this->userSwitch->getMainUserId() !== null;
     }
 
     /**
-     * Renders a hidden CSRF input for the switch forms, or an empty string without CSRF protection.
+     * Renders the hidden CSRF input required by the switch forms.
      */
     private function csrfInput(): string
     {
