@@ -16,3 +16,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(ui): add Yii3 Dump, Mail, and Queue collectors, panels, secure actions, decorators, redaction, tests, and demo fixtures.
 - fix(ui): harden response capture and ship the keyboard-resizable drawer with focus restoration.
 - fix: harden CI, CSRF, persisted data, lifecycle cleanup, instrumentation, EXPLAIN, storage, mail, and toolbar routing.
+- refactor: separate response capture, snapshot persistence, mail reconciliation, and fail-open mail reporting without changing behavior.

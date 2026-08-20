@@ -104,68 +104,10 @@ final class ToolbarMiddleware implements MiddlewareInterface
 
         $tag = str_replace('.', '', uniqid('', true));
         $start = self::requestStart($request);
-        $response = $this->coordinator->run(function () use ($handler, $request, $start, $tag): ResponseInterface {
-            $this->requestCollector->collectRequest($request);
-            $response = $handler->handle($request);
-
-            // Force lazy response bodies (for example the deferred view renderer) to materialize now, so
-            // view-time activity such as asset registration is visible to the collectors below.
-            $response->getBody()->__toString();
-
-            $this->requestCollector->collectResponse($response);
-
-            $processingTime = microtime(true) - $start;
-            $serverParams = $request->getServerParams();
-            $ip = $serverParams['REMOTE_ADDR'] ?? '';
-            $dbCollector = $this->coordinator->collector('db');
-            $mailCollector = $this->coordinator->collector('mail');
-            $mailFiles = $mailCollector instanceof MailCollector ? $mailCollector->messageFiles() : [];
-            $summary = new RequestSummary(
-                tag: $tag,
-                url: $this->capturePolicy->redactUrl((string) $request->getUri()),
-                ajax: strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest',
-                method: $request->getMethod(),
-                ip: is_string($ip) ? $ip : '',
-                time: $start,
-                statusCode: $response->getStatusCode(),
-                sqlCount: $dbCollector instanceof DbCollector ? $dbCollector->queryCount() : 0,
-                excessiveCallersCount: 0,
-                mailCount: count($mailFiles),
-                mailFiles: $mailFiles,
-                processingTime: $processingTime,
-                peakMemory: memory_get_peak_usage(true),
-            );
-
-            try {
-                $removed = $this->store->writeSnapshot($this->coordinator->capture($summary), $this->historySize);
-            } catch (Throwable $failure) {
-                if ($mailCollector instanceof MailCollector) {
-                    $mailCollector->removeFiles($mailFiles);
-                }
-
-                throw $failure;
-            }
-
-            if ($mailCollector instanceof MailCollector) {
-                foreach ($removed as $removedSummary) {
-                    $mailCollector->removeFiles($removedSummary->mailFiles);
-                }
-
-                $manifest = $this->store->loadManifestResult();
-
-                if ($manifest->error === null) {
-                    $referencedFiles = [];
-
-                    foreach ($manifest->entries as $entry) {
-                        $referencedFiles = [...$referencedFiles, ...$entry->mailFiles];
-                    }
-
-                    $mailCollector->reconcileFiles($referencedFiles);
-                }
-            }
-
-            return $response;
-        }, $this->cleanupFailureHandler);
+        $response = $this->coordinator->run(
+            fn(): ResponseInterface => $this->captureResponse($request, $handler, $tag, $start),
+            $this->cleanupFailureHandler,
+        );
 
         $viewUrl = $this->viewUrl($tag);
         $response = $response
@@ -194,6 +136,78 @@ final class ToolbarMiddleware implements MiddlewareInterface
     }
 
     /**
+     * Handles and captures one application response while the collector lifecycle is active.
+     */
+    private function captureResponse(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+        string $tag,
+        float $start,
+    ): ResponseInterface {
+        $this->requestCollector->collectRequest($request);
+        $response = $handler->handle($request);
+
+        // Force lazy response bodies (for example the deferred view renderer) to materialize now, so
+        // view-time activity such as asset registration is visible to the collectors below.
+        $response->getBody()->__toString();
+
+        $this->requestCollector->collectResponse($response);
+
+        $processingTime = microtime(true) - $start;
+        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '';
+        $dbCollector = $this->coordinator->collector('db');
+        $mailCollector = $this->coordinator->collector('mail');
+        $mailCollector = $mailCollector instanceof MailCollector ? $mailCollector : null;
+        $mailFiles = $mailCollector?->messageFiles() ?? [];
+        $summary = $this->createSummary(
+            $request,
+            $response,
+            $tag,
+            $start,
+            $processingTime,
+            is_string($ip) ? $ip : '',
+            $dbCollector instanceof DbCollector ? $dbCollector : null,
+            $mailFiles,
+        );
+
+        $this->persistSnapshot($summary, $mailCollector, $mailFiles);
+
+        return $response;
+    }
+
+    /**
+     * Creates the manifest summary for a completed request.
+     *
+     * @param list<string> $mailFiles Captured mail files referenced by the request.
+     */
+    private function createSummary(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        string $tag,
+        float $start,
+        float $processingTime,
+        string $ip,
+        DbCollector|null $dbCollector,
+        array $mailFiles,
+    ): RequestSummary {
+        return new RequestSummary(
+            tag: $tag,
+            url: $this->capturePolicy->redactUrl((string) $request->getUri()),
+            ajax: strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest',
+            method: $request->getMethod(),
+            ip: $ip,
+            time: $start,
+            statusCode: $response->getStatusCode(),
+            sqlCount: $dbCollector?->queryCount() ?? 0,
+            excessiveCallersCount: 0,
+            mailCount: count($mailFiles),
+            mailFiles: $mailFiles,
+            processingTime: $processingTime,
+            peakMemory: memory_get_peak_usage(true),
+        );
+    }
+
+    /**
      * Returns whether the current path belongs to the debug interface.
      *
      * @param ServerRequestInterface $request Incoming server request.
@@ -205,6 +219,57 @@ final class ToolbarMiddleware implements MiddlewareInterface
         $path = $request->getUri()->getPath();
 
         return $path === $this->routePrefix || str_starts_with($path, $this->routePrefix . '/');
+    }
+
+    /**
+     * Persists one snapshot and reconciles mail files after the commit.
+     *
+     * @param list<string> $mailFiles Captured mail files referenced by the snapshot.
+     */
+    private function persistSnapshot(
+        RequestSummary $summary,
+        MailCollector|null $mailCollector,
+        array $mailFiles,
+    ): void {
+        try {
+            $removed = $this->store->writeSnapshot($this->coordinator->capture($summary), $this->historySize);
+        } catch (Throwable $failure) {
+            $mailCollector?->removeFiles($mailFiles);
+
+            throw $failure;
+        }
+
+        if ($mailCollector === null) {
+            return;
+        }
+
+        foreach ($removed as $removedSummary) {
+            $mailCollector->removeFiles($removedSummary->mailFiles);
+        }
+
+        $this->reconcileMailFiles($mailCollector);
+    }
+
+    /**
+     * Removes aged mail files that are no longer referenced by the manifest.
+     */
+    private function reconcileMailFiles(MailCollector $mailCollector): void
+    {
+        $manifest = $this->store->loadManifestResult();
+
+        if ($manifest->error !== null) {
+            return;
+        }
+
+        $referencedFiles = [];
+
+        foreach ($manifest->entries as $entry) {
+            foreach ($entry->mailFiles as $file) {
+                $referencedFiles[] = $file;
+            }
+        }
+
+        $mailCollector->reconcileFiles($referencedFiles);
     }
 
     /**

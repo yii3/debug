@@ -33,12 +33,12 @@ final readonly class MailerInterfaceProxy implements MailerInterface
         try {
             $this->decorated->send($message);
         } catch (Throwable $throwable) {
-            $this->guard->observe(fn() => $this->collector->collectMessage($message, false));
+            $this->collectMessage($message, false);
 
             throw $throwable;
         }
 
-        $this->guard->observe(fn() => $this->collector->collectMessage($message, true));
+        $this->collectMessage($message, true);
     }
 
     public function sendMultiple(array $messages): SendResults
@@ -47,7 +47,7 @@ final readonly class MailerInterfaceProxy implements MailerInterface
             $results = $this->decorated->sendMultiple($messages);
         } catch (Throwable $throwable) {
             foreach ($messages as $message) {
-                $this->guard->observe(fn() => $this->collector->collectMessage($message, false));
+                $this->collectMessage($message, false);
             }
 
             throw $throwable;
@@ -56,11 +56,17 @@ final readonly class MailerInterfaceProxy implements MailerInterface
         $successful = array_fill_keys(array_map(spl_object_id(...), $results->successMessages), true);
 
         foreach ($messages as $message) {
-            $this->guard->observe(
-                fn() => $this->collector->collectMessage($message, isset($successful[spl_object_id($message)])),
-            );
+            $this->collectMessage($message, isset($successful[spl_object_id($message)]));
         }
 
         return $results;
+    }
+
+    /**
+     * Reports one mail outcome without allowing collector failures to alter mailer behavior.
+     */
+    private function collectMessage(MessageInterface $message, bool $successful): void
+    {
+        $this->guard->observe(fn() => $this->collector->collectMessage($message, $successful));
     }
 }

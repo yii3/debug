@@ -154,9 +154,14 @@ final class MailCollector implements CollectorInterface
         }
 
         $files = glob($this->mailPath . DIRECTORY_SEPARATOR . '*.eml');
+
+        if ($files === false) {
+            return;
+        }
+
         $cutoff = time() - self::ORPHAN_GRACE_PERIOD;
 
-        foreach ($files === false ? [] : $files as $path) {
+        foreach ($files as $path) {
             $file = basename($path);
             $modifiedAt = filemtime($path);
 
