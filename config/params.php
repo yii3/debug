@@ -6,8 +6,8 @@ return [
     'yii3/debug' => [
         'path' => 'runtime/debug',
         'historySize' => 50,
-        'dirMode' => 0o775,
-        'fileMode' => 0o664,
+        'dirMode' => 0o700,
+        'fileMode' => 0o600,
         'application' => [],
         'collectors' => [],
         'panels' => [],

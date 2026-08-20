@@ -15,6 +15,8 @@ use function bin2hex;
 use function chmod;
 use function date;
 use function file_put_contents;
+use function filemtime;
+use function glob;
 use function implode;
 use function is_array;
 use function is_dir;
@@ -36,6 +38,8 @@ use const LOCK_EX;
  */
 final class MailCollector implements CollectorInterface
 {
+    private const int ORPHAN_GRACE_PERIOD = 86_400;
+
     private bool $active = false;
 
     /**
@@ -50,8 +54,8 @@ final class MailCollector implements CollectorInterface
 
     public function __construct(
         private readonly string $mailPath,
-        private readonly int $dirMode = 0o775,
-        private readonly int $fileMode = 0o664,
+        private readonly int $dirMode = 0o700,
+        private readonly int $fileMode = 0o600,
     ) {}
 
     public function capture(): MailSnapshot|null
@@ -132,6 +136,37 @@ final class MailCollector implements CollectorInterface
     }
 
     /**
+     * Retries cleanup of old `.eml` files that are no longer referenced by any retained snapshot.
+     *
+     * A one-day grace period prevents a concurrent request's newly captured mail from being mistaken for an orphan
+     * before its snapshot commit completes.
+     *
+     * @param iterable<string> $referencedFiles File names referenced by the current manifest.
+     */
+    public function reconcileFiles(iterable $referencedFiles): void
+    {
+        $referenced = [];
+
+        foreach ($referencedFiles as $file) {
+            if (self::isSafeFile($file)) {
+                $referenced[$file] = true;
+            }
+        }
+
+        $files = glob($this->mailPath . DIRECTORY_SEPARATOR . '*.eml');
+        $cutoff = time() - self::ORPHAN_GRACE_PERIOD;
+
+        foreach ($files === false ? [] : $files as $path) {
+            $file = basename($path);
+            $modifiedAt = filemtime($path);
+
+            if (!isset($referenced[$file]) && $modifiedAt !== false && $modifiedAt <= $cutoff) {
+                @unlink($path);
+            }
+        }
+    }
+
+    /**
      * Removes files associated with snapshots evicted from the debug manifest.
      *
      * @param iterable<string> $files Stored safe file names.
@@ -146,7 +181,7 @@ final class MailCollector implements CollectorInterface
             $path = $this->mailPath . DIRECTORY_SEPARATOR . $file;
 
             if (is_file($path)) {
-                unlink($path);
+                @unlink($path);
             }
         }
     }

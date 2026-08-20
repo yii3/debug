@@ -42,12 +42,35 @@ return [
     'yii3/debug' => [
         'path' => '/absolute/path/to/runtime/debug',
         'historySize' => 50,
-        'dirMode' => 0775,
-        'fileMode' => 0664,
+        'dirMode' => 0700,
+        'fileMode' => 0600,
         'allowedIPs' => ['127.0.0.1', '::1'],
     ],
 ];
 ```
+
+These owner-only defaults apply to newly created storage. Existing directories are not chmodded automatically;
+migrate their permissions explicitly, or configure broader development-group modes when shared access is intentional.
+
+## User switching
+
+Identity switching is disabled by default. Enabling it requires `yiisoft/user`, `yiisoft/session`, and `yiisoft/csrf`
+plus application bindings for their user, session, identity repository, and `Yiisoft\Csrf\CsrfTokenInterface`
+services:
+
+```php
+return [
+    'yii3/debug' => [
+        'userSwitch' => [
+            'enabled' => true,
+        ],
+    ],
+];
+```
+
+The package deliberately fails container resolution when switching is enabled without a CSRF token service. Both
+identity actions accept POST only, validate the submitted token, require an authenticated main user, and retain the
+debugger IP allowlist.
 
 ## Custom collectors and panels
 

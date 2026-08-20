@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Collector;
 
 use LogicException;
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorInterface;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, UploadedFileInterface};
@@ -24,6 +25,7 @@ use function str_contains;
 final class RequestCollector implements CollectorInterface
 {
     private bool $active = false;
+    private readonly CapturePolicy $capturePolicy;
 
     /**
      * @var array<string, mixed>|null
@@ -40,11 +42,15 @@ final class RequestCollector implements CollectorInterface
      * when routing information is unavailable.
      * @param RouteCollectionInterface|null $routes Route collection resolving the dispatched action descriptor, or
      * `null` when unavailable.
+     * @param CapturePolicy|null $capturePolicy Persistent-capture policy, or `null` to use secure defaults.
      */
     public function __construct(
         private readonly CurrentRoute|null $currentRoute = null,
         private readonly RouteCollectionInterface|null $routes = null,
-    ) {}
+        CapturePolicy|null $capturePolicy = null,
+    ) {
+        $this->capturePolicy = $capturePolicy ?? new CapturePolicy();
+    }
 
     /**
      * Returns the captured request payload in the shared Request panel shape.
@@ -85,9 +91,10 @@ final class RequestCollector implements CollectorInterface
 
         $parsedBody = $request->getParsedBody();
         $rawBody = self::rawBody($request);
+        $requestBody = $rawBody === '' ? [] : $this->capturePolicy->redactBody($rawBody, $parsedBody);
         $userAgent = $request->getHeaderLine('User-Agent');
 
-        $this->request = [
+        $this->request = $this->capturePolicy->redact([
             'action' => null,
             'actionParams' => [],
             'flashes' => [],
@@ -98,10 +105,10 @@ final class RequestCollector implements CollectorInterface
                 'isSecureConnection' => $request->getUri()->getScheme() === 'https',
                 'method' => $request->getMethod(),
             ],
-            'requestBody' => $rawBody === '' ? [] : [
+            'requestBody' => $requestBody === [] ? [] : [
                 'Content Type' => $request->getHeaderLine('Content-Type'),
-                'Decoded' => $parsedBody,
-                'Raw' => $rawBody,
+                'Decoded' => $requestBody['decoded'],
+                'Raw' => $requestBody['raw'],
             ],
             'requestHeaders' => self::collapseHeaders($request->getHeaders()),
             'route' => '',
@@ -111,7 +118,7 @@ final class RequestCollector implements CollectorInterface
             'POST' => is_array($parsedBody) ? $parsedBody : [],
             'SERVER' => $request->getServerParams(),
             'SESSION' => [],
-        ];
+        ]);
     }
 
     /**
@@ -133,13 +140,13 @@ final class RequestCollector implements CollectorInterface
 
         $route = $this->currentRoute?->getName() ?? '';
 
-        $this->response = [
+        $this->response = $this->capturePolicy->redact([
             'action' => RouteActionResolver::resolve($route, $this->routes),
             'actionParams' => $this->currentRoute?->getArguments() ?? [],
             'responseHeaders' => self::collapseHeaders($response->getHeaders()),
             'route' => $route,
             'statusCode' => $response->getStatusCode(),
-        ];
+        ]);
     }
 
     /**

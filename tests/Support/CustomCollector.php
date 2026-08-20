@@ -19,6 +19,7 @@ final class CustomCollector implements CollectorInterface
     public function __construct(
         private readonly string $collectorId = 'app.example',
         private readonly bool $failCapture = false,
+        private readonly bool $failShutdown = false,
     ) {}
 
     public function capture(): PanelSnapshot
@@ -38,6 +39,10 @@ final class CustomCollector implements CollectorInterface
     public function shutdown(): void
     {
         $this->shutdownCount++;
+
+        if ($this->failShutdown) {
+            throw new RuntimeException('Custom collector shutdown failed.');
+        }
     }
 
     public function startup(): void

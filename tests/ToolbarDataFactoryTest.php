@@ -52,11 +52,13 @@ final class ToolbarDataFactoryTest extends TestCase
             $items[1]['url'] ?? null,
             'The Errors chip must deep-link to the error-level filter.',
         );
+        self::assertSame('errors', $items[1]['id'] ?? null, 'Error links must use stable semantic metadata.');
         self::assertSame(
             '/debug/view?tag=request-1&panel=log&Log%5Blevel%5D=2',
             $items[2]['url'] ?? null,
             'The Warnings chip must deep-link to the warning-level filter.',
         );
+        self::assertSame('warnings', $items[2]['id'] ?? null, 'Warning links must use stable semantic metadata.');
     }
     public function testCreateAggregatesPanelChipsInRegistrationOrder(): void
     {

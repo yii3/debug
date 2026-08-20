@@ -38,6 +38,9 @@ $hasDb = interface_exists(ProfilerInterface::class);
 $hasMail = interface_exists(MailerInterface::class);
 $hasQueue = interface_exists(QueueProducerInterface::class);
 $hasUser = class_exists(CurrentUser::class);
+$csrfToken = $config['userSwitch']['enabled']
+    ? Reference::to(CsrfTokenInterface::class)
+    : Reference::optional(CsrfTokenInterface::class);
 
 $corePanels = [
     Reference::to(ConfigPanel::class),
@@ -64,14 +67,14 @@ return [
     ...($hasUser ? [
         CsrfRequestValidator::class => [
             '__construct()' => [
-                'token' => Reference::optional(CsrfTokenInterface::class),
+                'token' => $csrfToken,
             ],
         ],
         UserPanel::class => [
             '__construct()' => [
                 'userSwitch' => Reference::to(UserSwitch::class),
                 'identities' => Reference::optional(IdentityListProviderInterface::class),
-                'csrfToken' => Reference::optional(CsrfTokenInterface::class),
+                'csrfToken' => $csrfToken,
                 'switchEnabled' => $config['userSwitch']['enabled'],
                 'routePrefix' => $config['routePrefix'],
             ],

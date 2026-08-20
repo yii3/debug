@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Collector;
 
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorInterface;
 use PHPForge\Debug\Helper\Dump;
+use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\User\UserSnapshot;
 use Yiisoft\Rbac\ManagerInterface;
 use Yiisoft\User\CurrentUser;
@@ -28,16 +30,21 @@ use function get_object_vars;
 final class UserCollector implements CollectorInterface
 {
     private bool $active = false;
+    private readonly CapturePolicy $capturePolicy;
 
     /**
      * @param CurrentUser $currentUser Authenticated-user service supplying the identity.
      * @param ManagerInterface|null $rbacManager RBAC manager used to fetch roles and permissions, or `null` when
      * the `yiisoft/rbac` package is not installed or not wired.
+     * @param CapturePolicy|null $capturePolicy Persistent-capture policy, or `null` to use secure defaults.
      */
     public function __construct(
         private readonly CurrentUser $currentUser,
         private readonly ManagerInterface|null $rbacManager = null,
-    ) {}
+        CapturePolicy|null $capturePolicy = null,
+    ) {
+        $this->capturePolicy = $capturePolicy ?? new CapturePolicy();
+    }
 
     /**
      * Snapshots the authenticated identity in the shared User payload shape.
@@ -72,7 +79,9 @@ final class UserCollector implements CollectorInterface
         $identityData = [];
 
         foreach (get_object_vars($identity) as $key => $value) {
-            $identityData[(string) $key] = Dump::export($value);
+            $identityData[(string) $key] = $this->capturePolicy->isSensitiveKey((string) $key)
+                ? SensitiveDataRedactor::PLACEHOLDER
+                : Dump::export($value);
         }
 
         $userId = $identity->getId();

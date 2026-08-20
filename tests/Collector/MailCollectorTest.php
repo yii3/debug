@@ -15,6 +15,8 @@ use function is_dir;
 use function is_file;
 use function rmdir;
 use function sys_get_temp_dir;
+use function time;
+use function touch;
 use function uniqid;
 use function unlink;
 
@@ -76,6 +78,26 @@ final class MailCollectorTest extends TestCase
         $collector->shutdown();
 
         self::assertNull($collector->capture(), 'Shutdown must deactivate and clear the collector.');
+    }
+
+    public function testReconcileFilesRemovesOnlyAgedUnreferencedMail(): void
+    {
+        mkdir($this->path, recursive: true);
+        $referenced = $this->path . '/referenced.eml';
+        $orphan = $this->path . '/orphan.eml';
+        $fresh = $this->path . '/fresh.eml';
+
+        file_put_contents($referenced, 'referenced');
+        file_put_contents($orphan, 'orphan');
+        file_put_contents($fresh, 'fresh');
+        touch($referenced, time() - 90_000);
+        touch($orphan, time() - 90_000);
+
+        (new MailCollector($this->path))->reconcileFiles(['referenced.eml', '../unsafe.eml']);
+
+        self::assertFileExists($referenced, 'Manifest-referenced mail must survive reconciliation.');
+        self::assertFileDoesNotExist($orphan, 'Aged unreferenced mail must be removed for eventual cleanup retry.');
+        self::assertFileExists($fresh, 'Fresh mail must remain available to a concurrent snapshot commit.');
     }
 
     protected function setUp(): void

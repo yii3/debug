@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Integration;
 
+use PHPForge\Debug\Instrumentation\InstrumentationGuard;
 use Yii3\Debug\Collector\QueueCollector;
 use Yiisoft\Queue\Message\MessageInterface;
 use Yiisoft\Queue\{MessageStatus, QueueProducerInterface};
@@ -13,10 +14,15 @@ use Yiisoft\Queue\{MessageStatus, QueueProducerInterface};
  */
 final readonly class QueueProducerDecorator implements QueueProducerInterface
 {
+    private InstrumentationGuard $guard;
+
     public function __construct(
         private QueueProducerInterface $decorated,
         private QueueCollector $collector,
-    ) {}
+        InstrumentationGuard|null $guard = null,
+    ) {
+        $this->guard = $guard ?? new InstrumentationGuard();
+    }
 
     public function getQueueName(): string
     {
@@ -27,7 +33,7 @@ final readonly class QueueProducerDecorator implements QueueProducerInterface
     {
         $message = $this->decorated->push($message);
 
-        $this->collector->recordPush($this->decorated, $message);
+        $this->guard->observe(fn() => $this->collector->recordPush($this->decorated, $message));
 
         return $message;
     }
