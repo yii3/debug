@@ -1,23 +1,5 @@
 {
-    "symbol-whitelist": [
-        "Yiisoft\\Auth\\IdentityInterface",
-        "Yiisoft\\Auth\\IdentityRepositoryInterface",
-        "Yiisoft\\Csrf\\CsrfTokenInterface",
-        "Yiisoft\\Db\\Connection\\ConnectionInterface",
-        "Yiisoft\\Db\\Profiler\\ContextInterface",
-        "Yiisoft\\Db\\Profiler\\ProfilerInterface",
-        "Yiisoft\\Mailer\\MailerInterface",
-        "Yiisoft\\Mailer\\MessageInterface",
-        "Yiisoft\\Mailer\\SendResults",
-        "Yiisoft\\Queue\\Message\\DelayEnvelope",
-        "Yiisoft\\Queue\\Message\\IdEnvelope",
-        "Yiisoft\\Queue\\Message\\MessageInterface",
-        "Yiisoft\\Queue\\MessageStatus",
-        "Yiisoft\\Queue\\QueueProducerInterface",
-        "Yiisoft\\Queue\\Worker\\WorkerInterface",
-        "Yiisoft\\Session\\SessionInterface",
-        "Yiisoft\\User\\CurrentUser"
-    ],
+    "symbol-whitelist": [],
     "php-core-extensions": [
         "Core",
         "date",
