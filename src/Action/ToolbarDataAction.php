@@ -5,54 +5,52 @@ declare(strict_types=1);
 namespace Yii3\Debug\Action;
 
 use JsonException;
-use PHPForge\Debug\Storage\SnapshotStore;
-use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
+use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\ToolbarDataFactory;
-use Yii3\Debug\Web\{LocalAccessChecker, ResponseBuilder};
 
 use function is_string;
+use function json_encode;
+
+use const JSON_PRETTY_PRINT;
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
- * Serves toolbar data for one captured Yii3 request.
+ * Serves the minimal toolbar payload.
  */
 final readonly class ToolbarDataAction
 {
     public function __construct(
-        private SnapshotStore $store,
-        private LocalAccessChecker $accessChecker,
         private ToolbarDataFactory $dataFactory,
-        private ResponseBuilder $responseBuilder,
+        private ResponseFactoryInterface $responseFactory,
+        private StreamFactoryInterface $streamFactory,
     ) {}
 
     /**
-     * Returns the portable toolbar payload for an allowed client.
-     *
-     * @param ServerRequestInterface $request Incoming server request.
-     *
-     * @return ResponseInterface Toolbar JSON, validation error, or forbidden response.
-     *
      * @throws JsonException When the toolbar payload cannot be encoded.
      */
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
-        if (!$this->accessChecker->allows($request)) {
-            return $this->responseBuilder->json(['error' => 'Forbidden'], 403);
-        }
-
         $tag = $request->getQueryParams()['tag'] ?? null;
 
         if (!is_string($tag) || $tag === '') {
-            return $this->responseBuilder->json(['error' => 'A debug snapshot tag is required.'], 400);
+            return $this->json(['error' => 'A debug request tag is required.'], 400);
         }
 
-        $snapshot = $this->store->readSnapshot($tag);
+        return $this->json($this->dataFactory->create($tag)->jsonSerialize());
+    }
 
-        if ($snapshot === null) {
-            return $this->responseBuilder->json(['error' => 'Debug snapshot not found.'], 404);
-        }
-
-        return $this->responseBuilder->json(
-            $this->dataFactory->create($snapshot)->jsonSerialize(),
+    private function json(mixed $data, int $status = 200): ResponseInterface
+    {
+        $content = json_encode(
+            $data,
+            JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
         );
+
+        return $this->responseFactory
+            ->createResponse($status)
+            ->withHeader('Content-Type', 'application/json; charset=UTF-8')
+            ->withBody($this->streamFactory->createStream($content));
     }
 }
