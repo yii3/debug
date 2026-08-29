@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Middleware;
 
+use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
 use Yii3\Debug\Web\ToolbarRenderer;
@@ -12,6 +13,7 @@ use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 use function is_float;
 use function is_int;
 use function is_string;
+use function memory_get_peak_usage;
 use function microtime;
 use function number_format;
 use function rawurlencode;
@@ -36,8 +38,10 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
     public function __construct(
         private ToolbarRenderer $renderer,
         private StreamFactoryInterface $streamFactory,
+        private SnapshotStore $store,
         private IpRanges $allowedIpRanges,
         string $routePrefix = '/debug',
+        private int $historySize = 50,
         private array $skipUrls = [],
         private string $position = 'bottom',
         private int $height = 50,
@@ -52,13 +56,35 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         }
 
         $tag = str_replace('.', '', uniqid('', true));
+
         $start = self::requestStart($request);
-        $response = $handler->handle($request)
+
+        $response = $handler->handle($request);
+
+        $processingTime = microtime(true) - $start;
+
+        $response = $response
             ->withHeader('X-Debug-Tag', $tag)
             ->withHeader(
                 'X-Debug-Duration',
-                number_format((microtime(true) - $start) * 1000, 0, '.', ''),
+                number_format($processingTime * 1000, 0, '.', ''),
             );
+
+        $summary = RequestSummary::create($tag)
+            ->withRequest(
+                url: (string) $request->getUri(),
+                method: strtoupper($request->getMethod()),
+                ip: self::clientIp($request),
+                time: $start,
+                ajax: strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest',
+            )
+            ->withResponse($response->getStatusCode())
+            ->withProfiling($processingTime, memory_get_peak_usage(true));
+
+        $this->store->writeSnapshot(
+            new DebugSnapshot($summary, [], []),
+            $this->historySize,
+        );
 
         if (!$this->shouldInject($request, $response)) {
             return $response;
@@ -75,6 +101,76 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         return $response
             ->withoutHeader('Content-Length')
             ->withBody($this->streamFactory->createStream($html));
+    }
+
+    public function withHistorySize(int $historySize): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $this->routePrefix,
+            historySize: $historySize,
+            skipUrls: $this->skipUrls,
+            position: $this->position,
+            height: $this->height,
+        );
+    }
+
+    public function withPresentation(string $position, int $height): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $this->routePrefix,
+            historySize: $this->historySize,
+            skipUrls: $this->skipUrls,
+            position: $position,
+            height: $height,
+        );
+    }
+
+    public function withRoutePrefix(string $routePrefix): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $routePrefix,
+            historySize: $this->historySize,
+            skipUrls: $this->skipUrls,
+            position: $this->position,
+            height: $this->height,
+        );
+    }
+
+    /**
+     * @param list<string> $skipUrls Same-origin URLs excluded from AJAX tracking.
+     */
+    public function withSkipUrls(array $skipUrls): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $this->routePrefix,
+            historySize: $this->historySize,
+            skipUrls: $skipUrls,
+            position: $this->position,
+            height: $this->height,
+        );
+    }
+
+    private static function clientIp(ServerRequestInterface $request): string
+    {
+        $clientIp = $request->getServerParams()['REMOTE_ADDR'] ?? null;
+
+        return is_string($clientIp) && IpHelper::isIp($clientIp) ? $clientIp : '';
     }
 
     private function isAllowed(ServerRequestInterface $request): bool

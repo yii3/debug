@@ -18,9 +18,25 @@ final class ToolbarAssetTest extends TestCase
     {
         $asset = new ToolbarAsset();
 
-        self::assertSame('@vendor/php-forge/debug-core/resources/assets', $asset->sourcePath);
-        self::assertSame([], $asset->css, 'The toolbar must not publish full debugger page styles.');
-        self::assertSame(['dist/js/toolbar.min.js'], $asset->js, 'Only the toolbar runtime must be published.');
-        self::assertSame(['type' => 'module'], $asset->jsOptions, 'Toolbar runtime must load as an ES module.');
+        self::assertSame(
+            '@vendor/php-forge/debug-core/resources/assets',
+            $asset->sourcePath,
+            'Toolbar assets must use the shared Debug Core source path.',
+        );
+        self::assertSame(
+            [],
+            $asset->css,
+            'The toolbar must not publish full debugger page styles.',
+        );
+        self::assertSame(
+            ['dist/js/toolbar.min.js'],
+            $asset->js,
+            'Only the toolbar runtime must be published.',
+        );
+        self::assertSame(
+            ['type' => 'module'],
+            $asset->jsOptions,
+            'Toolbar runtime must load as an ES module.',
+        );
     }
 }

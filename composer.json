@@ -20,11 +20,13 @@
     ],
     "require": {
         "php": ">=8.3",
+        "composer-runtime-api": "^2.2",
         "php-forge/debug-core": "^0.1@dev",
         "psr/http-factory": "^1.1",
         "psr/http-message": "^1.1 || ^2.0",
         "psr/http-server-handler": "^1.0",
         "psr/http-server-middleware": "^1.0",
+        "ui-awesome/html": "^0.6",
         "yiisoft/aliases": "^3.1",
         "yiisoft/assets": "^5.1",
         "yiisoft/network-utilities": "^1.2",
