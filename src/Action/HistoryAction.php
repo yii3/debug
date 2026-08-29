@@ -9,6 +9,8 @@ use PHPForge\Debug\Theme\ThemeResolver;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\Web\DebugPageRenderer;
 
+use function array_key_first;
+
 /**
  * Serves the captured request history grid.
  */
@@ -24,6 +26,9 @@ final readonly class HistoryAction
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $query = $request->getQueryParams();
+        $manifest = $this->store->loadManifest();
+
+        $newestTag = array_key_first($manifest);
 
         return $this->responseFactory
             ->createResponse()
@@ -31,9 +36,10 @@ final readonly class HistoryAction
             ->withBody(
                 $this->streamFactory->createStream(
                     $this->renderer->history(
-                        $this->store->loadManifest(),
+                        $manifest,
                         $query,
                         ThemeResolver::resolve($request->getCookieParams(), $query),
+                        $newestTag === null ? null : $this->store->readSnapshot($newestTag),
                     ),
                 ),
             );

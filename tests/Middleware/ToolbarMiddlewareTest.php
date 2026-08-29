@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Middleware;
 
 use GuzzleHttp\Psr7\{HttpFactory, Response, ServerRequest};
+use PHPForge\Debug\Collector\CollectorCoordinator;
+use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Storage\SnapshotStore;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
+use Yii3\Debug\Collector\InertiaCollector;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\Aliases\Aliases;
@@ -114,6 +117,127 @@ final class ToolbarMiddlewareTest extends TestCase
             'Bypassed requests must not be captured.',
         );
     }
+    public function testProcessCapturesResolvedInertiaPageWithoutChangingJsonResponse(): void
+    {
+        $store = $this->store();
+        $collector = new InertiaCollector();
+        $coordinator = new CollectorCoordinator([$collector]);
+        $request = (new ServerRequest(
+            'POST',
+            'https://example.test/users?page=2',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        ))
+            ->withHeader('X-Inertia', 'true')
+            ->withHeader('X-Inertia-Partial-Component', 'Users/Index')
+            ->withHeader('X-Inertia-Partial-Data', 'users')
+            ->withHeader('X-Inertia-Version', 'v2');
+        $body = '{"component":"Users/Index","props":{"users":[{"id":7}]},"url":"/users?page=2","version":"v2"}';
+
+        $response = $this->middleware($store, $coordinator)->process(
+            $request,
+            new readonly class ($collector, $body) implements RequestHandlerInterface {
+                public function __construct(
+                    private InertiaCollector $collector,
+                    private string $body,
+                ) {}
+
+                public function handle(ServerRequestInterface $request): ResponseInterface
+                {
+                    $this->collector->observe(
+                        [
+                            'component' => 'Users/Index',
+                            'props' => [
+                                'auth' => ['user' => ['id' => 1]],
+                                'users' => [['id' => 7]],
+                            ],
+                            'url' => '/users?page=2',
+                            'version' => 'v2',
+                        ],
+                        ['auth'],
+                    );
+
+                    return new Response(
+                        200,
+                        [
+                            'Content-Type' => 'application/json',
+                            'X-Inertia' => 'true',
+                        ],
+                        $this->body,
+                    );
+                }
+            },
+        );
+
+        self::assertSame(
+            $body,
+            (string) $response->getBody(),
+            'Inertia JSON response bodies must remain unchanged.',
+        );
+        self::assertSame(
+            'true',
+            $response->getHeaderLine('X-Inertia'),
+            'Existing Inertia response metadata must remain unchanged.',
+        );
+        self::assertStringNotContainsString(
+            '<yii-debug-toolbar',
+            (string) $response->getBody(),
+            'Inertia JSON responses must not receive toolbar markup.',
+        );
+
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+        self::assertNotNull(
+            $snapshot,
+            'Captured Inertia requests must persist a debug snapshot.',
+        );
+        self::assertSame(
+            'POST',
+            $snapshot->summary->method,
+            'The request method must be retained.',
+        );
+        self::assertSame(
+            'https://example.test/users?page=2',
+            $snapshot->summary->url,
+            'The request URL must be retained.',
+        );
+        self::assertSame(
+            200,
+            $snapshot->summary->statusCode,
+            'The response status must be retained.',
+        );
+        self::assertArrayHasKey(
+            'inertia',
+            $snapshot->panels,
+            'A resolved Inertia page must persist its panel.',
+        );
+
+        $inertia = InertiaSnapshot::fromArray($snapshot->panels['inertia'], '$.panels.inertia')->data();
+
+        self::assertSame(
+            [
+                'location' => null,
+                'page' => [
+                    'component' => 'Users/Index',
+                    'props' => [
+                        'auth' => ['user' => ['id' => 1]],
+                        'users' => [['id' => 7]],
+                    ],
+                    'url' => '/users?page=2',
+                    'version' => 'v2',
+                ],
+                'requestHeaders' => [
+                    'X-Inertia' => 'true',
+                    'X-Inertia-Partial-Component' => 'Users/Index',
+                    'X-Inertia-Partial-Data' => 'users',
+                    'X-Inertia-Version' => 'v2',
+                ],
+                'sharedKeys' => ['auth'],
+                'statusCode' => 200,
+            ],
+            $inertia,
+            'The Inertia panel must retain the page, shared keys, and request and response metadata.',
+        );
+    }
 
     public function testProcessInjectsToolbarAndDebugMetadataIntoHtml(): void
     {
@@ -205,6 +329,44 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testProcessRetainsEmptyInertiaSnapshotForPlainResponseDiagnostics(): void
+    {
+        $store = $this->store();
+        $coordinator = new CollectorCoordinator([new InertiaCollector()]);
+        $request = new ServerRequest(
+            'GET',
+            'https://example.test/api/status',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        );
+
+        $response = $this->middleware($store, $coordinator)->process(
+            $request,
+            $this->handler(new Response(200, ['Content-Type' => 'application/json'], '{"ok":true}')),
+        );
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+        self::assertNotNull(
+            $snapshot,
+            'Plain responses must still persist their request summary.',
+        );
+        self::assertArrayHasKey(
+            'inertia',
+            $snapshot->panels,
+            'Plain responses must retain an empty Inertia snapshot for directly addressed diagnostics.',
+        );
+        self::assertSame(
+            [
+                'location' => null,
+                'page' => null,
+                'requestHeaders' => [],
+                'sharedKeys' => [],
+                'statusCode' => 200,
+            ],
+            InertiaSnapshot::fromArray($snapshot->panels['inertia'], '$.panels.inertia')->data(),
+            'Plain responses must not fabricate page or negotiation data.',
+        );
+    }
+
     private function handler(ResponseInterface $response): RequestHandlerInterface
     {
         return new readonly class ($response) implements RequestHandlerInterface {
@@ -217,8 +379,10 @@ final class ToolbarMiddlewareTest extends TestCase
         };
     }
 
-    private function middleware(SnapshotStore $store): ToolbarMiddleware
-    {
+    private function middleware(
+        SnapshotStore $store,
+        CollectorCoordinator|null $collectorCoordinator = null,
+    ): ToolbarMiddleware {
         $factory = new HttpFactory();
         $aliases = new Aliases(
             [
@@ -239,6 +403,7 @@ final class ToolbarMiddlewareTest extends TestCase
             $factory,
             $store,
             new IpRanges(['127.0.0.1', '::1']),
+            collectorCoordinator: $collectorCoordinator,
         );
     }
 

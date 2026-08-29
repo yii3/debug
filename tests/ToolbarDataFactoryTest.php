@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests;
 
+use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+use Yii3\Debug\Panel\InertiaPanel;
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -70,6 +74,169 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotExposesPanelFailuresAsDangerItems(): void
+    {
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            extensionPanels: [new InertiaPanel()],
+        );
+        $failure = PanelFailure::fromThrowable(
+            PanelFailure::CAPTURE,
+            new RuntimeException('Unable to capture Inertia.'),
+        );
+        $snapshot = new DebugSnapshot(RequestSummary::create('request-1'), [], ['inertia' => $failure]);
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'inertia',
+                    'title' => 'Inertia',
+                    'url' => '/debug/view?tag=request-1&panel=inertia',
+                    'items' => [
+                        [
+                            'label' => 'Inertia',
+                            'value' => 'error',
+                            'status' => 'danger',
+                            'title' => 'Unable to capture Inertia.',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'A failed extension capture must match the Yii2 danger-item envelope.',
+        );
+    }
+
+    public function testCreateForSnapshotExposesTheInertiaComponentPanel(): void
+    {
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            extensionPanels: [new InertiaPanel()],
+        );
+
+        $payload = $toolbarDataFactory
+            ->withRoutePrefix('/developer/debug/')
+            ->withPresentation('top', 65)
+            ->createForSnapshot($this->snapshot($this->inertiaPayload('Site/Index')))
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'inertia',
+                    'title' => 'Inertia',
+                    'url' => '/developer/debug/view?tag=request-1&panel=inertia',
+                    'icon' => 'inertia',
+                    'items' => [
+                        [
+                            'value' => 'Site/Index',
+                            'status' => 'default',
+                            'title' => 'Inertia component',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'A captured Inertia component must match the Yii2 toolbar panel contract.',
+        );
+        self::assertSame(
+            'top',
+            $payload['position'],
+            'Immutable presentation changes must retain extension panels.',
+        );
+        self::assertSame(
+            65,
+            $payload['defaultHeight'],
+            'Immutable height changes must retain extension panels.',
+        );
+    }
+
+    public function testCreateForSnapshotIsolatesMalformedInertiaPayloads(): void
+    {
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            extensionPanels: [new InertiaPanel()],
+        );
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['inertia' => []],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertCount(
+            1,
+            $payload['items'],
+            'A malformed extension must remain isolated to one toolbar panel.',
+        );
+
+        $panel = $payload['items'][0];
+
+        self::assertArrayNotHasKey(
+            'icon',
+            $panel,
+            'A failed extension panel must use the Yii2 error presentation.',
+        );
+        self::assertSame(
+            'inertia',
+            $panel['id'],
+            'The failed toolbar panel must retain its stable identifier.',
+        );
+        self::assertCount(
+            1,
+            $panel['items'],
+            'A malformed extension must expose one isolated error metric.',
+        );
+
+        $item = $panel['items'][0];
+
+        self::assertSame(
+            'danger',
+            $item['status'],
+            'A malformed captured payload must become a danger item instead of breaking the endpoint.',
+        );
+        self::assertSame(
+            'error',
+            $item['value'],
+            'A malformed captured payload must expose an error value.',
+        );
+        self::assertArrayHasKey(
+            'title',
+            $item,
+            'A malformed captured payload must expose its redacted diagnostic.',
+        );
+        self::assertStringContainsString(
+            'Invalid debug snapshot',
+            $item['title'],
+            'The danger-item tooltip must contain the redacted hydration diagnostic.',
+        );
+    }
+
+    public function testCreateForSnapshotOmitsInertiaWithoutAComponent(): void
+    {
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            extensionPanels: [new InertiaPanel()],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($this->snapshot($this->inertiaPayload(null)))
+            ->jsonSerialize();
+
+        self::assertSame(
+            [],
+            $payload['items'],
+            'An Inertia capture without a component must not create an empty toolbar panel.',
+        );
+    }
+
     public function testCreateForwardsToolbarPresentationSettings(): void
     {
         $toolbarDataFactory = new ToolbarDataFactory($this->assetManager());
@@ -119,5 +286,38 @@ final class ToolbarDataFactoryTest extends TestCase
 
         return (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inertiaPayload(string|null $component): array
+    {
+        return InertiaSnapshot::capture(
+            null,
+            $component === null
+                ? null
+                : [
+                    'component' => $component,
+                    'props' => [],
+                    'url' => '/',
+                    'version' => 'v1',
+                ],
+            [],
+            [],
+            200,
+        )->jsonSerialize();
+    }
+
+    /**
+     * @param array<string, mixed> $inertiaPayload
+     */
+    private function snapshot(array $inertiaPayload): DebugSnapshot
+    {
+        return new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['inertia' => $inertiaPayload],
+            [],
+        );
     }
 }
