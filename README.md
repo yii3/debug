@@ -5,6 +5,7 @@ Minimal Yii3 adapter for [`php-forge/debug-core`](https://github.com/php-forge/d
 This foundational release provides only:
 
 - a protected request-history page with summary counters, filtering, pagination, and the Yii-style grid;
+- a protected capture-comparison workflow with request-metric deltas and privacy-preserving structural counts;
 - minimal filesystem persistence for request summaries;
 - the Yii version chip linked to the live Configuration page;
 - the PHP version chip linked to the Debug Core phpinfo page;
@@ -22,9 +23,9 @@ or identity switching. Query and mail capture are deferred to later phases.
 composer require yii3/debug --dev
 ```
 
-With Yii Config Plugin enabled, the package contributes its parameters, DI definitions, protected history and
-brand-page routes, toolbar-data route, and toolbar middleware. Applications do not need to reference a `Yii3\Debug`
-class in their own configuration.
+With Yii Config Plugin enabled, the package contributes its parameters, DI definitions, protected history,
+comparison, and brand-page routes, toolbar-data route, and toolbar middleware. Applications do not need to reference
+a `Yii3\Debug` class in their own configuration.
 
 The package contributes `ToolbarMiddleware` through the recursive `yiisoft/middleware-dispatcher.middlewares` parameter.
 The application should build its dispatcher from the merged middleware parameters once.
@@ -68,8 +69,8 @@ Application metadata is optional; neutral values are used when it is omitted.
 
 ## Access control
 
-The history, Configuration, phpinfo, and toolbar-data routes accept `127.0.0.1` and `::1` by default. The routes use
-Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolbar injection uses the same
+The history, capture-comparison, Configuration, phpinfo, and toolbar-data routes accept `127.0.0.1` and `::1` by
+default. The routes use Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolbar injection uses the same
 `Yiisoft\NetworkUtilities\IpRanges` configuration. This initial phase authorizes the direct `REMOTE_ADDR` value only.
 
 ## Scope
@@ -77,4 +78,5 @@ Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolbar injection uses the sam
 The package stores only the request metadata required by the History grid and sidebar: tag, method, URL, IP, status,
 time, AJAX state, duration, and peak memory. It also adds `X-Debug-Tag` and `X-Debug-Duration` response headers so the
 shared toolbar runtime can display AJAX activity. Snapshot panel payloads remain empty; collectors and request panels
-will be introduced independently in later phases.
+will be introduced independently in later phases. Capture comparison therefore reports request-summary deltas today,
+while its structural panel comparison remains ready for future captured payloads without exposing their values.
