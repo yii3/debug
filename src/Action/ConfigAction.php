@@ -9,10 +9,11 @@ use PHPForge\Debug\Theme\ThemeResolver;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\Web\DebugPageRenderer;
 
+use function array_key_exists;
 use function is_string;
 
 /**
- * Serves the live Yii configuration page.
+ * Serves the live Yii configuration page and captured extension panels.
  */
 final readonly class ConfigAction
 {
@@ -37,19 +38,52 @@ final readonly class ConfigAction
             );
         }
 
-        if (($query['panel'] ?? null) !== 'config') {
+        $panel = $query['panel'] ?? null;
+
+        if (!is_string($panel) || ($panel !== 'config' && !$this->renderer->hasExtensionPanel($panel))) {
             return $this->response(
-                'Only the configuration panel is available.',
+                'The requested debug panel is not available.',
                 'text/plain; charset=UTF-8',
                 400,
+            );
+        }
+
+        $manifest = $this->store->loadManifest();
+        $snapshot = $this->store->readSnapshot($tag);
+        $theme = ThemeResolver::resolve($request->getCookieParams(), $query);
+
+        if ($panel !== 'config') {
+            if ($snapshot === null) {
+                return $this->response(
+                    'Debug snapshot not found.',
+                    'text/plain; charset=UTF-8',
+                    404,
+                );
+            }
+
+            if (
+                !array_key_exists($panel, $snapshot->panels)
+                && !array_key_exists($panel, $snapshot->failures)
+            ) {
+                return $this->response(
+                    'Debug panel was not captured.',
+                    'text/plain; charset=UTF-8',
+                    404,
+                );
+            }
+
+            return $this->response(
+                $this->renderer->extension($snapshot, $panel, $theme, $manifest),
+                'text/html; charset=UTF-8',
             );
         }
 
         return $this->response(
             $this->renderer->config(
                 $tag,
-                ThemeResolver::resolve($request->getCookieParams(), $query),
-                $this->store->loadManifest(),
+                $theme,
+                $manifest,
+                $snapshot,
             ),
             'text/html; charset=UTF-8',
         );

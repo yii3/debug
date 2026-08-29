@@ -9,6 +9,8 @@ use PHPForge\Debug\Theme\ThemeResolver;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\Web\DebugPageRenderer;
 
+use function array_key_first;
+
 /**
  * Serves the Debug Core phpinfo page.
  */
@@ -24,6 +26,9 @@ final readonly class PhpInfoAction
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $query = $request->getQueryParams();
+        $manifest = $this->store->loadManifest();
+
+        $newestTag = array_key_first($manifest);
 
         return $this->responseFactory
             ->createResponse()
@@ -32,7 +37,8 @@ final readonly class PhpInfoAction
                 $this->streamFactory->createStream(
                     $this->renderer->phpInfo(
                         ThemeResolver::resolve($request->getCookieParams(), $query),
-                        $this->store->loadManifest(),
+                        $manifest,
+                        $newestTag === null ? null : $this->store->readSnapshot($newestTag),
                     ),
                 ),
             );

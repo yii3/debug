@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Web;
 
-use PHPForge\Debug\Storage\RequestSummary;
+use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
+use Yii3\Debug\Panel\InertiaPanel;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -19,6 +22,83 @@ use function sys_get_temp_dir;
  */
 final class DebugPageRendererTest extends TestCase
 {
+    public function testConfigOmitsExtensionsGroupForEmptyInertiaCapture(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            [
+                'inertia' => InertiaSnapshot::capture(null, null, [], [], 200)->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $html = $this->rendererWithInertia()->config(
+            'request-1',
+            'light',
+            $this->manifest(),
+            $snapshot,
+        );
+
+        self::assertStringNotContainsString(
+            'yii-debug-nav-group',
+            $html,
+            'An empty Inertia capture must not create an Extensions navigation group.',
+        );
+    }
+
+    public function testConfigShowsCapturedInertiaUnderExtensions(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            ['inertia' => $this->inertiaPayload()],
+            [],
+        );
+
+        $html = $this->rendererWithInertia()->config(
+            'request-1',
+            'light',
+            $this->manifest(),
+            $snapshot,
+        );
+
+        self::assertMatchesRegularExpression(
+            '/yii-debug-nav-group.*Extensions.*Inertia/s',
+            $html,
+            'Captured Inertia activity must appear in the Extensions navigation group.',
+        );
+        self::assertStringContainsString(
+            '/debug/view?tag=request-1&amp;panel=inertia',
+            $html,
+            'Inertia navigation must link to its captured panel.',
+        );
+    }
+
+    public function testConfigShowsFailedInertiaCaptureUnderExtensions(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            [],
+            [
+                'inertia' => PanelFailure::fromThrowable(
+                    PanelFailure::CAPTURE,
+                    new RuntimeException('Inertia capture failed.'),
+                ),
+            ],
+        );
+
+        $html = $this->rendererWithInertia()->config(
+            'request-1',
+            'light',
+            $this->manifest(),
+            $snapshot,
+        );
+
+        self::assertMatchesRegularExpression(
+            '/yii-debug-nav-group.*Extensions.*Inertia/s',
+            $html,
+            'A failed Inertia capture must remain discoverable in the Extensions navigation group.',
+        );
+    }
     public function testConfigUsesCoreRendererAndDarkTheme(): void
     {
         $html = $this->renderer()->config(
@@ -245,6 +325,34 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
+    public function testInertiaPanelIsActiveAndRequestNavigationRetainsPanel(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            ['inertia' => $this->inertiaPayload()],
+            [],
+        );
+
+        $html = $this->rendererWithInertia()->extension(
+            $snapshot,
+            'inertia',
+            'dark',
+            $this->manifest(),
+        );
+
+        self::assertMatchesRegularExpression(
+            '/<a(?=[^>]*href="\/debug\/view\?tag=request-1&amp;panel=inertia")'
+            . '(?=[^>]*class="yii-debug-nav-link is-active")(?=[^>]*aria-current="page")[^>]*>.*?Inertia.*?<\/a>/s',
+            $html,
+            'The selected Inertia navigation link must be active.',
+        );
+        self::assertStringContainsString(
+            '/debug/view?tag=request-2&amp;panel=inertia',
+            $html,
+            'Request navigation from an extension must retain the active Inertia panel.',
+        );
+    }
+
     public function testPhpInfoUsesCoreRenderer(): void
     {
         $html = $this->renderer()->phpInfo(
@@ -330,7 +438,26 @@ final class DebugPageRendererTest extends TestCase
     }
 
     /**
-     * @return array<string, RequestSummary>
+     * @return array<string, mixed>
+     */
+    private function inertiaPayload(): array
+    {
+        return InertiaSnapshot::capture(
+            null,
+            [
+                'component' => 'Site/Index',
+                'props' => ['appName' => 'Test application'],
+                'url' => '/',
+                'version' => 'version-1',
+            ],
+            ['X-Inertia' => 'true'],
+            ['appName'],
+            200,
+        )->jsonSerialize();
+    }
+
+    /**
+     * @return array{'request-1': RequestSummary, 'request-2': RequestSummary}
      */
     private function manifest(): array
     {
@@ -363,6 +490,27 @@ final class DebugPageRendererTest extends TestCase
             $assetManager,
             new ConfigDataFactory(['name' => 'Test application']),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+        );
+    }
+
+    private function rendererWithInertia(): DebugPageRenderer
+    {
+        $aliases = new Aliases(
+            [
+                '@assets' => sys_get_temp_dir() . '/yii3-debug-page-renderer-inertia-assets',
+                '@assetsUrl' => '/debug-assets',
+                '@vendor' => dirname(__DIR__, 2) . '/vendor',
+            ],
+        );
+        $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
+            ->withPublisher(new AssetPublisher($aliases));
+
+        return new DebugPageRenderer(
+            new WebView(),
+            $assetManager,
+            new ConfigDataFactory(['name' => 'Test application']),
+            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            extensionPanels: [new InertiaPanel()],
         );
     }
 }

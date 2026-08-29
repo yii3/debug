@@ -2,7 +2,7 @@
 
 Minimal Yii3 adapter for [`php-forge/debug-core`](https://github.com/php-forge/debug-core).
 
-This foundational release provides only:
+The package provides:
 
 - a protected request-history page with summary counters, filtering, pagination, and the Yii-style grid;
 - a protected capture-comparison workflow with request-metric deltas and privacy-preserving structural counts;
@@ -11,11 +11,13 @@ This foundational release provides only:
 - the PHP version chip linked to the Debug Core phpinfo page;
 - the shared Yii-style page shell with the current-request card, History as the only primary sidebar item, and the
   complete top brand bar;
+- optional extension-panel navigation that is populated only by data captured for the selected request;
+- an Inertia toolbar chip and detail panel with the captured component, page metadata, visit type, shared/page prop
+  origins, negotiation headers, version-conflict diagnostics, and redacted raw payload when explicitly registered;
 - AJAX request tracking;
 - the injected debug toolbar.
 
-It intentionally contains no request diagnostic panels, collectors, framework instrumentation, optional integrations,
-or identity switching. Query and mail capture are deferred to later phases.
+Other request diagnostic panels, framework instrumentation, and identity switching are outside the current scope.
 
 ## Installation
 
@@ -24,11 +26,14 @@ composer require yii3/debug --dev
 ```
 
 With Yii Config Plugin enabled, the package contributes its parameters, DI definitions, protected history,
-comparison, and brand-page routes, toolbar-data route, and toolbar middleware. Applications do not need to reference
-a `Yii3\Debug` class in their own configuration.
+comparison, and brand-page routes, toolbar-data route, and toolbar middleware. The base debugger requires no
+application-owned DI definitions.
 
 The package contributes `ToolbarMiddleware` through the recursive `yiisoft/middleware-dispatcher.middlewares` parameter.
 The application should build its dispatcher from the merged middleware parameters once.
+
+Extensions are opt-in. The package does not inspect installed classes or interfaces and does not connect itself to
+optional packages at runtime. Applications explicitly compose the collectors, panels, and protocol bridges they use.
 
 ## Configuration
 
@@ -67,16 +72,80 @@ return [
 Application metadata is optional; neutral values are used when it is omitted.
 `historySize` limits retained request summaries. The default storage directory is resolved through Yii aliases.
 
+### Inertia extension
+
+The Inertia collector and panel are framework-neutral services in this package. The application owns the small bridge
+to its Inertia adapter, so `yii3/debug` has no runtime dependency on that adapter. For an application using
+`yii3/inertia`, add an application-local observer:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Debug;
+
+use PHPForge\Inertia\Page;
+use Yii3\Debug\Collector\InertiaCollector;
+use Yii3\Inertia\ResolvedPageObserverInterface;
+
+final readonly class InertiaPageObserver implements ResolvedPageObserverInterface
+{
+    public function __construct(private InertiaCollector $collector) {}
+
+    public function observe(Page $page): void
+    {
+        $this->collector->observe($page->toArray(), $page->sharedProps());
+    }
+}
+```
+
+Then register both sides in the application's development DI configuration:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Debug\InertiaPageObserver;
+use Yii3\Debug\Collector\InertiaCollector;
+use Yii3\Debug\ExtensionRegistry;
+use Yii3\Debug\Panel\InertiaPanel;
+use Yii3\Inertia\ResolvedPageObserverInterface;
+
+return [
+    ExtensionRegistry::class => static fn(
+        InertiaCollector $collector,
+        InertiaPanel $panel,
+    ): ExtensionRegistry => new ExtensionRegistry(
+        collectors: [$collector],
+        panels: [$panel],
+    ),
+    ResolvedPageObserverInterface::class => static fn(
+        InertiaCollector $collector,
+    ): InertiaPageObserver => new InertiaPageObserver($collector),
+];
+```
+
+Load these definitions only in the development environment that installs `yii3/debug`; production configuration must
+not reference a package removed by `composer install --no-dev`. No runtime symbol-discovery guard is needed. Requests
+without Inertia activity remain absent from the Extensions group, and the toolbar chip appears only when the capture
+contains a component, matching the Yii2 debugger behavior.
+
 ## Access control
 
 The history, capture-comparison, Configuration, phpinfo, and toolbar-data routes accept `127.0.0.1` and `::1` by
 default. The routes use Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolbar injection uses the same
 `Yiisoft\NetworkUtilities\IpRanges` configuration. This initial phase authorizes the direct `REMOTE_ADDR` value only.
 
-## Scope
+## Captured data
 
 The package stores only the request metadata required by the History grid and sidebar: tag, method, URL, IP, status,
 time, AJAX state, duration, and peak memory. It also adds `X-Debug-Tag` and `X-Debug-Duration` response headers so the
-shared toolbar runtime can display AJAX activity. Snapshot panel payloads remain empty; collectors and request panels
-will be introduced independently in later phases. Capture comparison therefore reports request-summary deltas today,
-while its structural panel comparison remains ready for future captured payloads without exposing their values.
+shared toolbar runtime can display AJAX activity.
+
+With the Inertia extension explicitly registered, each snapshot also stores its Inertia context: the resolved page,
+shared prop keys, negotiation headers, response status, and reload location. Captures without Inertia activity remain
+hidden from the Extensions group but can still explain the missing page when addressed directly. The shared capture
+policy redacts sensitive values and URL query parameters before persistence. Capture comparison reports request-summary
+deltas and privacy-preserving structural panel counts without exposing captured values.

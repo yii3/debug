@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Action;
 
 use JsonException;
+use PHPForge\Debug\Storage\SnapshotStore;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\ToolbarDataFactory;
 
@@ -17,7 +18,7 @@ use const JSON_UNESCAPED_SLASHES;
 use const JSON_UNESCAPED_UNICODE;
 
 /**
- * Serves the minimal toolbar payload.
+ * Serves the toolbar payload for a captured request.
  */
 final readonly class ToolbarDataAction
 {
@@ -25,6 +26,7 @@ final readonly class ToolbarDataAction
         private ToolbarDataFactory $dataFactory,
         private ResponseFactoryInterface $responseFactory,
         private StreamFactoryInterface $streamFactory,
+        private SnapshotStore|null $store = null,
     ) {}
 
     /**
@@ -38,7 +40,12 @@ final readonly class ToolbarDataAction
             return $this->json(['error' => 'A debug request tag is required.'], 400);
         }
 
-        return $this->json($this->dataFactory->create($tag)->jsonSerialize());
+        $snapshot = $this->store?->readSnapshot($tag);
+        $data = $snapshot === null
+            ? $this->dataFactory->create($tag)
+            : $this->dataFactory->createForSnapshot($snapshot);
+
+        return $this->json($data->jsonSerialize());
     }
 
     private function json(mixed $data, int $status = 200): ResponseInterface

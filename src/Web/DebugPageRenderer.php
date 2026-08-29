@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Web;
 
+use InvalidArgumentException;
 use PHPForge\Debug\Helper\{Format, Icon, Vocabulary};
 use PHPForge\Debug\Panel\Config\ConfigCardRenderer;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
-use PHPForge\Debug\Storage\RequestSummary;
+use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
+use Throwable;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
+use Yii3\Debug\Panel\ExtensionPanelInterface;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
+use function array_key_exists;
 use function array_key_first;
 use function array_keys;
 use function array_search;
@@ -23,30 +27,62 @@ use function count;
 use function date;
 use function dirname;
 use function is_string;
+use function json_encode;
 use function memory_get_peak_usage;
 use function parse_url;
 use function rawurlencode;
 use function rtrim;
+use function trim;
 
+use const JSON_PRETTY_PRINT;
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 use const PHP_VERSION;
 
 /**
- * Renders the history, Configuration, and phpinfo pages with the shared Debug Core shell.
+ * Renders debugger pages and optional extension panels with the shared Debug Core shell.
  */
 final readonly class DebugPageRenderer
 {
+    /**
+     * @var array<string, ExtensionPanelInterface>
+     */
+    private array $extensionPanels;
     private string $routePrefix;
     private string $viewPath;
 
+    /**
+     * @param iterable<ExtensionPanelInterface> $extensionPanels Optional panel presenters in sidebar order.
+     */
     public function __construct(
         private WebView $view,
         private AssetManager $assetManager,
         private ConfigDataFactory $configDataFactory,
         string $viewPath,
         string $routePrefix = '/debug',
+        iterable $extensionPanels = [],
     ) {
         $this->routePrefix = rtrim($routePrefix, '/');
         $this->viewPath = rtrim($viewPath, '/');
+
+        $panels = [];
+
+        foreach ($extensionPanels as $panel) {
+            $id = trim($panel->id());
+
+            if ($id === '') {
+                throw new InvalidArgumentException('Debug extension panel ID must not be empty.');
+            }
+
+            if (isset($panels[$id])) {
+                throw new InvalidArgumentException("Duplicate debug extension panel ID: {$id}.");
+            }
+
+            $panels[$id] = $panel;
+        }
+
+        $this->extensionPanels = $panels;
     }
 
     /**
@@ -61,15 +97,19 @@ final readonly class DebugPageRenderer
             HistoryComparisonRenderer::render($comparison, $manifest, $this->routePrefix),
             $theme,
             $this->viewUrl($target->tag),
-            $this->viewSidebar($target, $manifest),
+            $this->viewSidebar($target, $manifest, $comparison->target),
         );
     }
 
     /**
      * @param array<string, RequestSummary> $manifest
      */
-    public function config(string $tag, string $theme, array $manifest = []): string
-    {
+    public function config(
+        string $tag,
+        string $theme,
+        array $manifest = [],
+        DebugSnapshot|null $snapshot = null,
+    ): string {
         $summary = $this->configDataFactory->create();
 
         $content = Div::tag()
@@ -99,16 +139,90 @@ final readonly class DebugPageRenderer
             $content,
             $theme,
             $configUrl,
-            $this->viewSidebar($manifest[$tag] ?? null, $manifest),
+            $this->viewSidebar($manifest[$tag] ?? null, $manifest, $snapshot),
         );
+    }
+
+    /**
+     * Renders one captured extension panel.
+     *
+     * @param array<string, RequestSummary> $manifest
+     */
+    public function extension(
+        DebugSnapshot $snapshot,
+        string $panelId,
+        string $theme,
+        array $manifest = [],
+    ): string {
+        $panel = $this->extensionPanels[$panelId] ?? null;
+
+        if ($panel === null) {
+            throw new InvalidArgumentException("Unknown debug extension panel: {$panelId}.");
+        }
+
+        $payload = $snapshot->panels[$panelId] ?? [];
+        $failure = $snapshot->failures[$panelId] ?? null;
+        $panelContent = null;
+        $renderError = null;
+
+        if (array_key_exists($panelId, $snapshot->panels)) {
+            try {
+                $panelContent = $panel->render($payload);
+            } catch (Throwable $throwable) {
+                $renderError = $throwable::class . ': ' . $throwable->getMessage();
+            }
+        }
+
+        $content = $this->view->withClearedState()->render(
+            $this->viewPath . '/snapshot.php',
+            [
+                'failure' => $failure === null
+                    ? null
+                    : [
+                        'exception' => (string) $failure->exception,
+                        'stage' => $failure->stage,
+                    ],
+                'method' => $snapshot->summary->method,
+                'panelContent' => $panelContent,
+                'panelLabel' => $panel->name(),
+                'payload' => json_encode(
+                    $payload,
+                    JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+                ),
+                'renderError' => $renderError,
+                'url' => self::path($snapshot->summary->url),
+            ],
+        );
+
+        return $this->page(
+            $panel->name(),
+            $content,
+            $theme,
+            $this->viewUrl($snapshot->summary->tag),
+            $this->viewSidebar(
+                $snapshot->summary,
+                $manifest,
+                $snapshot,
+                $panelId,
+            ),
+        );
+    }
+
+    public function hasExtensionPanel(string $panelId): bool
+    {
+        return isset($this->extensionPanels[$panelId]);
     }
 
     /**
      * @param array<string, RequestSummary> $manifest
      * @param array<array-key, mixed> $queryParams
      */
-    public function history(array $manifest, array $queryParams, string $theme): string
-    {
+    public function history(
+        array $manifest,
+        array $queryParams,
+        string $theme,
+        DebugSnapshot|null $snapshot = null,
+    ): string {
         $newestTag = array_key_first($manifest);
 
         return $this->page(
@@ -116,15 +230,18 @@ final readonly class DebugPageRenderer
             HistoryGridRenderer::render($manifest, $queryParams, $this->routePrefix),
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
-            $this->historySidebar($manifest, $queryParams),
+            $this->historySidebar($manifest, $queryParams, $snapshot),
         );
     }
 
     /**
      * @param array<string, RequestSummary> $manifest
      */
-    public function phpInfo(string $theme, array $manifest = []): string
-    {
+    public function phpInfo(
+        string $theme,
+        array $manifest = [],
+        DebugSnapshot|null $snapshot = null,
+    ): string {
         $content = Div::tag()
             ->class('yii-debug-page')
             ->html(
@@ -144,7 +261,7 @@ final readonly class DebugPageRenderer
             $content,
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
-            $this->viewSidebar($summary, $manifest),
+            $this->viewSidebar($summary, $manifest, $snapshot),
         );
     }
 
@@ -156,7 +273,53 @@ final readonly class DebugPageRenderer
             $this->configDataFactory,
             $this->viewPath,
             $routePrefix,
+            $this->extensionPanels,
         );
+    }
+
+    /**
+     * @return array<string, list<SidebarNavItem>>
+     */
+    private function extensionNavGroups(
+        RequestSummary|null $summary,
+        DebugSnapshot|null $snapshot,
+        string|null $activePanelId = null,
+    ): array {
+        if ($summary === null || $snapshot === null) {
+            return [];
+        }
+
+        $items = [];
+
+        foreach ($this->extensionPanels as $id => $panel) {
+            $hasFailure = isset($snapshot->failures[$id]);
+
+            $payload = $snapshot->panels[$id] ?? null;
+            $hasContent = false;
+
+            if ($payload !== null) {
+                try {
+                    $hasContent = $panel->hasContent($payload);
+                } catch (Throwable) {
+                    // Keep malformed captured panels discoverable so the detail page can expose the render failure.
+                    $hasContent = true;
+                }
+            }
+
+            if ($hasFailure === false && $hasContent === false) {
+                continue;
+            }
+
+            $items[] = new SidebarNavItem(
+                label: $panel->name(),
+                iconSvg: Icon::render($panel->icon()),
+                url: $this->viewUrl($summary->tag, $id),
+                tooltip: 'View ' . $panel->name() . ' panel',
+                isActive: $activePanelId === $id,
+            );
+        }
+
+        return $items === [] ? [] : ['Extensions' => $items];
     }
 
     private function historyNavItem(bool $isActive, string|null $tag = null): SidebarNavItem
@@ -180,8 +343,11 @@ final readonly class DebugPageRenderer
      * @param array<string, RequestSummary> $manifest
      * @param array<array-key, mixed> $queryParams
      */
-    private function historySidebar(array $manifest, array $queryParams): SidebarView
-    {
+    private function historySidebar(
+        array $manifest,
+        array $queryParams,
+        DebugSnapshot|null $snapshot,
+    ): SidebarView {
         $newestTag = array_key_first($manifest);
 
         $summary = $newestTag === null ? null : $manifest[$newestTag];
@@ -198,6 +364,7 @@ final readonly class DebugPageRenderer
                     cursorInitTag: is_string($cursor) ? $cursor : '',
                 ),
             navItems: [$this->historyNavItem(true)],
+            navGroups: $this->extensionNavGroups($summary, $snapshot),
         );
     }
 
@@ -269,6 +436,7 @@ final readonly class DebugPageRenderer
         string $title = 'Current request',
         bool $isCursor = false,
         string $cursorInitTag = '',
+        string $panelId = 'config',
     ): SidebarSnapshot {
         $tags = array_keys($manifest);
         $requestCount = count($tags);
@@ -292,10 +460,10 @@ final readonly class DebugPageRenderer
             )
             ->withCursor($isCursor, $cursorInitTag)
             ->withNavigationUrls(
-                $newestTag === null ? '' : $this->viewUrl($newestTag),
-                $oldestTag === null ? '' : $this->viewUrl($oldestTag),
-                $newerTag === null ? '' : $this->viewUrl($newerTag),
-                $olderTag === null ? '' : $this->viewUrl($olderTag),
+                $newestTag === null ? '' : $this->viewUrl($newestTag, $panelId),
+                $oldestTag === null ? '' : $this->viewUrl($oldestTag, $panelId),
+                $newerTag === null ? '' : $this->viewUrl($newerTag, $panelId),
+                $olderTag === null ? '' : $this->viewUrl($olderTag, $panelId),
             )
             ->withNavigationState(
                 $index === 0 || $index === false,
@@ -308,16 +476,27 @@ final readonly class DebugPageRenderer
     /**
      * @param array<string, RequestSummary> $manifest
      */
-    private function viewSidebar(RequestSummary|null $summary, array $manifest): SidebarView
-    {
+    private function viewSidebar(
+        RequestSummary|null $summary,
+        array $manifest,
+        DebugSnapshot|null $snapshot = null,
+        string|null $activePanelId = null,
+    ): SidebarView {
         return new SidebarView(
-            snapshot: $summary === null ? null : $this->snapshot($summary, $manifest),
+            snapshot: $summary === null
+                ? null
+                : $this->snapshot(
+                    $summary,
+                    $manifest,
+                    panelId: $activePanelId ?? 'config',
+                ),
             navItems: [$this->historyNavItem(false, $summary?->tag)],
+            navGroups: $this->extensionNavGroups($summary, $snapshot, $activePanelId),
         );
     }
 
-    private function viewUrl(string $tag): string
+    private function viewUrl(string $tag, string $panelId = 'config'): string
     {
-        return "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=config';
+        return "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);
     }
 }

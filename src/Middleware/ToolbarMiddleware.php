@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Middleware;
 
+use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
+use Yii3\Debug\Collector\InertiaCollector;
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
@@ -26,7 +28,7 @@ use function strtoupper;
 use function uniqid;
 
 /**
- * Injects the minimal debug toolbar into eligible HTML responses.
+ * Captures debug snapshots and injects the toolbar into eligible HTML responses.
  */
 final readonly class ToolbarMiddleware implements MiddlewareInterface
 {
@@ -45,6 +47,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         private array $skipUrls = [],
         private string $position = 'bottom',
         private int $height = 50,
+        private CollectorCoordinator|null $collectorCoordinator = null,
     ) {
         $this->routePrefix = rtrim($routePrefix, '/');
     }
@@ -55,11 +58,101 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        if ($this->collectorCoordinator !== null) {
+            return $this->collectorCoordinator->run(
+                fn(): ResponseInterface => $this->captureRequest($request, $handler),
+            );
+        }
+
+        return $this->captureRequest($request, $handler);
+    }
+
+    public function withHistorySize(int $historySize): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $this->routePrefix,
+            historySize: $historySize,
+            skipUrls: $this->skipUrls,
+            position: $this->position,
+            height: $this->height,
+            collectorCoordinator: $this->collectorCoordinator,
+        );
+    }
+
+    public function withPresentation(string $position, int $height): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $this->routePrefix,
+            historySize: $this->historySize,
+            skipUrls: $this->skipUrls,
+            position: $position,
+            height: $height,
+            collectorCoordinator: $this->collectorCoordinator,
+        );
+    }
+
+    public function withRoutePrefix(string $routePrefix): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $routePrefix,
+            historySize: $this->historySize,
+            skipUrls: $this->skipUrls,
+            position: $this->position,
+            height: $this->height,
+            collectorCoordinator: $this->collectorCoordinator,
+        );
+    }
+
+    /**
+     * @param list<string> $skipUrls Same-origin URLs excluded from AJAX tracking.
+     */
+    public function withSkipUrls(array $skipUrls): self
+    {
+        return new self(
+            renderer: $this->renderer,
+            streamFactory: $this->streamFactory,
+            store: $this->store,
+            allowedIpRanges: $this->allowedIpRanges,
+            routePrefix: $this->routePrefix,
+            historySize: $this->historySize,
+            skipUrls: $skipUrls,
+            position: $this->position,
+            height: $this->height,
+            collectorCoordinator: $this->collectorCoordinator,
+        );
+    }
+
+    private function captureRequest(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
         $tag = str_replace('.', '', uniqid('', true));
 
         $start = self::requestStart($request);
 
+        $inertiaCollector = $this->collectorCoordinator?->collector('inertia');
+
+        if ($inertiaCollector instanceof InertiaCollector) {
+            $inertiaCollector->collectRequest($request);
+        }
+
         $response = $handler->handle($request);
+
+        if ($inertiaCollector instanceof InertiaCollector) {
+            $inertiaCollector->collectResponse($response);
+        }
 
         $processingTime = microtime(true) - $start;
 
@@ -82,7 +175,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             ->withProfiling($processingTime, memory_get_peak_usage(true));
 
         $this->store->writeSnapshot(
-            new DebugSnapshot($summary, [], []),
+            $this->collectorCoordinator?->capture($summary) ?? new DebugSnapshot($summary, [], []),
             $this->historySize,
         );
 
@@ -101,69 +194,6 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         return $response
             ->withoutHeader('Content-Length')
             ->withBody($this->streamFactory->createStream($html));
-    }
-
-    public function withHistorySize(int $historySize): self
-    {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $this->routePrefix,
-            historySize: $historySize,
-            skipUrls: $this->skipUrls,
-            position: $this->position,
-            height: $this->height,
-        );
-    }
-
-    public function withPresentation(string $position, int $height): self
-    {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $this->routePrefix,
-            historySize: $this->historySize,
-            skipUrls: $this->skipUrls,
-            position: $position,
-            height: $height,
-        );
-    }
-
-    public function withRoutePrefix(string $routePrefix): self
-    {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $routePrefix,
-            historySize: $this->historySize,
-            skipUrls: $this->skipUrls,
-            position: $this->position,
-            height: $this->height,
-        );
-    }
-
-    /**
-     * @param list<string> $skipUrls Same-origin URLs excluded from AJAX tracking.
-     */
-    public function withSkipUrls(array $skipUrls): self
-    {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $this->routePrefix,
-            historySize: $this->historySize,
-            skipUrls: $skipUrls,
-            position: $this->position,
-            height: $this->height,
-        );
     }
 
     private static function clientIp(ServerRequestInterface $request): string
