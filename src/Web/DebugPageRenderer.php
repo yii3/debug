@@ -11,6 +11,7 @@ use PHPForge\Debug\Storage\RequestSummary;
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
+use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
@@ -46,6 +47,22 @@ final readonly class DebugPageRenderer
     ) {
         $this->routePrefix = rtrim($routePrefix, '/');
         $this->viewPath = rtrim($viewPath, '/');
+    }
+
+    /**
+     * @param array<string, RequestSummary> $manifest
+     */
+    public function compare(HistoryComparison $comparison, array $manifest, string $theme): string
+    {
+        $target = $comparison->target->summary;
+
+        return $this->page(
+            'Compare captures',
+            HistoryComparisonRenderer::render($comparison, $manifest, $this->routePrefix),
+            $theme,
+            $this->viewUrl($target->tag),
+            $this->viewSidebar($target, $manifest),
+        );
     }
 
     /**

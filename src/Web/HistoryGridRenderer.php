@@ -77,6 +77,7 @@ final class HistoryGridRenderer
                 $bucketUrls,
                 PageSize::selectorHtml(PageSize::current($perPageRaw)),
             )
+            . HistoryComparisonRenderer::renderHistoryForm($summaries, $routePrefix)
             . ActiveFilterBanner::render(
                 $search->activeFilters,
                 self::filterRemovalUrl($routePrefix, $queryParams),

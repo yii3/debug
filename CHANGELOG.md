@@ -19,3 +19,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor: separate response capture, snapshot persistence, mail reconciliation, and fail-open mail reporting without changing behavior.
 - refactor: reduce the debugger to a minimal Yii/PHP toolbar and request-summary history, removing diagnostic panels, collectors, instrumentation, optional integrations, and related dependencies.
 - refactor: configure immutable debugger services and add protected History, Configuration, and phpinfo pages with persisted request summaries.
+- feat(ui): add protected capture comparison with metric deltas and privacy-preserving panel-structure counts.

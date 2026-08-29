@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Psr\Http\Message\ResponseFactoryInterface;
-use Yii3\Debug\Action\{ConfigAction, HistoryAction, PhpInfoAction, ToolbarDataAction};
+use Yii3\Debug\Action\{CompareAction, ConfigAction, HistoryAction, PhpInfoAction, ToolbarDataAction};
 use Yiisoft\Router\{Group, Route};
 use Yiisoft\Validator\ValidatorInterface;
 use Yiisoft\Yii\Middleware\IpFilter;
@@ -27,6 +27,9 @@ return [
             Route::get('')
                 ->action(HistoryAction::class)
                 ->name('yii3-debug/history'),
+            Route::get('/compare')
+                ->action(CompareAction::class)
+                ->name('yii3-debug/compare'),
             Route::get('/view')
                 ->action(ConfigAction::class)
                 ->name('yii3-debug/config'),
