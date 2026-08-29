@@ -17,4 +17,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(ui): harden response capture and ship the keyboard-resizable drawer with focus restoration.
 - fix: harden CI, CSRF, persisted data, lifecycle cleanup, instrumentation, EXPLAIN, storage, mail, and toolbar routing.
 - refactor: separate response capture, snapshot persistence, mail reconciliation, and fail-open mail reporting without changing behavior.
-- refactor: reduce the debugger to a stateless Yii/PHP toolbar with AJAX tracking, removing history, storage, the debug page, diagnostic panels, collectors, instrumentation, optional integrations, and related dependencies.
+- refactor: reduce the debugger to a minimal Yii/PHP toolbar and request-summary history, removing diagnostic panels, collectors, instrumentation, optional integrations, and related dependencies.
+- refactor: configure immutable debugger services and add protected History, Configuration, and phpinfo pages with persisted request summaries.

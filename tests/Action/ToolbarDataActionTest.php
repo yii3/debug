@@ -26,12 +26,25 @@ final class ToolbarDataActionTest extends TestCase
 
         foreach ([[], ['tag' => ['request-1']]] as $query) {
             $request = (new ServerRequest('GET', '/debug/toolbar'))->withQueryParams($query);
+
             $response = $action($request);
+
             $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
-            self::assertSame(400, $response->getStatusCode(), 'Invalid toolbar tag must fail safely.');
-            self::assertIsArray($payload, 'Error payload must decode to an array.');
-            self::assertSame('A debug request tag is required.', $payload['error'] ?? null);
+            self::assertSame(
+                400,
+                $response->getStatusCode(),
+                'Invalid toolbar tag must fail safely.',
+            );
+            self::assertIsArray(
+                $payload,
+                'Error payload must decode to an array.',
+            );
+            self::assertSame(
+                'A debug request tag is required.',
+                $payload['error'] ?? null,
+                'Invalid toolbar requests must explain that a request tag is required.',
+            );
         }
     }
 
@@ -39,14 +52,50 @@ final class ToolbarDataActionTest extends TestCase
     {
         $request = (new ServerRequest('GET', '/debug/toolbar?tag=request-1'))
             ->withQueryParams(['tag' => 'request-1']);
+
         $response = ($this->action())($request);
+
         $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
-        self::assertSame(200, $response->getStatusCode());
-        self::assertSame('application/json; charset=UTF-8', $response->getHeaderLine('Content-Type'));
-        self::assertIsArray($payload, 'Toolbar payload must decode to an array.');
-        self::assertSame('request-1', $payload['tag'] ?? null);
-        self::assertSame([], $payload['items'] ?? null, 'No diagnostic panels must be returned.');
+        self::assertSame(
+            200,
+            $response->getStatusCode(),
+            'Valid toolbar requests must succeed.',
+        );
+        self::assertSame(
+            'application/json; charset=UTF-8',
+            $response->getHeaderLine('Content-Type'),
+            'Toolbar responses must use the JSON content type.',
+        );
+        self::assertIsArray(
+            $payload,
+            'Toolbar payload must decode to an array.',
+        );
+        self::assertSame(
+            'request-1',
+            $payload['tag'] ?? null,
+            'Toolbar payload must preserve the request tag.',
+        );
+        self::assertSame(
+            '/debug',
+            $payload['indexUrl'] ?? null,
+            'Toolbar title must link to request history.',
+        );
+        self::assertSame(
+            '/debug/view?tag=request-1&panel=config',
+            $payload['configUrl'] ?? null,
+            'Yii chip must link to the request configuration page.',
+        );
+        self::assertSame(
+            '/debug/php-info',
+            $payload['phpInfoUrl'] ?? null,
+            'PHP chip must link to the PHP information page.',
+        );
+        self::assertSame(
+            [],
+            $payload['items'] ?? null,
+            'No diagnostic panels must be returned.',
+        );
     }
 
     private function action(): ToolbarDataAction
