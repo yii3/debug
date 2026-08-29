@@ -573,7 +573,9 @@ final class HistoryComparisonTest extends TestCase
             [],
         );
         $target = new DebugSnapshot(
-            $this->summary('target'), [], ['request' => $failure],
+            $this->summary('target'),
+            [],
+            ['request' => $failure],
         );
 
         $comparison = HistoryComparison::fromSnapshots($baseline, $target);
