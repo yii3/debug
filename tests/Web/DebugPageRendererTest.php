@@ -570,7 +570,7 @@ final class DebugPageRendererTest extends TestCase
      */
     private function vitePayload(): array
     {
-        return new ViteSnapshot(
+        $viteSnapshot = new ViteSnapshot(
             [
                 new ViteComponent(
                     id: 'vite',
@@ -587,6 +587,8 @@ final class DebugPageRendererTest extends TestCase
                     chunks: [],
                 ),
             ],
-        )->jsonSerialize();
+        );
+
+        return $viteSnapshot->payload();
     }
 }
