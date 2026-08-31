@@ -21,3 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor: configure immutable debugger services and add protected History, Configuration, and phpinfo pages with persisted request summaries.
 - feat(ui): add protected capture comparison with metric deltas and privacy-preserving panel-structure counts.
 - feat(ui): add registered extension navigation, a toolbar chip, and the Inertia panel; fix metadata layout and compose app-owned extensions.
+- feat(ui): add native PHP Forge Vite configuration and manifest capture with a toolbar mode chip and detail panel.

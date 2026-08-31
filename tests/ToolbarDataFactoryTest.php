@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
+use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Yii3\Debug\Panel\InertiaPanel;
+use Yii3\Debug\Panel\{InertiaPanel, VitePanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -152,6 +154,43 @@ final class ToolbarDataFactoryTest extends TestCase
             65,
             $payload['defaultHeight'],
             'Immutable height changes must retain extension panels.',
+        );
+    }
+
+    public function testCreateForSnapshotExposesTheViteModePanel(): void
+    {
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            extensionPanels: [new VitePanel()],
+        );
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['vite' => $this->vitePayload()],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'vite',
+                    'title' => 'Vite',
+                    'url' => '/debug/view?tag=request-1&panel=vite',
+                    'icon' => 'brand-javascript',
+                    'items' => [
+                        [
+                            'value' => 'Production',
+                            'status' => 'default',
+                            'title' => 'Vite mode',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'A captured Vite integration must match the Yii2 toolbar panel contract.',
         );
     }
 
@@ -319,5 +358,30 @@ final class ToolbarDataFactoryTest extends TestCase
             ['inertia' => $inertiaPayload],
             [],
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function vitePayload(): array
+    {
+        return new ViteSnapshot(
+            [
+                new ViteComponent(
+                    id: 'vite',
+                    class: Vite::class,
+                    implementation: ViteComponent::IMPLEMENTATION_MODERN,
+                    inspectionAvailable: true,
+                    mode: ViteComponent::MODE_PRODUCTION,
+                    entrypoints: ['resources/js/app.ts'],
+                    baseUrl: '/build',
+                    devServerUrl: null,
+                    manifestPath: '/app/public/build/.vite/manifest.json',
+                    includeViteClient: null,
+                    modulePreload: true,
+                    chunks: [],
+                ),
+            ],
+        )->jsonSerialize();
     }
 }

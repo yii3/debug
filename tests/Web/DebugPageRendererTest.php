@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
+use PHPForge\Vite\Vite;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\InertiaPanel;
+use Yii3\Debug\Panel\{InertiaPanel, VitePanel};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -73,6 +75,33 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
+    public function testConfigShowsCapturedViteUnderExtensions(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            ['vite' => $this->vitePayload()],
+            [],
+        );
+
+        $html = $this->rendererWithVite()->config(
+            'request-1',
+            'light',
+            $this->manifest(),
+            $snapshot,
+        );
+
+        self::assertMatchesRegularExpression(
+            '/yii-debug-nav-group.*Extensions.*Vite/s',
+            $html,
+            'Captured Vite configuration must appear in the Extensions navigation group.',
+        );
+        self::assertStringContainsString(
+            '/debug/view?tag=request-1&amp;panel=vite',
+            $html,
+            'Vite navigation must link to its captured panel.',
+        );
+    }
+
     public function testConfigShowsFailedInertiaCaptureUnderExtensions(): void
     {
         $snapshot = new DebugSnapshot(
@@ -99,6 +128,7 @@ final class DebugPageRendererTest extends TestCase
             'A failed Inertia capture must remain discoverable in the Extensions navigation group.',
         );
     }
+
     public function testConfigUsesCoreRendererAndDarkTheme(): void
     {
         $html = $this->renderer()->config(
@@ -512,5 +542,51 @@ final class DebugPageRendererTest extends TestCase
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
             extensionPanels: [new InertiaPanel()],
         );
+    }
+
+    private function rendererWithVite(): DebugPageRenderer
+    {
+        $aliases = new Aliases(
+            [
+                '@assets' => sys_get_temp_dir() . '/yii3-debug-page-renderer-vite-assets',
+                '@assetsUrl' => '/debug-assets',
+                '@vendor' => dirname(__DIR__, 2) . '/vendor',
+            ],
+        );
+        $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
+            ->withPublisher(new AssetPublisher($aliases));
+
+        return new DebugPageRenderer(
+            new WebView(),
+            $assetManager,
+            new ConfigDataFactory(['name' => 'Test application']),
+            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            extensionPanels: [new VitePanel()],
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function vitePayload(): array
+    {
+        return new ViteSnapshot(
+            [
+                new ViteComponent(
+                    id: 'vite',
+                    class: Vite::class,
+                    implementation: ViteComponent::IMPLEMENTATION_MODERN,
+                    inspectionAvailable: true,
+                    mode: ViteComponent::MODE_DEVELOPMENT,
+                    entrypoints: ['resources/js/app.ts'],
+                    baseUrl: '',
+                    devServerUrl: 'http://127.0.0.1:5173',
+                    manifestPath: '',
+                    includeViteClient: true,
+                    modulePreload: null,
+                    chunks: [],
+                ),
+            ],
+        )->jsonSerialize();
     }
 }
