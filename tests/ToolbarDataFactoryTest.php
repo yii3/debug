@@ -365,7 +365,7 @@ final class ToolbarDataFactoryTest extends TestCase
      */
     private function vitePayload(): array
     {
-        return new ViteSnapshot(
+        $viteSnapshot = new ViteSnapshot(
             [
                 new ViteComponent(
                     id: 'vite',
@@ -382,6 +382,8 @@ final class ToolbarDataFactoryTest extends TestCase
                     chunks: [],
                 ),
             ],
-        )->jsonSerialize();
+        );
+
+        return $viteSnapshot->payload();
     }
 }
