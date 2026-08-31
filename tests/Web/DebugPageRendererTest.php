@@ -589,6 +589,6 @@ final class DebugPageRendererTest extends TestCase
             ],
         );
 
-        return $viteSnapshot->payload();
+        return $viteSnapshot->jsonSerialize();
     }
 }

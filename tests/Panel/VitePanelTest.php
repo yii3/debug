@@ -207,6 +207,6 @@ final class VitePanelTest extends TestCase
     {
         $viteSnapshot = new ViteSnapshot(array_values($components));
 
-        return $viteSnapshot->payload();
+        return $viteSnapshot->jsonSerialize();
     }
 }

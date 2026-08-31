@@ -384,6 +384,6 @@ final class ToolbarDataFactoryTest extends TestCase
             ],
         );
 
-        return $viteSnapshot->payload();
+        return $viteSnapshot->jsonSerialize();
     }
 }
