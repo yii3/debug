@@ -14,6 +14,8 @@ The package provides:
 - optional extension-panel navigation that is populated only by data captured for the selected request;
 - an Inertia toolbar chip and detail panel with the captured component, page metadata, visit type, shared/page prop
   origins, negotiation headers, version-conflict diagnostics, and redacted raw payload when explicitly registered;
+- a Vite toolbar mode chip and detail panel with native development or production configuration, entrypoints, and typed
+  build-manifest chunks when explicitly registered;
 - AJAX request tracking;
 - the injected debug toolbar.
 
@@ -132,6 +134,66 @@ not reference a package removed by `composer install --no-dev`. No runtime symbo
 without Inertia activity remain absent from the Extensions group, and the toolbar chip appears only when the capture
 contains a component, matching the Yii2 debugger behavior.
 
+### Vite extension
+
+The Vite collector consumes the same immutable configuration and entrypoints as the native
+[`php-forge/vite`](https://github.com/php-forge/vite) service. Register both services from the application's development
+configuration so the collector can inspect the public Vite API without reflection or manual JSON parsing:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use PHPForge\Vite\Configuration\DevelopmentConfiguration;
+use PHPForge\Vite\Manifest\ManifestLoader;
+use PHPForge\Vite\Vite;
+use Yii3\Debug\Collector\ViteCollector;
+use Yii3\Debug\ExtensionRegistry;
+use Yii3\Debug\Panel\VitePanel;
+use Yiisoft\Definitions\Reference;
+
+$entrypoints = ['resources/js/app.ts'];
+$configuration = DevelopmentConfiguration::create('http://127.0.0.1:5173');
+
+return [
+    Vite::class => static fn(): Vite => Vite::create($configuration, $entrypoints),
+    ViteCollector::class => [
+        '__construct()' => [
+            'configuration' => $configuration,
+            'entrypoints' => $entrypoints,
+            'manifestLoader' => Reference::optional(ManifestLoader::class),
+        ],
+    ],
+    ExtensionRegistry::class => static fn(
+        ViteCollector $collector,
+        VitePanel $panel,
+    ): ExtensionRegistry => new ExtensionRegistry(
+        collectors: [$collector],
+        panels: [$panel],
+    ),
+];
+```
+
+Use the same pattern with `ProductionConfiguration`. Production captures load the configured manifest through the
+native `ManifestLoader`, preserving Vite's validation and typed chunk metadata. A missing or invalid manifest becomes
+an isolated panel failure instead of a silent fallback. Development captures record configuration only and never
+contact the Vite development server.
+
+An application using both extensions must compose them in the same registry rather than define the registry twice:
+
+```php
+ExtensionRegistry::class => static fn(
+    InertiaCollector $inertiaCollector,
+    InertiaPanel $inertiaPanel,
+    ViteCollector $viteCollector,
+    VitePanel $vitePanel,
+): ExtensionRegistry => new ExtensionRegistry(
+    collectors: [$inertiaCollector, $viteCollector],
+    panels: [$inertiaPanel, $vitePanel],
+),
+```
+
 ## Access control
 
 The history, capture-comparison, Configuration, phpinfo, and toolbar-data routes accept `127.0.0.1` and `::1` by
@@ -149,3 +211,7 @@ shared prop keys, negotiation headers, response status, and reload location. Cap
 hidden from the Extensions group but can still explain the missing page when addressed directly. The shared capture
 policy redacts sensitive values and URL query parameters before persistence. Capture comparison reports request-summary
 deltas and privacy-preserving structural panel counts without exposing captured values.
+
+With the Vite extension explicitly registered, each active capture stores its normalized entrypoints, runtime mode,
+public development or production settings, and the production manifest's chunk names, output files, CSS/import counts,
+and entrypoint flags. The collector retains no asset contents and does not execute inline-module providers.
