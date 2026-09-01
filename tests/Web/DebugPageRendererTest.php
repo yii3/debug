@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPForge\Vite\Vite;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{InertiaPanel, VitePanel};
+use Yii3\Debug\Panel\{InertiaPanel, RequestPanel, VitePanel};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -29,17 +30,24 @@ final class DebugPageRendererTest extends TestCase
         $snapshot = new DebugSnapshot(
             $this->manifest()['request-1'],
             [
-                'inertia' => InertiaSnapshot::capture(null, null, [], [], 200)->jsonSerialize(),
+                'inertia' => InertiaSnapshot::capture(
+                    null,
+                    null,
+                    [],
+                    [],
+                    200,
+                )->jsonSerialize(),
             ],
             [],
         );
 
-        $html = $this->rendererWithInertia()->config(
-            'request-1',
-            'light',
-            $this->manifest(),
-            $snapshot,
-        );
+        $html = $this->rendererWithInertia()
+            ->config(
+                'request-1',
+                'light',
+                $this->manifest(),
+                $snapshot,
+            );
 
         self::assertStringNotContainsString(
             'yii-debug-nav-group',
@@ -56,12 +64,13 @@ final class DebugPageRendererTest extends TestCase
             [],
         );
 
-        $html = $this->rendererWithInertia()->config(
-            'request-1',
-            'light',
-            $this->manifest(),
-            $snapshot,
-        );
+        $html = $this->rendererWithInertia()
+            ->config(
+                'request-1',
+                'light',
+                $this->manifest(),
+                $snapshot,
+            );
 
         self::assertMatchesRegularExpression(
             '/yii-debug-nav-group.*Extensions.*Inertia/s',
@@ -83,12 +92,13 @@ final class DebugPageRendererTest extends TestCase
             [],
         );
 
-        $html = $this->rendererWithVite()->config(
-            'request-1',
-            'light',
-            $this->manifest(),
-            $snapshot,
-        );
+        $html = $this->rendererWithVite()
+            ->config(
+                'request-1',
+                'light',
+                $this->manifest(),
+                $snapshot,
+            );
 
         self::assertMatchesRegularExpression(
             '/yii-debug-nav-group.*Extensions.*Vite/s',
@@ -115,12 +125,13 @@ final class DebugPageRendererTest extends TestCase
             ],
         );
 
-        $html = $this->rendererWithInertia()->config(
-            'request-1',
-            'light',
-            $this->manifest(),
-            $snapshot,
-        );
+        $html = $this->rendererWithInertia()
+            ->config(
+                'request-1',
+                'light',
+                $this->manifest(),
+                $snapshot,
+            );
 
         self::assertMatchesRegularExpression(
             '/yii-debug-nav-group.*Extensions.*Inertia/s',
@@ -131,11 +142,12 @@ final class DebugPageRendererTest extends TestCase
 
     public function testConfigUsesCoreRendererAndDarkTheme(): void
     {
-        $html = $this->renderer()->config(
-            'request-1',
-            'dark',
-            $this->manifest(),
-        );
+        $html = $this->renderer()
+            ->config(
+                'request-1',
+                'dark',
+                $this->manifest(),
+            );
 
         self::assertStringContainsString(
             '<title>Configuration — Yii Debugger</title>',
@@ -256,11 +268,12 @@ final class DebugPageRendererTest extends TestCase
 
     public function testHistoryAppliesRequestFilters(): void
     {
-        $html = $this->renderer()->history(
-            $this->manifest(),
-            ['Debug' => ['method' => 'POST']],
-            'light',
-        );
+        $html = $this->renderer()
+            ->history(
+                $this->manifest(),
+                ['Debug' => ['method' => 'POST']],
+                'light',
+            );
 
         self::assertStringContainsString(
             'data-yii-debug-tag="request-2"',
@@ -281,7 +294,12 @@ final class DebugPageRendererTest extends TestCase
 
     public function testHistoryRendersSummaryFiltersRowsAndNewestRequestSidebar(): void
     {
-        $html = $this->renderer()->history($this->manifest(), [], 'dark');
+        $html = $this->renderer()
+            ->history(
+                $this->manifest(),
+                [],
+                'dark',
+            );
 
         self::assertStringContainsString(
             '<title>Request history — Yii Debugger</title>',
@@ -329,6 +347,11 @@ final class DebugPageRendererTest extends TestCase
             'Grid must include the client error request.',
         );
         self::assertStringContainsString(
+            '/debug/view?tag=request-1&amp;panel=auto',
+            $html,
+            'History capture IDs must open the built-in Request panel like Yii2.',
+        );
+        self::assertStringContainsString(
             'Newest request',
             $html,
             'Sidebar must identify the newest request.',
@@ -363,12 +386,13 @@ final class DebugPageRendererTest extends TestCase
             [],
         );
 
-        $html = $this->rendererWithInertia()->extension(
-            $snapshot,
-            'inertia',
-            'dark',
-            $this->manifest(),
-        );
+        $html = $this->rendererWithInertia()
+            ->extension(
+                $snapshot,
+                'inertia',
+                'dark',
+                $this->manifest(),
+            );
 
         self::assertMatchesRegularExpression(
             '/<a(?=[^>]*href="\/debug\/view\?tag=request-1&amp;panel=inertia")'
@@ -385,10 +409,11 @@ final class DebugPageRendererTest extends TestCase
 
     public function testPhpInfoUsesCoreRenderer(): void
     {
-        $html = $this->renderer()->phpInfo(
-            'light',
-            $this->manifest(),
-        );
+        $html = $this->renderer()
+            ->phpInfo(
+                'light',
+                $this->manifest(),
+            );
 
         self::assertStringContainsString(
             '<title>PHP Info — Yii Debugger</title>',
@@ -467,6 +492,55 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
+    public function testRequestPanelIsPrimaryActiveAndUsesTheCapturedSummary(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            ['request' => $this->requestPayload()],
+            [],
+        );
+
+        $html = $this->renderer()
+            ->extension(
+                $snapshot,
+                'request',
+                'dark',
+                $this->manifest(),
+            );
+
+        self::assertMatchesRegularExpression(
+            '/<a(?=[^>]*href="\/debug\/view\?tag=request-1&amp;panel=request")'
+            . '(?=[^>]*class="yii-debug-nav-link is-active")(?=[^>]*aria-current="page")[^>]*>.*?Request.*?<\/a>/s',
+            $html,
+            'The selected Request navigation link must be active in the primary panel list.',
+        );
+        self::assertStringNotContainsString(
+            'yii-debug-nav-group">Request',
+            $html,
+            'Built-in Request navigation must never be grouped as an extension.',
+        );
+        self::assertStringContainsString(
+            'https://example.test/?page=2',
+            $html,
+            'Request hero must use the selected capture summary URL.',
+        );
+        self::assertStringContainsString(
+            '9.0 ms',
+            $html,
+            'Request hero must use the selected capture duration.',
+        );
+        self::assertStringContainsString(
+            'Request data',
+            $html,
+            'Request detail must expose the shared tab set.',
+        );
+        self::assertStringContainsString(
+            '/debug/view?tag=request-2&amp;panel=auto',
+            $html,
+            'Older request navigation must prefer Request while retaining a legacy-capture fallback.',
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -520,6 +594,7 @@ final class DebugPageRendererTest extends TestCase
             $assetManager,
             new ConfigDataFactory(['name' => 'Test application']),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            extensionPanels: [new RequestPanel()],
         );
     }
 
@@ -540,7 +615,7 @@ final class DebugPageRendererTest extends TestCase
             $assetManager,
             new ConfigDataFactory(['name' => 'Test application']),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new InertiaPanel()],
+            extensionPanels: [new RequestPanel(), new InertiaPanel()],
         );
     }
 
@@ -561,8 +636,34 @@ final class DebugPageRendererTest extends TestCase
             $assetManager,
             new ConfigDataFactory(['name' => 'Test application']),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new VitePanel()],
+            extensionPanels: [new RequestPanel(), new VitePanel()],
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestPayload(): array
+    {
+        return RequestSnapshot::capture(
+            [
+                'action' => 'App\\Web\\HomeAction',
+                'actionParams' => [],
+                'flashes' => [],
+                'general' => ['method' => 'GET'],
+                'requestBody' => [],
+                'requestHeaders' => [],
+                'responseHeaders' => [],
+                'route' => 'home',
+                'statusCode' => 200,
+                'COOKIE' => [],
+                'FILES' => [],
+                'GET' => ['page' => '2'],
+                'POST' => [],
+                'SERVER' => [],
+                'SESSION' => [],
+            ],
+        )->jsonSerialize();
     }
 
     /**

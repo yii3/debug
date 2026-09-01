@@ -24,7 +24,8 @@ final class HistoryComparisonRendererTest extends TestCase
     {
         [$comparison, $manifest] = $this->comparison();
 
-        $html = $this->pageRenderer()->compare($comparison, $manifest, 'dark');
+        $html = $this->pageRenderer()
+            ->compare($comparison, $manifest, 'dark');
 
         self::assertStringContainsString(
             '<title>Compare captures — Yii Debugger</title>',
@@ -57,7 +58,11 @@ final class HistoryComparisonRendererTest extends TestCase
     {
         [$comparison, $manifest] = $this->comparison();
 
-        $pair = HistoryGridRenderer::render($manifest, [], '/developer/debug');
+        $pair = HistoryGridRenderer::render(
+            $manifest,
+            [],
+            '/developer/debug',
+        );
         $single = HistoryGridRenderer::render(
             ['target-capture' => $comparison->target->summary],
             [],
@@ -95,7 +100,11 @@ final class HistoryComparisonRendererTest extends TestCase
     {
         [$comparison, $manifest] = $this->comparison();
 
-        $html = HistoryComparisonRenderer::render($comparison, $manifest, '/developer/debug');
+        $html = HistoryComparisonRenderer::render(
+            $comparison,
+            $manifest,
+            '/developer/debug',
+        );
 
         self::assertStringContainsString(
             'https://example.test/baseline?value=&lt;script&gt;',
@@ -117,10 +126,15 @@ final class HistoryComparisonRendererTest extends TestCase
             $html,
             'Target overview and supported Configuration rows must deep-link through the configured prefix.',
         );
-        self::assertStringNotContainsString(
-            'panel=request',
+        self::assertStringContainsString(
+            '/developer/debug/view?tag=baseline-capture&amp;panel=request',
             $html,
-            'Persisted legacy panel structure must not create links to an unavailable Yii3 panel.',
+            'Captured baseline Request data must deep-link to the built-in panel.',
+        );
+        self::assertStringContainsString(
+            '/developer/debug/view?tag=target-capture&amp;panel=request',
+            $html,
+            'Captured target Request data must deep-link to the built-in panel.',
         );
         self::assertStringNotContainsString(
             'panel=profiling',
@@ -147,8 +161,11 @@ final class HistoryComparisonRendererTest extends TestCase
             new DebugSnapshot($manifest['baseline-capture'], [], []),
             new DebugSnapshot($manifest['target-capture'], [], []),
         );
-
-        $html = HistoryComparisonRenderer::render($comparison, $manifest, '/developer/debug');
+        $html = HistoryComparisonRenderer::render(
+            $comparison,
+            $manifest,
+            '/developer/debug',
+        );
 
         self::assertStringContainsString(
             '<span class="yii-debug-section-count">0</span>',

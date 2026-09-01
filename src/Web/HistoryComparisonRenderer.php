@@ -210,6 +210,13 @@ final class HistoryComparisonRenderer
             ->render();
     }
 
+    private static function panelUrl(string $routePrefix, string $tag, string $panel): string
+    {
+        return rtrim($routePrefix, '/')
+            . '/view?tag=' . rawurlencode($tag)
+            . '&panel=' . rawurlencode($panel);
+    }
+
     private static function renderCaptureCard(string $label, RequestSummary $summary, string $routePrefix): Article
     {
         return Article::tag()
@@ -369,14 +376,14 @@ final class HistoryComparisonRenderer
                 ->render();
         }
 
-        if ($panel->id !== 'config') {
+        if (!in_array($panel->id, ['config', 'request'], true)) {
             return $badge;
         }
 
         return $badge . ' ' . A::tag()
             ->class('yii-debug-btn yii-debug-btn-ghost yii-debug-btn-sm')
             ->content('Open panel')
-            ->href(self::captureUrl($routePrefix, $tag))
+            ->href(self::panelUrl($routePrefix, $tag, $panel->id))
             ->render();
     }
 

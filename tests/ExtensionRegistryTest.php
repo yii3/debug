@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use Closure;
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
-use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
+use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
-use Yii3\Debug\Collector\InertiaCollector;
+use ReflectionProperty;
+use Yii3\Debug\Collector\{InertiaCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
-use Yii3\Debug\Panel\InertiaPanel;
+use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yii3\Debug\Panel\{InertiaPanel, RequestPanel};
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\ToolbarDataFactory;
-use Yii3\Debug\Web\DebugPageRenderer;
+use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\View\WebView;
@@ -61,7 +65,11 @@ final class ExtensionRegistryTest extends TestCase
             $coordinatorFactory,
             'Collector coordinator must be built from the extension registry.',
         );
-        $coordinator = $coordinatorFactory($registry);
+
+        $requestCollector = new RequestCollector();
+
+        $coordinator = $coordinatorFactory($requestCollector, $registry);
+
         self::assertInstanceOf(
             CollectorCoordinator::class,
             $coordinator,
@@ -70,6 +78,11 @@ final class ExtensionRegistryTest extends TestCase
         self::assertFalse(
             $coordinator->hasCollector('inertia'),
             'Default DI must not infer an Inertia collector from installed classes or interfaces.',
+        );
+        self::assertSame(
+            $requestCollector,
+            $coordinator->collector('request'),
+            'Request must be registered independently from the empty extension registry.',
         );
     }
 
@@ -89,14 +102,23 @@ final class ExtensionRegistryTest extends TestCase
             'Package DI configuration must return an array.',
         );
 
+        $capturePolicy = new CapturePolicy(maxBodyBytes: 4096);
         $collector = new InertiaCollector();
+        $builtInRequestCollector = new RequestCollector(capturePolicy: $capturePolicy);
+        $requestCollectorOverride = new RequestCollector(capturePolicy: $capturePolicy);
         $panel = new InertiaPanel();
-        $registry = new ExtensionRegistry([$collector], [$panel]);
+        $builtInRequestPanel = new RequestPanel();
+        $requestPanelOverride = new RequestPanel();
+        $registry = new ExtensionRegistry(
+            [$collector, $requestCollectorOverride],
+            [$panel, $requestPanelOverride],
+        );
         $aliases = new Aliases(
             [
                 '@assets' => sys_get_temp_dir() . '/yii3-debug-extension-registry-assets',
                 '@assetsUrl' => '/debug-assets',
                 '@vendor' => dirname(__DIR__) . '/vendor',
+                '@yii3DebugViews' => '@vendor/php-forge/debug-core/resources/views',
             ],
         );
         $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
@@ -110,7 +132,28 @@ final class ExtensionRegistryTest extends TestCase
             'Collector coordinator factory must be present.',
         );
 
-        $coordinator = $coordinatorFactory($registry);
+        self::assertSame(
+            [$requestCollectorOverride, $collector],
+            $registry->collectorsWithBuiltIn($builtInRequestCollector),
+            'An explicit Request collector override must replace the built-in instance and remain first.',
+        );
+        self::assertSame(
+            [$requestPanelOverride, $panel],
+            $registry->panelsWithBuiltIn($builtInRequestPanel),
+            'An explicit Request panel override must replace the built-in instance and remain first.',
+        );
+        self::assertSame(
+            [$collector, $requestCollectorOverride],
+            $registry->collectors(),
+            'Built-in composition must not alter the explicit collector registry.',
+        );
+        self::assertSame(
+            [$panel, $requestPanelOverride],
+            $registry->panels(),
+            'Built-in composition must not alter the explicit panel registry.',
+        );
+
+        $coordinator = $coordinatorFactory($builtInRequestCollector, $registry);
 
         self::assertInstanceOf(
             CollectorCoordinator::class,
@@ -121,6 +164,11 @@ final class ExtensionRegistryTest extends TestCase
             $collector,
             $coordinator->collector('inertia'),
             'Collector coordinator must use the explicitly registered collector instance.',
+        );
+        self::assertSame(
+            $requestCollectorOverride,
+            $coordinator->collector('request'),
+            'Collector coordinator must use an explicit Request override without creating a duplicate ID.',
         );
 
         $rendererFactory = $definitions[DebugPageRenderer::class] ?? null;
@@ -136,6 +184,7 @@ final class ExtensionRegistryTest extends TestCase
             $assetManager,
             new ConfigDataFactory(['name' => 'Test application']),
             $aliases,
+            $builtInRequestPanel,
             $registry,
         );
 
@@ -148,6 +197,10 @@ final class ExtensionRegistryTest extends TestCase
             $renderer->hasExtensionPanel('inertia'),
             'Debug page renderer must receive the explicitly registered panel.',
         );
+        self::assertTrue(
+            $renderer->hasExtensionPanel('request'),
+            'Debug page renderer must receive the resolved Request panel without a duplicate ID.',
+        );
 
         $toolbarFactory = $definitions[ToolbarDataFactory::class] ?? null;
 
@@ -157,7 +210,7 @@ final class ExtensionRegistryTest extends TestCase
             'Toolbar data factory definition must be present.',
         );
 
-        $toolbarDataFactory = $toolbarFactory($assetManager, $registry);
+        $toolbarDataFactory = $toolbarFactory($assetManager, $builtInRequestPanel, $registry);
 
         self::assertInstanceOf(
             ToolbarDataFactory::class,
@@ -190,6 +243,43 @@ final class ExtensionRegistryTest extends TestCase
             'inertia',
             $items[0]['id'],
             'Toolbar data must expose the registered panel ID.',
+        );
+
+        $middlewareFactory = $definitions[ToolbarMiddleware::class] ?? null;
+
+        self::assertInstanceOf(
+            Closure::class,
+            $middlewareFactory,
+            'Toolbar middleware factory definition must be present.',
+        );
+
+        $streamFactory = HelperFactory::createStreamFactory();
+
+        $middleware = $middlewareFactory(
+            new ToolbarRenderer(
+                new WebView(),
+                $assetManager,
+                $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            ),
+            $streamFactory,
+            new SnapshotStore(
+                sys_get_temp_dir() . '/yii3-debug-extension-registry-store',
+                0o700,
+                0o600,
+            ),
+            $coordinator,
+            $capturePolicy,
+        );
+
+        self::assertInstanceOf(
+            ToolbarMiddleware::class,
+            $middleware,
+            'Toolbar middleware factory definition must return its service.',
+        );
+        self::assertSame(
+            $capturePolicy,
+            (new ReflectionProperty(ToolbarMiddleware::class, 'capturePolicy'))->getValue($middleware),
+            'Toolbar middleware and collectors must receive the shared capture policy service.',
         );
     }
 

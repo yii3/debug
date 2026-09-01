@@ -15,10 +15,16 @@ return [
             'dirMode' => 0o700,
             'fileMode' => 0o600,
         ],
+        'viewPath' => '@yii3DebugViews',
         'toolbar' => [
             'skipUrls' => [],
             'position' => 'bottom',
             'height' => 50,
+        ],
+    ],
+    'yiisoft/aliases' => [
+        'aliases' => [
+            '@yii3DebugViews' => '@vendor/php-forge/debug-core/resources/views',
         ],
     ],
     'yiisoft/middleware-dispatcher' => [

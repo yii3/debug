@@ -22,3 +22,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(ui): add protected capture comparison with metric deltas and privacy-preserving panel-structure counts.
 - feat(ui): add registered extension navigation, a toolbar chip, and the Inertia panel; fix metadata layout and compose app-owned extensions.
 - feat(ui): add native PHP Forge Vite configuration and manifest capture with a toolbar mode chip and detail panel.
+- feat(ui): add the built-in Yii3 Request collector, align its toolbar, detail view, navigation, and security with Yii2, and keep Request history navigation compatible with captures created before the built-in panel.

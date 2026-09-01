@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Action;
 
-use GuzzleHttp\Psr7\{HttpFactory, ServerRequest};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\{ConfigAction, HistoryAction, PhpInfoAction};
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\InertiaPanel;
+use Yii3\Debug\Panel\{InertiaPanel, RequestPanel};
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -23,16 +24,41 @@ use function sys_get_temp_dir;
  */
 final class BrandPageActionsTest extends TestCase
 {
+    public function testAutomaticPanelFallsBackToConfigForALegacyCapture(): void
+    {
+        $response = ($this->configAction())(
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=request-1&panel=auto',
+            ),
+        );
+
+        self::assertSame(
+            200,
+            $response->getStatusCode(),
+            'Automatic legacy links must remain usable.',
+        );
+        self::assertStringContainsString(
+            '<title>Configuration — Yii Debugger</title>',
+            (string) $response->getBody(),
+            'Automatic legacy links must fall back to Config when Request was not captured.',
+        );
+    }
     public function testConfigRejectsInvalidQueries(): void
     {
         $action = $this->configAction();
 
         $missingTag = $action(
-            new ServerRequest('GET', '/debug/view?panel=config'),
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?panel=config',
+            ),
         );
         $wrongPanel = $action(
-            (new ServerRequest('GET', '/debug/view?tag=request-1&panel=request'))
-                ->withQueryParams(['tag' => 'request-1', 'panel' => 'request']),
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=request-1&panel=unknown',
+            ),
         );
 
         self::assertSame(
@@ -59,14 +85,11 @@ final class BrandPageActionsTest extends TestCase
 
     public function testConfigRendersRequestedTheme(): void
     {
-        $request = (new ServerRequest('GET', '/debug/view?tag=request-1&panel=config&yii_debug_theme=dark'))
-            ->withQueryParams(
-                [
-                    'tag' => 'request-1',
-                    'panel' => 'config',
-                    'yii_debug_theme' => 'dark',
-                ],
-            );
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/view?tag=request-1&panel=config&yii_debug_theme=dark',
+        );
+
         $response = ($this->configAction())($request);
 
         self::assertSame(
@@ -128,10 +151,16 @@ final class BrandPageActionsTest extends TestCase
 
     public function testHistoryRendersStoredRequestsAndRequestedTheme(): void
     {
-        $factory = new HttpFactory();
-        $action = new HistoryAction($this->store(), $this->renderer(), $factory, $factory);
-        $request = (new ServerRequest('GET', '/debug?yii_debug_theme=dark'))
-            ->withQueryParams(['yii_debug_theme' => 'dark']);
+        $action = new HistoryAction(
+            $this->store(),
+            $this->renderer(),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
+        );
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug?yii_debug_theme=dark',
+        );
 
         $response = $action($request);
 
@@ -170,13 +199,18 @@ final class BrandPageActionsTest extends TestCase
     public function testInertiaPanelRejectsMissingAndUncapturedSnapshots(): void
     {
         $action = $this->inertiaAction($this->store());
+
         $missing = $action(
-            (new ServerRequest('GET', '/debug/view?tag=missing&panel=inertia'))
-                ->withQueryParams(['tag' => 'missing', 'panel' => 'inertia']),
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=missing&panel=inertia',
+            ),
         );
         $uncaptured = $action(
-            (new ServerRequest('GET', '/debug/view?tag=request-1&panel=inertia'))
-                ->withQueryParams(['tag' => 'request-1', 'panel' => 'inertia']),
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=request-1&panel=inertia',
+            ),
         );
 
         self::assertSame(
@@ -204,6 +238,7 @@ final class BrandPageActionsTest extends TestCase
     public function testInertiaPanelRendersDirectlyForAnEmptyCaptureWithoutShowingExtensionNavigation(): void
     {
         $store = $this->store();
+
         $snapshot = $store->readSnapshot('request-1');
 
         self::assertNotNull($snapshot, 'The base debug snapshot fixture must exist.');
@@ -211,15 +246,24 @@ final class BrandPageActionsTest extends TestCase
         $store->writeSnapshot(
             new DebugSnapshot(
                 $snapshot->summary,
-                ['inertia' => InertiaSnapshot::capture(null, null, [], [], 200)->jsonSerialize()],
+                [
+                    'inertia' => InertiaSnapshot::capture(
+                        null,
+                        null,
+                        [],
+                        [],
+                        200,
+                    )->jsonSerialize(),
+                ],
                 [],
             ),
             50,
         );
 
-        $request = (new ServerRequest('GET', '/debug/view?tag=request-1&panel=inertia'))
-            ->withQueryParams(['tag' => 'request-1', 'panel' => 'inertia']);
+        $request = HelperFactory::createRequest('GET', '/debug/view?tag=request-1&panel=inertia');
+
         $response = ($this->inertiaAction($store))($request);
+
         $body = (string) $response->getBody();
 
         self::assertSame(
@@ -241,15 +285,9 @@ final class BrandPageActionsTest extends TestCase
 
     public function testInertiaPanelRendersRequestedDarkTheme(): void
     {
-        $request = (new ServerRequest(
+        $request = HelperFactory::createRequest(
             'GET',
             '/debug/view?tag=request-1&panel=inertia&yii_debug_theme=dark',
-        ))->withQueryParams(
-            [
-                'tag' => 'request-1',
-                'panel' => 'inertia',
-                'yii_debug_theme' => 'dark',
-            ],
         );
 
         $response = ($this->inertiaAction($this->inertiaStore()))($request);
@@ -283,8 +321,10 @@ final class BrandPageActionsTest extends TestCase
 
     public function testPhpInfoRendersRequestedTheme(): void
     {
-        $request = (new ServerRequest('GET', '/debug/php-info?yii_debug_theme=dark'))
-            ->withQueryParams(['yii_debug_theme' => 'dark']);
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/php-info?yii_debug_theme=dark',
+        );
 
         $response = ($this->phpInfoAction())($request);
 
@@ -345,18 +385,163 @@ final class BrandPageActionsTest extends TestCase
         );
     }
 
+    public function testRequestPanelRejectsMissingOrUncapturedSnapshots(): void
+    {
+        $action = $this->configAction();
+
+        $missing = $action(
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=missing&panel=request',
+            ),
+        );
+        $uncaptured = $action(
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=request-1&panel=request',
+            ),
+        );
+
+        self::assertSame(
+            404,
+            $missing->getStatusCode(),
+            'An unknown Request capture must return not found.',
+        );
+        self::assertSame(
+            'Debug snapshot not found.',
+            (string) $missing->getBody(),
+            'An unknown Request capture must identify the missing snapshot.',
+        );
+        self::assertSame(
+            404,
+            $uncaptured->getStatusCode(),
+            'A legacy capture without Request data must return not found.',
+        );
+        self::assertSame(
+            'Debug panel was not captured.',
+            (string) $uncaptured->getBody(),
+            'A legacy capture must explain that Request data was not captured.',
+        );
+    }
+
+    public function testRequestPanelRendersTheSharedDetailWithSummaryMetadata(): void
+    {
+        $store = $this->store();
+
+        $snapshot = $store->readSnapshot('request-1');
+
+        self::assertNotNull(
+            $snapshot,
+            'The base debug snapshot fixture must exist.',
+        );
+
+        $store->writeSnapshot(
+            new DebugSnapshot(
+                $snapshot->summary,
+                [
+                    'request' => RequestSnapshot::capture(
+                        [
+                            'action' => 'App\\Web\\HomeAction',
+                            'actionParams' => [],
+                            'flashes' => [],
+                            'general' => ['method' => 'GET'],
+                            'requestBody' => [],
+                            'requestHeaders' => [],
+                            'responseHeaders' => [],
+                            'route' => 'home',
+                            'statusCode' => 200,
+                            'COOKIE' => [],
+                            'FILES' => [],
+                            'GET' => [],
+                            'POST' => [],
+                            'SERVER' => [],
+                            'SESSION' => [],
+                        ],
+                    )->jsonSerialize(),
+                ],
+                [],
+            ),
+            50,
+        );
+
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/view?tag=request-1&panel=request&yii_debug_theme=dark',
+        );
+
+        $action = new ConfigAction(
+            $store,
+            $this->renderer(),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
+        );
+
+        $response = $action($request);
+
+        $automatic = $action(
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=request-1&panel=auto',
+            ),
+        );
+
+        $body = (string) $response->getBody();
+
+        self::assertSame(
+            200,
+            $response->getStatusCode(),
+            'Captured Request detail must be available.',
+        );
+        self::assertStringContainsString(
+            '<title>Request — Yii Debugger</title>',
+            $body,
+            'Document title must identify Request.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-request-hero',
+            $body,
+            'Request detail must use the shared hero.',
+        );
+        self::assertStringContainsString(
+            'https://example.test/',
+            $body,
+            'Request hero must use the captured summary URL.',
+        );
+        self::assertStringContainsString(
+            'Request data',
+            $body,
+            'Request detail must expose the shared tabs.',
+        );
+        self::assertSame(
+            200,
+            $automatic->getStatusCode(),
+            'Automatic links must select a captured Request panel.',
+        );
+        self::assertStringContainsString(
+            '<title>Request — Yii Debugger</title>',
+            (string) $automatic->getBody(),
+            'Automatic links must prefer Request when the capture contains it.',
+        );
+    }
+
     private function configAction(): ConfigAction
     {
-        $factory = new HttpFactory();
-
-        return new ConfigAction($this->store(), $this->renderer(), $factory, $factory);
+        return new ConfigAction(
+            $this->store(),
+            $this->renderer(),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
+        );
     }
 
     private function inertiaAction(SnapshotStore $store): ConfigAction
     {
-        $factory = new HttpFactory();
-
-        return new ConfigAction($store, $this->rendererWithInertia(), $factory, $factory);
+        return new ConfigAction(
+            $store,
+            $this->rendererWithInertia(),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
+        );
     }
 
     /**
@@ -399,9 +584,12 @@ final class BrandPageActionsTest extends TestCase
 
     private function phpInfoAction(): PhpInfoAction
     {
-        $factory = new HttpFactory();
-
-        return new PhpInfoAction($this->store(), $this->renderer(), $factory, $factory);
+        return new PhpInfoAction(
+            $this->store(),
+            $this->renderer(),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
+        );
     }
 
     private function renderer(): DebugPageRenderer
@@ -421,6 +609,7 @@ final class BrandPageActionsTest extends TestCase
             $assetManager,
             new ConfigDataFactory(),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            extensionPanels: [new RequestPanel()],
         );
     }
 
@@ -441,7 +630,7 @@ final class BrandPageActionsTest extends TestCase
             $assetManager,
             new ConfigDataFactory(),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new InertiaPanel()],
+            extensionPanels: [new RequestPanel(), new InertiaPanel()],
         );
     }
 
