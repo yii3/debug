@@ -334,11 +334,11 @@ final class CompareActionTest extends TestCase
             'GET',
             '/debug/compare',
         )->withQueryParams(
-                [
-                    'baseline' => 'request-orphan',
-                    'target' => 'request-newest',
-                ],
-            );
+            [
+                'baseline' => 'request-orphan',
+                'target' => 'request-newest',
+            ],
+        );
 
         $response = ($this->action($store))($request);
 
@@ -362,11 +362,11 @@ final class CompareActionTest extends TestCase
             'GET',
             '/debug/compare',
         )->withQueryParams(
-                [
-                    'baseline' => 'request-older',
-                    'target' => 'request-unknown',
-                ],
-            );
+            [
+                'baseline' => 'request-older',
+                'target' => 'request-unknown',
+            ],
+        );
 
         $response = ($this->action($store))($request);
 

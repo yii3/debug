@@ -253,8 +253,8 @@ final class InertiaCollectorTest extends TestCase
         $collector->startup();
         $collector->collectRequest(
             HelperFactory::createRequest(
-            'GET',
-            'https://example.test/dashboard',
+                'GET',
+                'https://example.test/dashboard',
             ),
         );
         $collector->collectResponse(HelperFactory::createResponse());

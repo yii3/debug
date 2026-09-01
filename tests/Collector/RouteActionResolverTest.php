@@ -126,7 +126,7 @@ final class RouteActionResolverTest extends TestCase
         $routes = new RouteCollection(
             (new RouteCollector())
                 ->addRoute(Route::get('/')->name('home')),
-            );
+        );
 
         self::assertNull(
             RouteActionResolver::resolve('', $routes),

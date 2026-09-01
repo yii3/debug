@@ -141,7 +141,7 @@ final class RequestPanelTest extends TestCase
                 'Post',
                 'Files',
                 'Cookies',
-                'Request Body'
+                'Request Body',
             ] as $section
         ) {
             self::assertStringContainsString(
