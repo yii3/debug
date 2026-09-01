@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Collector;
 
-use GuzzleHttp\Psr7\{Response, ServerRequest};
 use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Collector\InertiaCollector;
+use Yii3\Debug\Tests\Support\HelperFactory;
 
 /**
  * Unit tests for {@see InertiaCollector} request and page capture.
@@ -22,10 +22,17 @@ final class InertiaCollectorTest extends TestCase
 
         $collector->startup();
         $collector->collectRequest(
-            new ServerRequest('GET', 'https://example.test/account', ['X-Inertia' => 'true']),
+            HelperFactory::createRequest(
+                'GET',
+                'https://example.test/account',
+                ['X-Inertia' => 'true'],
+            ),
         );
         $collector->collectResponse(
-            new Response(409, ['X-Inertia-Location' => 'https://example.test/sign-in']),
+            HelperFactory::createResponse(
+                409,
+                ['X-Inertia-Location' => 'https://example.test/sign-in'],
+            ),
         );
 
         $snapshot = $collector->capture();
@@ -69,7 +76,7 @@ final class InertiaCollectorTest extends TestCase
 
         $collector->startup();
         $collector->collectRequest(
-            new ServerRequest(
+            HelperFactory::createRequest(
                 'GET',
                 'https://example.test/dashboard',
                 [
@@ -80,7 +87,12 @@ final class InertiaCollectorTest extends TestCase
             ),
         );
         $collector->observe($page, ['appName', 'auth']);
-        $collector->collectResponse(new Response(200, ['Content-Type' => 'application/json']));
+        $collector->collectResponse(
+            HelperFactory::createResponse(
+                200,
+                ['Content-Type' => 'application/json'],
+            ),
+        );
 
         $snapshot = $collector->capture();
 
@@ -116,7 +128,7 @@ final class InertiaCollectorTest extends TestCase
 
         $collector->startup();
         $collector->collectRequest(
-            new ServerRequest(
+            HelperFactory::createRequest(
                 'GET',
                 'https://example.test/users?page=2',
                 [
@@ -133,7 +145,7 @@ final class InertiaCollectorTest extends TestCase
             ),
         );
         $collector->observe($page, ['auth']);
-        $collector->collectResponse(new Response(200));
+        $collector->collectResponse(HelperFactory::createResponse());
 
         $snapshot = $collector->capture();
 
@@ -170,7 +182,11 @@ final class InertiaCollectorTest extends TestCase
 
         $collector->startup();
         $collector->collectRequest(
-            new ServerRequest('GET', 'https://example.test/account', ['X-Inertia' => 'true']),
+            HelperFactory::createRequest(
+                'GET',
+                'https://example.test/account',
+                ['X-Inertia' => 'true'],
+            ),
         );
         $collector->observe(
             [
@@ -189,7 +205,7 @@ final class InertiaCollectorTest extends TestCase
             ],
             ['profile'],
         );
-        $collector->collectResponse(new Response(200));
+        $collector->collectResponse(HelperFactory::createResponse());
 
         $snapshot = $collector->capture();
 
@@ -235,8 +251,13 @@ final class InertiaCollectorTest extends TestCase
         );
 
         $collector->startup();
-        $collector->collectRequest(new ServerRequest('GET', 'https://example.test/dashboard'));
-        $collector->collectResponse(new Response(200));
+        $collector->collectRequest(
+            HelperFactory::createRequest(
+            'GET',
+            'https://example.test/dashboard',
+            ),
+        );
+        $collector->collectResponse(HelperFactory::createResponse());
 
         $snapshot = $collector->capture();
 
@@ -263,13 +284,17 @@ final class InertiaCollectorTest extends TestCase
 
         $collector->startup();
         $collector->collectRequest(
-            new ServerRequest('GET', 'https://example.test/first', ['X-Inertia' => 'true']),
+            HelperFactory::createRequest(
+                'GET',
+                'https://example.test/first',
+                ['X-Inertia' => 'true'],
+            ),
         );
         $collector->observe(
             ['component' => 'First', 'props' => [], 'url' => '/first', 'version' => 'one'],
             ['auth'],
         );
-        $collector->collectResponse(new Response(200));
+        $collector->collectResponse(HelperFactory::createResponse());
 
         self::assertNotNull(
             $collector->capture(),
@@ -285,9 +310,13 @@ final class InertiaCollectorTest extends TestCase
 
         $collector->startup();
         $collector->collectRequest(
-            new ServerRequest('GET', 'https://example.test/second', ['X-Inertia' => 'true']),
+            HelperFactory::createRequest(
+                'GET',
+                'https://example.test/second',
+                ['X-Inertia' => 'true'],
+            ),
         );
-        $collector->collectResponse(new Response(204));
+        $collector->collectResponse(HelperFactory::createResponse(204));
 
         $snapshot = $collector->capture();
 

@@ -6,11 +6,13 @@ The package provides:
 
 - a protected request-history page with summary counters, filtering, pagination, and the Yii-style grid;
 - a protected capture-comparison workflow with request-metric deltas and privacy-preserving structural counts;
-- minimal filesystem persistence for request summaries;
+- minimal filesystem persistence for request summaries and redacted Request snapshots;
 - the Yii version chip linked to the live Configuration page;
 - the PHP version chip linked to the Debug Core phpinfo page;
-- the shared Yii-style page shell with the current-request card, History as the only primary sidebar item, and the
+- the shared Yii-style page shell with the current-request card, primary History and Request navigation, and the
   complete top brand bar;
+- the built-in Request toolbar status, hero, routing and parameter sections, request/response headers, session and
+  server tabs, using the same Debug Core presentation as Yii2;
 - optional extension-panel navigation that is populated only by data captured for the selected request;
 - an Inertia toolbar chip and detail panel with the captured component, page metadata, visit type, shared/page prop
   origins, negotiation headers, version-conflict diagnostics, and redacted raw payload when explicitly registered;
@@ -19,7 +21,7 @@ The package provides:
 - AJAX request tracking;
 - the injected debug toolbar.
 
-Other request diagnostic panels, framework instrumentation, and identity switching are outside the current scope.
+Other diagnostic panels, framework instrumentation, and identity switching are outside the current scope.
 
 ## Installation
 
@@ -39,7 +41,7 @@ optional packages at runtime. Applications explicitly compose the collectors, pa
 
 ## Configuration
 
-Override only the toolbar values the application needs:
+Override only the debugger values the application needs:
 
 ```php
 return [
@@ -61,6 +63,7 @@ return [
             'dirMode' => 0o700,
             'fileMode' => 0o600,
         ],
+        'viewPath' => '@yii3DebugViews',
         'toolbar' => [
             'skipUrls' => [],
             'position' => 'bottom',
@@ -73,6 +76,8 @@ return [
 `skipUrls` contains same-origin URLs that the toolbar runtime should omit from AJAX tracking.
 Application metadata is optional; neutral values are used when it is omitted.
 `historySize` limits retained request summaries. The default storage directory is resolved through Yii aliases.
+`viewPath` accepts any registered Yii alias. Override `@yii3DebugViews` through `yiisoft/aliases.aliases`, or point
+`viewPath` at an application-owned template directory, to customize the shared debugger views.
 
 ### Inertia extension
 
@@ -202,9 +207,12 @@ default. The routes use Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolba
 
 ## Captured data
 
-The package stores only the request metadata required by the History grid and sidebar: tag, method, URL, IP, status,
-time, AJAX state, duration, and peak memory. It also adds `X-Debug-Tag` and `X-Debug-Duration` response headers so the
-shared toolbar runtime can display AJAX activity.
+The package stores the request metadata required by the History grid and sidebar: tag, method, redacted URL, IP,
+status, time, AJAX state, duration, and peak memory. Its built-in Request snapshot also records the matched route and
+action, route parameters, GET/POST/file buckets, request body, request/response headers, and redacted server data in
+the shared Yii2-compatible shape. Empty session and flash buckets retain the standard Session tab without mutating
+application session state. It also adds `X-Debug-Tag`, `X-Debug-Duration`, and `X-Debug-Link` response headers so the
+shared toolbar runtime can display AJAX activity and open the captured Request panel.
 
 With the Inertia extension explicitly registered, each snapshot also stores its Inertia context: the resolved page,
 shared prop keys, negotiation headers, response status, and reload location. Captures without Inertia activity remain

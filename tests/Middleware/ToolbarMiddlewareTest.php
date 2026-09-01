@@ -4,23 +4,27 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Middleware;
 
-use GuzzleHttp\Psr7\{HttpFactory, Response, ServerRequest};
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\SnapshotStore;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
-use Yii3\Debug\Collector\InertiaCollector;
+use Yii3\Debug\Collector\{InertiaCollector, RequestCollector};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\NetworkUtilities\IpRanges;
 use Yiisoft\View\WebView;
 
+use function json_encode;
 use function sys_get_temp_dir;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Unit tests for toolbar injection and AJAX response metadata.
@@ -32,13 +36,23 @@ final class ToolbarMiddlewareTest extends TestCase
     {
         $store = $this->store();
 
-        $request = (new ServerRequest('GET', 'https://example.test/data', serverParams: ['REMOTE_ADDR' => '127.0.0.1']))
-            ->withHeader('X-Requested-With', 'XMLHttpRequest');
+        $request = HelperFactory::createRequest(
+            'GET',
+            'https://example.test/data',
+            ['X-Requested-With' => 'XMLHttpRequest'],
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        );
 
         $response = $this->middleware($store)
             ->process(
                 $request,
-                $this->handler(new Response(200, ['Content-Type' => 'application/json'], '{"ok":true}')),
+                $this->handler(
+                    HelperFactory::createResponse(
+                        200,
+                        ['Content-Type' => 'application/json'],
+                        '{"ok":true}',
+                    ),
+                ),
             );
 
         self::assertNotSame(
@@ -87,18 +101,26 @@ final class ToolbarMiddlewareTest extends TestCase
     {
         $store = $this->store();
 
-        $debugRequest = new ServerRequest('GET', '/debug/toolbar', serverParams: ['REMOTE_ADDR' => '127.0.0.1']);
-        $deniedRequest = new ServerRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '203.0.113.10']);
+        $debugRequest = HelperFactory::createRequest(
+            'GET',
+            '/debug/toolbar',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        );
+        $deniedRequest = HelperFactory::createRequest(
+            'GET',
+            '/',
+            serverParams: ['REMOTE_ADDR' => '203.0.113.10'],
+        );
 
         $middleware = $this->middleware($store);
 
         $debugResponse = $middleware->process(
             $debugRequest,
-            $this->handler(new Response(204)),
+            $this->handler(HelperFactory::createResponse(204)),
         );
         $deniedResponse = $middleware->process(
             $deniedRequest,
-            $this->handler(new Response(204)),
+            $this->handler(HelperFactory::createResponse(204)),
         );
 
         self::assertSame(
@@ -120,17 +142,22 @@ final class ToolbarMiddlewareTest extends TestCase
     public function testProcessCapturesResolvedInertiaPageWithoutChangingJsonResponse(): void
     {
         $store = $this->store();
+
         $collector = new InertiaCollector();
         $coordinator = new CollectorCoordinator([$collector]);
-        $request = (new ServerRequest(
+
+        $request = HelperFactory::createRequest(
             'POST',
             'https://example.test/users?page=2',
+            [
+                'X-Inertia' => 'true',
+                'X-Inertia-Partial-Component' => 'Users/Index',
+                'X-Inertia-Partial-Data' => 'users',
+                'X-Inertia-Version' => 'v2',
+            ],
             serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
-        ))
-            ->withHeader('X-Inertia', 'true')
-            ->withHeader('X-Inertia-Partial-Component', 'Users/Index')
-            ->withHeader('X-Inertia-Partial-Data', 'users')
-            ->withHeader('X-Inertia-Version', 'v2');
+        );
+
         $body = '{"component":"Users/Index","props":{"users":[{"id":7}]},"url":"/users?page=2","version":"v2"}';
 
         $response = $this->middleware($store, $coordinator)->process(
@@ -156,7 +183,7 @@ final class ToolbarMiddlewareTest extends TestCase
                         ['auth'],
                     );
 
-                    return new Response(
+                    return HelperFactory::createResponse(
                         200,
                         [
                             'Content-Type' => 'application/json',
@@ -243,16 +270,23 @@ final class ToolbarMiddlewareTest extends TestCase
     {
         $store = $this->store();
 
-        $request = new ServerRequest(
+        $request = HelperFactory::createRequest(
             'GET',
             'https://example.test/',
             serverParams: ['REMOTE_ADDR' => '127.0.0.1', 'REQUEST_TIME_FLOAT' => 1_700_000_000.0],
         );
 
-        $response = $this->middleware($store)->process(
-            $request,
-            $this->handler(new Response(200, ['Content-Type' => 'text/html'], '<html><body>App</body></html>')),
-        );
+        $response = $this->middleware($store)
+            ->process(
+                $request,
+                $this->handler(
+                    HelperFactory::createResponse(
+                        200,
+                        ['Content-Type' => 'text/html'],
+                        '<html><body>App</body></html>',
+                    ),
+                ),
+            );
 
         self::assertNotSame(
             '',
@@ -265,9 +299,9 @@ final class ToolbarMiddlewareTest extends TestCase
             'HTML requests must expose their processing duration.',
         );
         self::assertSame(
-            '',
+            '/debug/view?tag=' . $response->getHeaderLine('X-Debug-Tag') . '&panel=config',
             $response->getHeaderLine('X-Debug-Link'),
-            'No debugger page must be linked.',
+            'Debug link must fall back to Config when no Request collector is registered.',
         );
         self::assertStringContainsString(
             '<yii-debug-toolbar',
@@ -329,20 +363,129 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testProcessPersistsASecretFreeRequestPanel(): void
+    {
+        $store = $this->store();
+
+        $coordinator = new CollectorCoordinator([new RequestCollector()]);
+
+        $request = HelperFactory::createRequest(
+            'POST',
+            'https://example.test/login?token=query-secret&tab=profile',
+            [
+                'Authorization' => 'Bearer header-secret',
+                'Content-Type' => 'application/json',
+            ],
+            ['password' => 'body-secret'],
+            serverParams: [
+                'REMOTE_ADDR' => '127.0.0.1',
+                'DB_PASSWORD' => 'server-secret',
+            ],
+        )
+        ->withBody(HelperFactory::createStream('{"password":"body-secret"}'))
+        ->withCookieParams(['session_id' => 'cookie-secret']);
+
+        $response = $this->middleware($store, $coordinator)
+            ->process(
+                $request,
+                $this->handler(
+                    HelperFactory::createResponse(
+                        201,
+                        [
+                            'Content-Type' => 'text/html',
+                            'Content-Length' => '13',
+                            'Set-Cookie' => 'session_id=response-secret',
+                        ],
+                        '<html></html>',
+                    ),
+                ),
+            );
+        $tag = $response->getHeaderLine('X-Debug-Tag');
+        $snapshot = $store->readSnapshot($tag);
+
+        self::assertSame(
+            "/debug/view?tag={$tag}&panel=request",
+            $response->getHeaderLine('X-Debug-Link'),
+            'Debug link must open Request when its collector is registered.',
+        );
+        self::assertNotNull(
+            $snapshot,
+            'A request collector cycle must persist its snapshot.',
+        );
+        self::assertArrayHasKey(
+            'request',
+            $snapshot->panels,
+            'Request payload must use the stable panel ID.',
+        );
+        self::assertSame(
+            'https://example.test/login?token=%5Bredacted%5D&tab=profile',
+            $snapshot->summary->url,
+            'Stored summary URL must redact sensitive query values used by the Request hero.',
+        );
+
+        $data = RequestSnapshot::fromArray($snapshot->panels['request'], '$.panels.request')->data();
+
+        $responseHeaders = $data['responseHeaders'] ?? null;
+
+        self::assertIsArray(
+            $responseHeaders,
+            'Captured response headers must remain an array.',
+        );
+        self::assertSame(
+            201,
+            $data['statusCode'] ?? null,
+            'Request payload must retain the response status.',
+        );
+        self::assertSame(
+            $response->getHeaderLine('X-Debug-Link'),
+            $responseHeaders['X-Debug-Link'] ?? null,
+            'Request payload must retain the debugger link among response headers.',
+        );
+        self::assertArrayNotHasKey(
+            'Content-Length',
+            $responseHeaders,
+            'Captured headers must match the final response after toolbar injection changes its body.',
+        );
+
+        $stored = json_encode($snapshot, JSON_THROW_ON_ERROR);
+
+        foreach (
+            [
+                'query-secret',
+                'header-secret',
+                'body-secret',
+                'cookie-secret',
+                'response-secret',
+                'server-secret',
+            ] as $secret
+        ) {
+            self::assertStringNotContainsString(
+                $secret,
+                $stored,
+                "Persisted Request data must not contain the $secret fixture.",
+            );
+        }
+    }
+
     public function testProcessRetainsEmptyInertiaSnapshotForPlainResponseDiagnostics(): void
     {
         $store = $this->store();
+
         $coordinator = new CollectorCoordinator([new InertiaCollector()]);
-        $request = new ServerRequest(
+
+        $request = HelperFactory::createRequest(
             'GET',
             'https://example.test/api/status',
             serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
         );
 
-        $response = $this->middleware($store, $coordinator)->process(
-            $request,
-            $this->handler(new Response(200, ['Content-Type' => 'application/json'], '{"ok":true}')),
-        );
+        $response = $this->middleware($store, $coordinator)
+            ->process(
+                $request,
+                $this->handler(
+                    HelperFactory::createResponse(200, ['Content-Type' => 'application/json'], '{"ok":true}'),
+                ),
+            );
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
 
         self::assertNotNull(
@@ -383,7 +526,7 @@ final class ToolbarMiddlewareTest extends TestCase
         SnapshotStore $store,
         CollectorCoordinator|null $collectorCoordinator = null,
     ): ToolbarMiddleware {
-        $factory = new HttpFactory();
+        $streamFactory = HelperFactory::createStreamFactory();
         $aliases = new Aliases(
             [
                 '@assets' => sys_get_temp_dir() . '/yii3-debug-middleware-assets',
@@ -400,7 +543,7 @@ final class ToolbarMiddlewareTest extends TestCase
                 $assets,
                 $aliases->get('@vendor/php-forge/debug-core/resources/views'),
             ),
-            $factory,
+            $streamFactory,
             $store,
             new IpRanges(['127.0.0.1', '::1']),
             collectorCoordinator: $collectorCoordinator,

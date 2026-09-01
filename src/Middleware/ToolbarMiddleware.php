@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Middleware;
 
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
-use Yii3\Debug\Collector\InertiaCollector;
+use Yii3\Debug\Collector\{InertiaCollector, RequestCollector};
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
@@ -48,6 +49,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         private string $position = 'bottom',
         private int $height = 50,
         private CollectorCoordinator|null $collectorCoordinator = null,
+        private CapturePolicy $capturePolicy = new CapturePolicy(),
     ) {
         $this->routePrefix = rtrim($routePrefix, '/');
     }
@@ -80,6 +82,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             position: $this->position,
             height: $this->height,
             collectorCoordinator: $this->collectorCoordinator,
+            capturePolicy: $this->capturePolicy,
         );
     }
 
@@ -96,6 +99,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             position: $position,
             height: $height,
             collectorCoordinator: $this->collectorCoordinator,
+            capturePolicy: $this->capturePolicy,
         );
     }
 
@@ -112,6 +116,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             position: $this->position,
             height: $this->height,
             collectorCoordinator: $this->collectorCoordinator,
+            capturePolicy: $this->capturePolicy,
         );
     }
 
@@ -131,6 +136,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             position: $this->position,
             height: $this->height,
             collectorCoordinator: $this->collectorCoordinator,
+            capturePolicy: $this->capturePolicy,
         );
     }
 
@@ -143,6 +149,11 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         $start = self::requestStart($request);
 
         $inertiaCollector = $this->collectorCoordinator?->collector('inertia');
+        $requestCollector = $this->collectorCoordinator?->collector('request');
+
+        if ($requestCollector instanceof RequestCollector) {
+            $requestCollector->collectRequest($request);
+        }
 
         if ($inertiaCollector instanceof InertiaCollector) {
             $inertiaCollector->collectRequest($request);
@@ -161,11 +172,27 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             ->withHeader(
                 'X-Debug-Duration',
                 number_format($processingTime * 1000, 0, '.', ''),
+            )
+            ->withHeader(
+                'X-Debug-Link',
+                $this->routePrefix
+                    . '/view?tag=' . rawurlencode($tag)
+                    . '&panel=' . ($requestCollector === null ? 'config' : 'request'),
             );
+
+        $injectToolbar = $this->shouldInject($request, $response);
+
+        if ($injectToolbar) {
+            $response = $response->withoutHeader('Content-Length');
+        }
+
+        if ($requestCollector instanceof RequestCollector) {
+            $requestCollector->collectResponse($response);
+        }
 
         $summary = RequestSummary::create($tag)
             ->withRequest(
-                url: (string) $request->getUri(),
+                url: $this->capturePolicy->redactUrl((string) $request->getUri()),
                 method: strtoupper($request->getMethod()),
                 ip: self::clientIp($request),
                 time: $start,
@@ -179,7 +206,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             $this->historySize,
         );
 
-        if (!$this->shouldInject($request, $response)) {
+        if (!$injectToolbar) {
             return $response;
         }
 
@@ -191,9 +218,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         );
         $html = $this->renderer->inject((string) $response->getBody(), $toolbar);
 
-        return $response
-            ->withoutHeader('Content-Length')
-            ->withBody($this->streamFactory->createStream($html));
+        return $response->withBody($this->streamFactory->createStream($html));
     }
 
     private static function clientIp(ServerRequestInterface $request): string

@@ -15,7 +15,7 @@ use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\ExtensionPanelInterface;
+use Yii3\Debug\Panel\{ExtensionPanelInterface, SummaryAwarePanelInterface};
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
@@ -167,7 +167,9 @@ final readonly class DebugPageRenderer
 
         if (array_key_exists($panelId, $snapshot->panels)) {
             try {
-                $panelContent = $panel->render($payload);
+                $panelContent = $panel instanceof SummaryAwarePanelInterface
+                    ? $panel->renderWithSummary($payload, $snapshot->summary)
+                    : $panel->render($payload);
             } catch (Throwable $throwable) {
                 $renderError = $throwable::class . ': ' . $throwable->getMessage();
             }
@@ -292,6 +294,10 @@ final readonly class DebugPageRenderer
         $items = [];
 
         foreach ($this->extensionPanels as $id => $panel) {
+            if ($id === 'request') {
+                continue;
+            }
+
             $hasFailure = isset($snapshot->failures[$id]);
 
             $payload = $snapshot->panels[$id] ?? null;
@@ -363,7 +369,10 @@ final readonly class DebugPageRenderer
                     isCursor: true,
                     cursorInitTag: is_string($cursor) ? $cursor : '',
                 ),
-            navItems: [$this->historyNavItem(true)],
+            navItems: [
+                $this->historyNavItem(true),
+                ...$this->primaryPanelNavItems($summary, $snapshot),
+            ],
             navGroups: $this->extensionNavGroups($summary, $snapshot),
         );
     }
@@ -428,6 +437,37 @@ final readonly class DebugPageRenderer
     }
 
     /**
+     * Builds the built-in panel navigation displayed after History and before extension groups.
+     *
+     * @return list<SidebarNavItem>
+     */
+    private function primaryPanelNavItems(
+        RequestSummary|null $summary,
+        DebugSnapshot|null $snapshot,
+        string|null $activePanelId = null,
+    ): array {
+        if (
+            $summary === null
+            || $snapshot === null
+            || !isset($this->extensionPanels['request'])
+            || (!array_key_exists('request', $snapshot->panels)
+                && !array_key_exists('request', $snapshot->failures))
+        ) {
+            return [];
+        }
+
+        return [
+            new SidebarNavItem(
+                label: 'Request',
+                iconSvg: Icon::render('request'),
+                url: $this->viewUrl($summary->tag, 'request'),
+                tooltip: 'View Request panel',
+                isActive: $activePanelId === 'request',
+            ),
+        ];
+    }
+
+    /**
      * @param array<string, RequestSummary> $manifest
      */
     private function snapshot(
@@ -438,6 +478,7 @@ final readonly class DebugPageRenderer
         string $cursorInitTag = '',
         string $panelId = 'config',
     ): SidebarSnapshot {
+        $navigationPanelId = $panelId === 'request' ? 'auto' : $panelId;
         $tags = array_keys($manifest);
         $requestCount = count($tags);
         $index = array_search($summary->tag, $tags, true);
@@ -460,10 +501,10 @@ final readonly class DebugPageRenderer
             )
             ->withCursor($isCursor, $cursorInitTag)
             ->withNavigationUrls(
-                $newestTag === null ? '' : $this->viewUrl($newestTag, $panelId),
-                $oldestTag === null ? '' : $this->viewUrl($oldestTag, $panelId),
-                $newerTag === null ? '' : $this->viewUrl($newerTag, $panelId),
-                $olderTag === null ? '' : $this->viewUrl($olderTag, $panelId),
+                $newestTag === null ? '' : $this->viewUrl($newestTag, $navigationPanelId),
+                $oldestTag === null ? '' : $this->viewUrl($oldestTag, $navigationPanelId),
+                $newerTag === null ? '' : $this->viewUrl($newerTag, $navigationPanelId),
+                $olderTag === null ? '' : $this->viewUrl($olderTag, $navigationPanelId),
             )
             ->withNavigationState(
                 $index === 0 || $index === false,
@@ -490,7 +531,10 @@ final readonly class DebugPageRenderer
                     $manifest,
                     panelId: $activePanelId ?? 'config',
                 ),
-            navItems: [$this->historyNavItem(false, $summary?->tag)],
+            navItems: [
+                $this->historyNavItem(false, $summary?->tag),
+                ...$this->primaryPanelNavItems($summary, $snapshot, $activePanelId),
+            ],
             navGroups: $this->extensionNavGroups($summary, $snapshot, $activePanelId),
         );
     }

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Action;
 
 use Closure;
-use GuzzleHttp\Psr7\{HttpFactory, ServerRequest};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\CompareAction;
 use Yii3\Debug\ConfigDataFactory;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -38,7 +38,7 @@ final class CompareActionTest extends TestCase
             'The target snapshot fixture must be replaceable with invalid JSON.',
         );
 
-        $response = ($this->action($store))(new ServerRequest('GET', '/debug/compare'));
+        $response = ($this->action($store))(HelperFactory::createRequest('GET', '/debug/compare'));
 
         self::assertSame(
             404,
@@ -56,8 +56,10 @@ final class CompareActionTest extends TestCase
     {
         [$store] = $this->storeWithPair();
 
-        $request = (new ServerRequest('GET', '/debug/compare?yii_debug_theme=dark'))
-            ->withQueryParams(['yii_debug_theme' => 'dark']);
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/compare?yii_debug_theme=dark',
+        );
 
         $response = ($this->action($store))($request);
 
@@ -89,13 +91,15 @@ final class CompareActionTest extends TestCase
     {
         [$store] = $this->storeWithPair();
 
-        $request = (new ServerRequest('GET', '/debug/compare'))
-            ->withQueryParams(
-                [
-                    'baseline' => 'request-newest',
-                    'target' => 'request-older',
-                ],
-            );
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/compare',
+        )->withQueryParams(
+            [
+                'baseline' => 'request-newest',
+                'target' => 'request-older',
+            ],
+        );
 
         $response = ($this->action($store))($request);
 
@@ -210,8 +214,10 @@ final class CompareActionTest extends TestCase
             0.01,
         );
 
-        $request = (new ServerRequest('GET', '/debug/compare'))
-            ->withQueryParams(['baseline' => 'request-only']);
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/compare',
+        )->withQueryParams(['baseline' => 'request-only']);
 
         $response = ($this->action($store))($request);
 
@@ -238,7 +244,7 @@ final class CompareActionTest extends TestCase
 
         $store->clear();
 
-        $response = ($this->action($store))(new ServerRequest('GET', '/debug/compare'));
+        $response = ($this->action($store))(HelperFactory::createRequest('GET', '/debug/compare'));
 
         self::assertSame(
             404,
@@ -264,8 +270,10 @@ final class CompareActionTest extends TestCase
             0.01,
         );
 
-        $request = (new ServerRequest('GET', '/debug/compare'))
-            ->withQueryParams(['target' => 'request-only']);
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/compare',
+        )->withQueryParams(['target' => 'request-only']);
 
         $response = ($this->action($store))($request);
 
@@ -290,7 +298,7 @@ final class CompareActionTest extends TestCase
             'The baseline snapshot fixture must be removable.',
         );
 
-        $response = ($this->action($store))(new ServerRequest('GET', '/debug/compare'));
+        $response = ($this->action($store))(HelperFactory::createRequest('GET', '/debug/compare'));
 
         self::assertSame(
             404,
@@ -322,8 +330,10 @@ final class CompareActionTest extends TestCase
             'The orphan snapshot fixture must be writable.',
         );
 
-        $request = (new ServerRequest('GET', '/debug/compare'))
-            ->withQueryParams(
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/compare',
+        )->withQueryParams(
                 [
                     'baseline' => 'request-orphan',
                     'target' => 'request-newest',
@@ -347,8 +357,11 @@ final class CompareActionTest extends TestCase
     public function testUnknownExplicitTagReturnsNotFound(): void
     {
         [$store] = $this->storeWithPair();
-        $request = (new ServerRequest('GET', '/debug/compare'))
-            ->withQueryParams(
+
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/compare',
+        )->withQueryParams(
                 [
                     'baseline' => 'request-older',
                     'target' => 'request-unknown',
@@ -371,9 +384,12 @@ final class CompareActionTest extends TestCase
 
     private function action(SnapshotStore $store): CompareAction
     {
-        $factory = new HttpFactory();
-
-        return new CompareAction($store, $this->renderer(), $factory, $factory);
+        return new CompareAction(
+            $store,
+            $this->renderer(),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
+        );
     }
 
     private function renderer(): DebugPageRenderer

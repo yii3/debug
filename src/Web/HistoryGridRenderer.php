@@ -52,7 +52,9 @@ final class HistoryGridRenderer
         $pageSize = $resolvedPageSize ?? max(1, count($filteredRows));
         $pageCount = max(1, (int) ceil(count($filteredRows) / $pageSize));
         $page = min($pageCount, max(1, (int) (QueryInput::scalar($queryParams, 'page') ?? '1')));
+
         $offset = ($page - 1) * $pageSize;
+
         $visibleRows = array_slice($filteredRows, $offset, $pageSize);
 
         $summary = HistorySummary::fromManifest($summaries);
@@ -172,7 +174,7 @@ final class HistoryGridRenderer
                     Td::tag()->class('yii-debug-col-id')->html(
                         HistoryCellRenderer::renderTagCell(
                             $row,
-                            $routePrefix . '/view?tag=' . rawurlencode($row->tag) . '&panel=config',
+                            $routePrefix . '/view?tag=' . rawurlencode($row->tag) . '&panel=auto',
                         ),
                     ),
                     Td::tag()->html(HistoryCellRenderer::renderTimeCell($row)),
@@ -200,7 +202,9 @@ final class HistoryGridRenderer
             );
 
         $begin = $totalRows === 0 ? 0 : $offset + 1;
+
         $end = min($offset + count($rows), $totalRows);
+
         $footer = Div::tag()
             ->class('yii-debug-grid-footer')
             ->html(
@@ -228,7 +232,9 @@ final class HistoryGridRenderer
                 'IP' => 'yii-debug-col-ip',
                 default => null,
             };
+
             $cell = Th::tag()->scope('col')->content($header);
+
             $cells[] = $class === null ? $cell : $cell->class($class);
         }
 
@@ -252,6 +258,7 @@ final class HistoryGridRenderer
                 ->href(self::url($routePrefix, $queryParams, ['page' => $number]))
                 ->content((string) $number);
             $item = Li::tag()->class('yii-debug-pager-item')->html($link);
+
             $items[] = $number === $page ? $item->class('is-active') : $item;
         }
 
@@ -284,7 +291,7 @@ final class HistoryGridRenderer
     {
         return InputText::tag()
             ->class($class)
-            ->name('Debug[' . $attribute . ']')
+            ->name("Debug[{$attribute}]")
             ->value($filters[$attribute] ?? '');
     }
 
@@ -302,6 +309,6 @@ final class HistoryGridRenderer
             }
         }
 
-        return $queryParams === [] ? $routePrefix : $routePrefix . '?' . http_build_query($queryParams);
+        return $queryParams === [] ? $routePrefix : "{$routePrefix}?" . http_build_query($queryParams);
     }
 }

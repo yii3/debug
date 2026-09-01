@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Yii3\Debug\Panel\{InertiaPanel, VitePanel};
+use Yii3\Debug\Panel\{InertiaPanel, RequestPanel, VitePanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -82,11 +83,17 @@ final class ToolbarDataFactoryTest extends TestCase
             $this->assetManager(),
             extensionPanels: [new InertiaPanel()],
         );
+
         $failure = PanelFailure::fromThrowable(
             PanelFailure::CAPTURE,
             new RuntimeException('Unable to capture Inertia.'),
         );
-        $snapshot = new DebugSnapshot(RequestSummary::create('request-1'), [], ['inertia' => $failure]);
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [],
+            ['inertia' => $failure],
+        );
 
         $payload = $toolbarDataFactory
             ->createForSnapshot($snapshot)
@@ -110,6 +117,59 @@ final class ToolbarDataFactoryTest extends TestCase
             ],
             $payload['items'],
             'A failed extension capture must match the Yii2 danger-item envelope.',
+        );
+    }
+
+    public function testCreateForSnapshotExposesRequestBeforeExtensions(): void
+    {
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            extensionPanels: [new RequestPanel(), new InertiaPanel()],
+        );
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'request' => RequestSnapshot::capture(['statusCode' => 201])->jsonSerialize(),
+                'inertia' => $this->inertiaPayload('Site/Index'),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'request',
+                    'title' => 'Request',
+                    'url' => '/debug/view?tag=request-1&panel=request',
+                    'icon' => 'request',
+                    'items' => [
+                        [
+                            'value' => '201',
+                            'status' => 'status-2xx',
+                            'title' => 'Status code: 201 Created',
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'inertia',
+                    'title' => 'Inertia',
+                    'url' => '/debug/view?tag=request-1&panel=inertia',
+                    'icon' => 'inertia',
+                    'items' => [
+                        [
+                            'value' => 'Site/Index',
+                            'status' => 'default',
+                            'title' => 'Inertia component',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'Request status must precede opt-in extension metrics like Yii2.',
         );
     }
 

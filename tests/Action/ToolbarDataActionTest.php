@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Action;
 
-use GuzzleHttp\Psr7\{HttpFactory, ServerRequest};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\ToolbarDataAction;
-use Yii3\Debug\Panel\InertiaPanel;
+use Yii3\Debug\Panel\{InertiaPanel, RequestPanel};
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -29,7 +30,8 @@ final class ToolbarDataActionTest extends TestCase
         $action = $this->action();
 
         foreach ([[], ['tag' => ['request-1']]] as $query) {
-            $request = (new ServerRequest('GET', '/debug/toolbar'))->withQueryParams($query);
+            $request = HelperFactory::createRequest(uri: '/debug/toolbar')
+                ->withQueryParams($query);
 
             $response = $action($request);
 
@@ -54,8 +56,7 @@ final class ToolbarDataActionTest extends TestCase
 
     public function testInvokeReturnsStaticToolbarDataForAnyValidTag(): void
     {
-        $request = (new ServerRequest('GET', '/debug/toolbar?tag=request-1'))
-            ->withQueryParams(['tag' => 'request-1']);
+        $request = HelperFactory::createRequest(uri: '/debug/toolbar?tag=request-1');
 
         $response = ($this->action())($request);
 
@@ -104,10 +105,10 @@ final class ToolbarDataActionTest extends TestCase
 
     public function testInvokeReturnsStaticToolbarDataWhenTheStoredSnapshotDoesNotExist(): void
     {
-        $request = (new ServerRequest('GET', '/debug/toolbar?tag=missing-request'))
-            ->withQueryParams(['tag' => 'missing-request']);
+        $request = HelperFactory::createRequest(uri: '/debug/toolbar?tag=missing-request');
 
         $response = ($this->action($this->store()))($request);
+
         $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(
@@ -134,6 +135,7 @@ final class ToolbarDataActionTest extends TestCase
     public function testInvokeReturnsTheCapturedInertiaComponentPanel(): void
     {
         $store = $this->store();
+
         $store->writeSnapshot(
             new DebugSnapshot(
                 RequestSummary::create('request-1'),
@@ -155,10 +157,10 @@ final class ToolbarDataActionTest extends TestCase
             ),
             50,
         );
-        $request = (new ServerRequest('GET', '/debug/toolbar?tag=request-1'))
-            ->withQueryParams(['tag' => 'request-1']);
+        $request = HelperFactory::createRequest(uri: '/debug/toolbar?tag=request-1');
 
         $response = ($this->action($store))($request);
+
         $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(
@@ -191,14 +193,64 @@ final class ToolbarDataActionTest extends TestCase
         );
     }
 
+    public function testInvokeReturnsTheCapturedRequestStatusPanel(): void
+    {
+        $store = $this->store();
+
+        $store->writeSnapshot(
+            new DebugSnapshot(
+                RequestSummary::create('request-1'),
+                [
+                    'request' => RequestSnapshot::capture(['statusCode' => 204])
+                        ->jsonSerialize(),
+                ],
+                [],
+            ),
+            50,
+        );
+        $request = HelperFactory::createRequest(uri: '/debug/toolbar?tag=request-1');
+
+        $response = ($this->action($store))($request);
+
+        $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertIsArray(
+            $payload,
+            'The stored toolbar payload must decode to an array.',
+        );
+        self::assertSame(
+            [
+                [
+                    'id' => 'request',
+                    'title' => 'Request',
+                    'url' => '/debug/view?tag=request-1&panel=request',
+                    'icon' => 'request',
+                    'items' => [
+                        [
+                            'value' => '204',
+                            'status' => 'status-2xx',
+                            'title' => 'Status code: 204 No Content',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'] ?? null,
+            'The endpoint must project the stored response status into the Request toolbar panel.',
+        );
+    }
+
     private function action(SnapshotStore|null $store = null): ToolbarDataAction
     {
-        $factory = new HttpFactory();
-
         return new ToolbarDataAction(
-            new ToolbarDataFactory($this->assetManager(), extensionPanels: [new InertiaPanel()]),
-            $factory,
-            $factory,
+            new ToolbarDataFactory(
+                $this->assetManager(),
+                extensionPanels: [
+                    new RequestPanel(),
+                    new InertiaPanel(),
+                ],
+            ),
+            HelperFactory::createResponseFactory(),
+            HelperFactory::createStreamFactory(),
             $store,
         );
     }

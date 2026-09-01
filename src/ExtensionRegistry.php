@@ -52,11 +52,61 @@ final readonly class ExtensionRegistry
     }
 
     /**
+     * Returns the built-in collector first, unless the application explicitly registered an override with the same ID.
+     *
+     * @return list<CollectorInterface> Built-in and enabled collectors in capture order.
+     */
+    public function collectorsWithBuiltIn(CollectorInterface $builtIn): array
+    {
+        $first = $builtIn;
+        $collectors = [];
+        $overridden = false;
+
+        foreach ($this->collectors as $collector) {
+            if (!$overridden && $collector->id() === $builtIn->id()) {
+                $first = $collector;
+                $overridden = true;
+
+                continue;
+            }
+
+            $collectors[] = $collector;
+        }
+
+        return [$first, ...$collectors];
+    }
+
+    /**
      * @return list<ExtensionPanelInterface> Enabled panels in navigation order.
      */
     public function panels(): array
     {
         return $this->panels;
+    }
+
+    /**
+     * Returns the built-in panel first, unless the application explicitly registered an override with the same ID.
+     *
+     * @return list<ExtensionPanelInterface> Built-in and enabled panels in navigation order.
+     */
+    public function panelsWithBuiltIn(ExtensionPanelInterface $builtIn): array
+    {
+        $first = $builtIn;
+        $panels = [];
+        $overridden = false;
+
+        foreach ($this->panels as $panel) {
+            if (!$overridden && $panel->id() === $builtIn->id()) {
+                $first = $panel;
+                $overridden = true;
+
+                continue;
+            }
+
+            $panels[] = $panel;
+        }
+
+        return [$first, ...$panels];
     }
 
     public function withCollector(CollectorInterface $collector): self

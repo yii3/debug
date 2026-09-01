@@ -40,7 +40,10 @@ final readonly class ConfigAction
 
         $panel = $query['panel'] ?? null;
 
-        if (!is_string($panel) || ($panel !== 'config' && !$this->renderer->hasExtensionPanel($panel))) {
+        if (
+            !is_string($panel)
+            || ($panel !== 'auto' && $panel !== 'config' && !$this->renderer->hasExtensionPanel($panel))
+        ) {
             return $this->response(
                 'The requested debug panel is not available.',
                 'text/plain; charset=UTF-8',
@@ -50,7 +53,17 @@ final readonly class ConfigAction
 
         $manifest = $this->store->loadManifest();
         $snapshot = $this->store->readSnapshot($tag);
+
         $theme = ThemeResolver::resolve($request->getCookieParams(), $query);
+
+        if ($panel === 'auto') {
+            $panel = $snapshot !== null
+                && $this->renderer->hasExtensionPanel('request')
+                && (array_key_exists('request', $snapshot->panels)
+                    || array_key_exists('request', $snapshot->failures))
+                    ? 'request'
+                    : 'config';
+        }
 
         if ($panel !== 'config') {
             if ($snapshot === null) {
