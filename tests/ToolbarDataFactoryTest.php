@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests;
 
+use InvalidArgumentException;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
@@ -12,11 +13,12 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Yii3\Debug\Panel\{InertiaPanel, RequestPanel, VitePanel};
+use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, RequestPanel, VitePanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 
+use function array_map;
 use function sys_get_temp_dir;
 
 use const PHP_VERSION;
@@ -27,6 +29,70 @@ use const PHP_VERSION;
 #[Group('toolbar')]
 final class ToolbarDataFactoryTest extends TestCase
 {
+    public function testConfigurationMethodsPreserveExistingSettings(): void
+    {
+        $snapshot = $this->snapshot($this->inertiaPayload('Site/Index'));
+
+        $original = new ToolbarDataFactory($this->assetManager());
+
+        $withPanels = $original
+            ->withExtensionPanels([new InertiaPanel()]);
+        $withRoutePrefix = $withPanels
+            ->withRoutePrefix('/developer/debug/');
+        $configured = $withRoutePrefix
+            ->withPresentation('top', 65);
+        $panelsLast = $original
+            ->withRoutePrefix('/developer/debug/')
+            ->withPresentation('top', 65)
+            ->withExtensionPanels([new InertiaPanel()]);
+
+        self::assertSame(
+            [
+                'indexUrl' => '/debug',
+                'position' => 'bottom',
+                'defaultHeight' => 50,
+                'panelIds' => [],
+            ],
+            $this->configurationState($original, $snapshot),
+            'Configuration withers must not mutate the original factory defaults.',
+        );
+        self::assertSame(
+            [
+                'indexUrl' => '/debug',
+                'position' => 'bottom',
+                'defaultHeight' => 50,
+                'panelIds' => ['inertia'],
+            ],
+            $this->configurationState($withPanels, $snapshot),
+            'Panel configuration must retain the default route and presentation.',
+        );
+        self::assertSame(
+            [
+                'indexUrl' => '/developer/debug',
+                'position' => 'bottom',
+                'defaultHeight' => 50,
+                'panelIds' => ['inertia'],
+            ],
+            $this->configurationState($withRoutePrefix, $snapshot),
+            'Route configuration must retain registered panels and the default presentation.',
+        );
+        self::assertSame(
+            [
+                'indexUrl' => '/developer/debug',
+                'position' => 'top',
+                'defaultHeight' => 65,
+                'panelIds' => ['inertia'],
+            ],
+            $this->configurationState($configured, $snapshot),
+            'Presentation configuration must retain the route prefix and registered panels.',
+        );
+        self::assertSame(
+            $this->configurationState($configured, $snapshot),
+            $this->configurationState($panelsLast, $snapshot),
+            'Panel configuration must retain route and presentation settings regardless of call order.',
+        );
+    }
+
     public function testCreateExposesOnlyYiiPhpAndAjaxMetadata(): void
     {
         $toolbarDataFactory = new ToolbarDataFactory($this->assetManager());
@@ -79,10 +145,8 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotExposesPanelFailuresAsDangerItems(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory(
-            $this->assetManager(),
-            extensionPanels: [new InertiaPanel()],
-        );
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new InertiaPanel()]);
 
         $failure = PanelFailure::fromThrowable(
             PanelFailure::CAPTURE,
@@ -122,10 +186,8 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotExposesRequestBeforeExtensions(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory(
-            $this->assetManager(),
-            extensionPanels: [new RequestPanel(), new InertiaPanel()],
-        );
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new RequestPanel(), new InertiaPanel()]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
@@ -175,10 +237,8 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotExposesTheInertiaComponentPanel(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory(
-            $this->assetManager(),
-            extensionPanels: [new InertiaPanel()],
-        );
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new InertiaPanel()]);
 
         $payload = $toolbarDataFactory
             ->withRoutePrefix('/developer/debug/')
@@ -219,10 +279,8 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotExposesTheViteModePanel(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory(
-            $this->assetManager(),
-            extensionPanels: [new VitePanel()],
-        );
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new VitePanel()]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             ['vite' => $this->vitePayload()],
@@ -256,10 +314,8 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotIsolatesMalformedInertiaPayloads(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory(
-            $this->assetManager(),
-            extensionPanels: [new InertiaPanel()],
-        );
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new InertiaPanel()]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             ['inertia' => []],
@@ -320,10 +376,8 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotOmitsInertiaWithoutAComponent(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory(
-            $this->assetManager(),
-            extensionPanels: [new InertiaPanel()],
-        );
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new InertiaPanel()]);
 
         $payload = $toolbarDataFactory
             ->createForSnapshot($this->snapshot($this->inertiaPayload(null)))
@@ -373,6 +427,50 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testExtensionPanelIdentifiersAreNormalizedBeforeDuplicateValidation(): void
+    {
+        $padded = self::createStub(ExtensionPanelInterface::class);
+
+        $padded
+            ->method('id')
+            ->willReturn(' request ');
+
+        $normalized = self::createStub(ExtensionPanelInterface::class);
+
+        $normalized
+            ->method('id')
+            ->willReturn('request');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Duplicate debug toolbar extension panel ID: request.',
+        );
+
+        (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([$padded, $normalized]);
+    }
+
+    public function testReturnNewInstanceWhenSettingConfiguration(): void
+    {
+        $factory = new ToolbarDataFactory($this->assetManager());
+
+        self::assertNotSame(
+            $factory,
+            $factory->withExtensionPanels([]),
+            'Should return a new instance when setting extension panels, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $factory,
+            $factory->withPresentation('top', 65),
+            'Should return a new instance when setting the presentation, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $factory,
+            $factory->withRoutePrefix('/developer/debug'),
+            'Should return a new instance when setting the route prefix, ensuring immutability.',
+        );
+    }
+
     private function assetManager(): AssetManager
     {
         $aliases = new Aliases(
@@ -385,6 +483,24 @@ final class ToolbarDataFactoryTest extends TestCase
 
         return (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
+    }
+
+    /**
+     * @return array{indexUrl: string, position: string, defaultHeight: int, panelIds: list<string>}
+     */
+    private function configurationState(ToolbarDataFactory $factory, DebugSnapshot $snapshot): array
+    {
+        $payload = $factory->createForSnapshot($snapshot)->jsonSerialize();
+
+        return [
+            'indexUrl' => $payload['indexUrl'],
+            'position' => $payload['position'],
+            'defaultHeight' => $payload['defaultHeight'],
+            'panelIds' => array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+        ];
     }
 
     /**

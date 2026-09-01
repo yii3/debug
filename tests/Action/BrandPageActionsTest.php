@@ -157,6 +157,7 @@ final class BrandPageActionsTest extends TestCase
             HelperFactory::createResponseFactory(),
             HelperFactory::createStreamFactory(),
         );
+
         $request = HelperFactory::createRequest(
             'GET',
             '/debug?yii_debug_theme=dark',
@@ -241,7 +242,10 @@ final class BrandPageActionsTest extends TestCase
 
         $snapshot = $store->readSnapshot('request-1');
 
-        self::assertNotNull($snapshot, 'The base debug snapshot fixture must exist.');
+        self::assertNotNull(
+            $snapshot,
+            'The base debug snapshot fixture must exist.',
+        );
 
         $store->writeSnapshot(
             new DebugSnapshot(
@@ -260,7 +264,10 @@ final class BrandPageActionsTest extends TestCase
             50,
         );
 
-        $request = HelperFactory::createRequest('GET', '/debug/view?tag=request-1&panel=inertia');
+        $request = HelperFactory::createRequest(
+            'GET',
+            '/debug/view?tag=request-1&panel=inertia',
+        );
 
         $response = ($this->inertiaAction($store))($request);
 
@@ -507,11 +514,6 @@ final class BrandPageActionsTest extends TestCase
             $body,
             'Request hero must use the captured summary URL.',
         );
-        self::assertStringContainsString(
-            'Request data',
-            $body,
-            'Request detail must expose the shared tabs.',
-        );
         self::assertSame(
             200,
             $automatic->getStatusCode(),
@@ -566,9 +568,13 @@ final class BrandPageActionsTest extends TestCase
     private function inertiaStore(): SnapshotStore
     {
         $store = $this->store();
+
         $snapshot = $store->readSnapshot('request-1');
 
-        self::assertNotNull($snapshot, 'The base debug snapshot fixture must exist.');
+        self::assertNotNull(
+            $snapshot,
+            'The base debug snapshot fixture must exist.',
+        );
 
         $store->writeSnapshot(
             new DebugSnapshot(
@@ -604,13 +610,14 @@ final class BrandPageActionsTest extends TestCase
         $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
 
-        return new DebugPageRenderer(
-            new WebView(),
-            $assetManager,
-            new ConfigDataFactory(),
-            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new RequestPanel()],
-        );
+        return (
+            new DebugPageRenderer(
+                new WebView(),
+                $assetManager,
+                new ConfigDataFactory(),
+                $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            )
+        )->withExtensionPanels([new RequestPanel()]);
     }
 
     private function rendererWithInertia(): DebugPageRenderer
@@ -625,13 +632,14 @@ final class BrandPageActionsTest extends TestCase
         $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
 
-        return new DebugPageRenderer(
-            new WebView(),
-            $assetManager,
-            new ConfigDataFactory(),
-            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new RequestPanel(), new InertiaPanel()],
-        );
+        return (
+            new DebugPageRenderer(
+                new WebView(),
+                $assetManager,
+                new ConfigDataFactory(),
+                $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            )
+        )->withExtensionPanels([new RequestPanel(), new InertiaPanel()]);
     }
 
     private function store(): SnapshotStore

@@ -34,40 +34,107 @@ final class InertiaPanelTest extends TestCase
             ),
         );
 
-        self::assertStringNotContainsString(
-            '<script>',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>&lt;script&gt;alert("component")&lt;/script&gt;</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Partial reload</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>1</strong> prop</span>
+            </header><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-table-mono">
+            <tbody>
+            <tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Component
+            </th><td>
+            &lt;script&gt;alert("component")&lt;/script&gt;
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            URL
+            </th><td>
+            /?&lt;svg onload=alert(1)&gt;
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Version
+            </th><td>
+            &lt;b&gt;v1&lt;/b&gt;
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Visit
+            </th><td>
+            Partial reload
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Status
+            </th><td>
+            200
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            X-Inertia-Partial-Data
+            </th><td>
+            &lt;iframe src=javascript:alert(1)&gt;
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><h2>
+            Props
+            </h2><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table">
+            <thead>
+            <tr>
+            <th scope="col">
+            #
+            </th><th scope="col">
+            Prop
+            </th><th scope="col">
+            Origin
+            </th><th scope="col">
+            Type
+            </th><th scope="col">
+            Value
+            </th>
+            </tr>
+            </thead><tbody>
+            <tr>
+            <td>
+            1
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>&lt;img src=x onerror=alert(1)&gt;</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            string(42)
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            "&lt;/textarea&gt;&lt;script&gt;alert(\"value\")&lt;/script&gt;"
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><details class="yii-debug-disclosure">
+            <summary class="yii-debug-disclosure-summary">
+            <span class="yii-debug-disclosure-title">Raw payload</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
+            </summary><div class="yii-debug-disclosure-body">
+            <pre>
+            {
+                "component": "&lt;script&gt;alert(\"component\")&lt;/script&gt;",
+                "props": {
+                    "&lt;img src=x onerror=alert(1)&gt;": "&lt;/textarea&gt;&lt;script&gt;alert(\"value\")&lt;/script&gt;"
+                },
+                "url": "/?&lt;svg onload=alert(1)&gt;",
+                "version": "&lt;b&gt;v1&lt;/b&gt;"
+            }
+            </pre>
+            </div>
+            </details>
+            HTML,
             $html,
-            'Captured page data must not introduce script tags.',
-        );
-        self::assertStringNotContainsString(
-            '<img ',
-            $html,
-            'Captured prop names must not introduce image tags.',
-        );
-        self::assertStringNotContainsString(
-            '<svg ',
-            $html,
-            'Captured URLs must not introduce SVG tags.',
-        );
-        self::assertStringNotContainsString(
-            '<iframe ',
-            $html,
-            'Captured headers must not introduce iframe tags.',
-        );
-        self::assertStringContainsString(
-            '&lt;script&gt;alert("component")&lt;/script&gt;',
-            $html,
-            'Encoded component content must remain inspectable.',
-        );
-        self::assertStringContainsString(
-            '&lt;img src=x onerror=alert(1)&gt;',
-            $html,
-            'Encoded prop names must remain inspectable.',
-        );
-        self::assertStringContainsString(
-            '&lt;iframe src=javascript:alert(1)&gt;',
-            $html,
-            'Encoded negotiation-header content must remain inspectable.',
+            'Captured values must be escaped throughout the complete Inertia panel markup.',
         );
     }
 
@@ -118,51 +185,103 @@ final class InertiaPanelTest extends TestCase
             ),
         );
 
-        self::assertStringContainsString(
-            'Site/Index',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>Site/Index</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Full page load</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>1</strong> prop</span>
+            </header><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-table-mono">
+            <tbody>
+            <tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Component
+            </th><td>
+            Site/Index
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            URL
+            </th><td>
+            /dashboard
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Version
+            </th><td>
+            42
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Visit
+            </th><td>
+            Full page load
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Status
+            </th><td>
+            201
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><h2>
+            Props
+            </h2><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table">
+            <thead>
+            <tr>
+            <th scope="col">
+            #
+            </th><th scope="col">
+            Prop
+            </th><th scope="col">
+            Origin
+            </th><th scope="col">
+            Type
+            </th><th scope="col">
+            Value
+            </th>
+            </tr>
+            </thead><tbody>
+            <tr>
+            <td>
+            1
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>user</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            array(1)
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            {"id":1}
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><details class="yii-debug-disclosure">
+            <summary class="yii-debug-disclosure-summary">
+            <span class="yii-debug-disclosure-title">Raw payload</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
+            </summary><div class="yii-debug-disclosure-body">
+            <pre>
+            {
+                "component": "Site/Index",
+                "props": {
+                    "user": {
+                        "id": 1
+                    }
+                },
+                "url": "/dashboard",
+                "version": 42
+            }
+            </pre>
+            </div>
+            </details>
+            HTML,
             $html,
-            'Component name must surface in the detail.',
-        );
-        self::assertStringContainsString(
-            'Full page load',
-            $html,
-            'A non-XHR page must be classified as a full load.',
-        );
-        self::assertMatchesRegularExpression(
-            '/<strong>\s*1\s*<\/strong>\s*prop/s',
-            $html,
-            'Summary must expose the captured prop count.',
-        );
-        self::assertStringContainsString('/dashboard', $html, 'Page URL must surface in the information table.');
-        self::assertMatchesRegularExpression(
-            '/>\s*42\s*</s',
-            $html,
-            'Scalar asset versions must surface in the information table.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*201\s*</s',
-            $html,
-            'Response status must surface in the information table.',
-        );
-        self::assertMatchesRegularExpression(
-            '/<h2>\s*Props/s',
-            $html,
-            'Props section heading must be present.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*user\s*<\/strong>/s',
-            $html,
-            'Prop keys must surface in the table.',
-        );
-        self::assertStringContainsString(
-            'Raw payload',
-            $html,
-            'The complete page must remain inspectable.',
-        );
-        self::assertStringContainsString(
-            '"user"',
-            $html,
-            'Raw payload must contain the serialized prop key.',
+            'Full page load must match the complete Inertia panel markup.',
         );
     }
 
@@ -173,25 +292,88 @@ final class InertiaPanelTest extends TestCase
             $this->payload(['component' => 'Site/Index', 'props' => [], 'url' => '/', 'version' => 'v1']),
         );
 
-        self::assertStringContainsString(
-            'yii-debug-empty-state',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>—</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Inertia visit</span>
+            </header><div class="yii-debug-empty-state">
+            <h2>
+            No Inertia page in this request
+            </h2><p>
+            This response was not produced by <code>Inertia::render()</code>, so there is no page object to inspect.
+            </p><p>
+            Both full page loads and Inertia XHR visits populate this view; plain JSON endpoints, redirects, and asset requests do not.
+            </p>
+            </div>
+            HTML,
             $missingPage,
-            'An Inertia request without a page must render the shared empty-state card.',
+            'An Inertia request without a page must match the complete shared empty state.',
         );
-        self::assertStringContainsString(
-            'No Inertia page in this request',
-            $missingPage,
-            'The no-page state must explain what is absent.',
-        );
-        self::assertStringContainsString(
-            'The page rendered without props.',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>Site/Index</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Full page load</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>0</strong> props</span>
+            </header><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-table-mono">
+            <tbody>
+            <tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Component
+            </th><td>
+            Site/Index
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            URL
+            </th><td>
+            /
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Version
+            </th><td>
+            v1
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Visit
+            </th><td>
+            Full page load
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Status
+            </th><td>
+            200
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><h2>
+            Props
+            </h2><p>
+            The page rendered without props.
+            </p><details class="yii-debug-disclosure">
+            <summary class="yii-debug-disclosure-summary">
+            <span class="yii-debug-disclosure-title">Raw payload</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
+            </summary><div class="yii-debug-disclosure-body">
+            <pre>
+            {
+                "component": "Site/Index",
+                "props": [],
+                "url": "/",
+                "version": "v1"
+            }
+            </pre>
+            </div>
+            </details>
+            HTML,
             $emptyProps,
-            'A valid page with no props must render its narrower empty message.',
-        );
-        self::assertStringContainsString(
-            'Raw payload',
-            $emptyProps,
-            'An empty props collection must not hide the rest of the captured page.',
+            'An Inertia page without props must match the complete panel markup.',
         );
     }
 
@@ -214,31 +396,123 @@ final class InertiaPanelTest extends TestCase
             ),
         );
 
-        self::assertStringContainsString(
-            'Partial reload',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>Users/Index</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Partial reload</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>1</strong> prop</span>
+            </header><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-table-mono">
+            <tbody>
+            <tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Component
+            </th><td>
+            Users/Index
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            URL
+            </th><td>
+            /users
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Version
+            </th><td>
+            v2
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Visit
+            </th><td>
+            Partial reload
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Status
+            </th><td>
+            200
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            X-Inertia-Partial-Component
+            </th><td>
+            Users/Index
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            X-Inertia-Partial-Data
+            </th><td>
+            users
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            X-Inertia-Version
+            </th><td>
+            v2
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><h2>
+            Props
+            </h2><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table">
+            <thead>
+            <tr>
+            <th scope="col">
+            #
+            </th><th scope="col">
+            Prop
+            </th><th scope="col">
+            Origin
+            </th><th scope="col">
+            Type
+            </th><th scope="col">
+            Value
+            </th>
+            </tr>
+            </thead><tbody>
+            <tr>
+            <td>
+            1
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>users</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            array(1)
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            [{"id":7}]
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><details class="yii-debug-disclosure">
+            <summary class="yii-debug-disclosure-summary">
+            <span class="yii-debug-disclosure-title">Raw payload</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
+            </summary><div class="yii-debug-disclosure-body">
+            <pre>
+            {
+                "component": "Users/Index",
+                "props": {
+                    "users": [
+                        {
+                            "id": 7
+                        }
+                    ]
+                },
+                "url": "/users",
+                "version": "v2"
+            }
+            </pre>
+            </div>
+            </details>
+            HTML,
             $html,
-            'Partial headers must classify the Inertia visit.',
-        );
-        self::assertStringContainsString(
-            'X-Inertia-Partial-Component',
-            $html,
-            'The targeted component header must surface in the information table.',
-        );
-        self::assertStringContainsString(
-            'X-Inertia-Partial-Data',
-            $html,
-            'The selected-props header must surface in the information table.',
-        );
-        self::assertStringContainsString(
-            'X-Inertia-Version',
-            $html,
-            'The client asset version header must surface in the information table.',
-        );
-        self::assertMatchesRegularExpression(
-            '/<th[^>]*style=[\'\"][^\'\"]*white-space:\s*nowrap[^\'\"]*[\'\"][^>]*>'
-            . '\s*X-Inertia-Partial-Component\s*<\/th>/s',
-            $html,
-            'Long Inertia metadata labels must remain on one row.',
+            'Partial reload must match the complete Inertia panel markup.',
         );
     }
 
@@ -263,35 +537,168 @@ final class InertiaPanelTest extends TestCase
             ),
         );
 
-        self::assertMatchesRegularExpression(
-            '/>\s*auth\s*<.*yii-debug-badge-info[^>]*>shared<.*>\s*array\(1\)\s*</s',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>Site/Index</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Full page load</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>6</strong> props</span>
+            </header><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-table-mono">
+            <tbody>
+            <tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Component
+            </th><td>
+            Site/Index
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            URL
+            </th><td>
+            /
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Version
+            </th><td>
+            v1
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Visit
+            </th><td>
+            Full page load
+            </td>
+            </tr><tr>
+            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
+            Status
+            </th><td>
+            200
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><h2>
+            Props
+            </h2><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table">
+            <thead>
+            <tr>
+            <th scope="col">
+            #
+            </th><th scope="col">
+            Prop
+            </th><th scope="col">
+            Origin
+            </th><th scope="col">
+            Type
+            </th><th scope="col">
+            Value
+            </th>
+            </tr>
+            </thead><tbody>
+            <tr>
+            <td>
+            1
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>auth</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-info">shared</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            array(1)
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            {"isGuest":true}
+            </td>
+            </tr><tr>
+            <td>
+            2
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>title</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            string(7)
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            "Welcome"
+            </td>
+            </tr><tr>
+            <td>
+            3
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>count</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            int
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            7
+            </td>
+            </tr><tr>
+            <td>
+            4
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>ratio</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            float
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            1.5
+            </td>
+            </tr><tr>
+            <td>
+            5
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>enabled</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            bool
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            true
+            </td>
+            </tr><tr>
+            <td>
+            6
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>missing</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            null
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            null
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><details class="yii-debug-disclosure">
+            <summary class="yii-debug-disclosure-summary">
+            <span class="yii-debug-disclosure-title">Raw payload</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
+            </summary><div class="yii-debug-disclosure-body">
+            <pre>
+            {
+                "component": "Site/Index",
+                "props": {
+                    "auth": {
+                        "isGuest": true
+                    },
+                    "title": "Welcome",
+                    "count": 7,
+                    "ratio": 1.5,
+                    "enabled": true,
+                    "missing": null
+                },
+                "url": "/",
+                "version": "v1"
+            }
+            </pre>
+            </div>
+            </details>
+            HTML,
             $html,
-            'Configured shared props must carry the shared badge and array cardinality.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*title\s*<.*yii-debug-badge-muted[^>]*>page<.*>\s*string\(7\)\s*</s',
-            $html,
-            'Page-specific props must carry the page badge and string length.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*count\s*<.*>\s*int\s*</s',
-            $html,
-            'Integer props must expose their type.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*ratio\s*<.*>\s*float\s*</s',
-            $html,
-            'Float props must expose their type.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*enabled\s*<.*>\s*bool\s*</s',
-            $html,
-            'Boolean props must expose their type.',
-        );
-        self::assertMatchesRegularExpression(
-            '/>\s*missing\s*<.*>\s*null\s*</s',
-            $html,
-            'Null props must expose their type.',
+            'Prop origins and scalar types must match the complete Inertia panel markup.',
         );
     }
 
@@ -352,22 +759,25 @@ final class InertiaPanelTest extends TestCase
             ),
         );
 
-        self::assertStringContainsString(
-            'Version conflict interrupted this visit',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Inertia
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>—</strong></span><span class="yii-debug-grid-summary-sep">·</span><span>Version conflict</span>
+            </header><div class="yii-debug-empty-state">
+            <h2>
+            Version conflict interrupted this visit
+            </h2><p>
+            The client asset version sent in <code>X-Inertia-Version</code> no longer matches the server version, so Inertia answered <code>409</code> and asked the client to reload the full page.
+            </p><p>
+            Reload target: <code>https://example.test/&lt;script&gt;alert(1)&lt;/script&gt;</code>
+            </p>
+            </div>
+            HTML,
             $html,
-            'A 409 response without a page must explain the interrupted visit.',
+            'Version conflict must match the complete escaped Inertia empty state.',
         );
-        self::assertStringContainsString(
-            'Reload target:',
-            $html,
-            'The version-conflict state must label the browser reload target.',
-        );
-        self::assertStringContainsString(
-            'https://example.test/&lt;script&gt;alert(1)&lt;/script&gt;',
-            $html,
-            'The reload target must remain visible and HTML-escaped.',
-        );
-        self::assertStringNotContainsString('<script>', $html, 'Captured locations must not introduce markup.');
     }
 
     protected function setUp(): void

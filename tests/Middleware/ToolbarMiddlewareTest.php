@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Middleware;
 
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
@@ -12,6 +13,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
+use ReflectionProperty;
 use Yii3\Debug\Collector\{InertiaCollector, RequestCollector};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Tests\Support\HelperFactory;
@@ -32,6 +34,94 @@ use const JSON_THROW_ON_ERROR;
 #[Group('toolbar')]
 final class ToolbarMiddlewareTest extends TestCase
 {
+    public function testConfigurationMethodsPreserveExistingSettings(): void
+    {
+        $middleware = $this->middleware($this->store());
+
+        $capturePolicy = new CapturePolicy(maxBodyBytes: 4096);
+        $collectorCoordinator = new CollectorCoordinator([]);
+
+        $originalState = self::configurationState($middleware);
+
+        $defaultCapturePolicy = $originalState['capturePolicy'] ?? null;
+
+        self::assertInstanceOf(
+            CapturePolicy::class,
+            $defaultCapturePolicy,
+            'Middleware must create the default capture policy.',
+        );
+
+        $withCapturePolicy = $middleware
+            ->withCapturePolicy($capturePolicy);
+        $withCollectorCoordinator = $withCapturePolicy
+            ->withCollectorCoordinator($collectorCoordinator);
+        $withHistorySize = $withCollectorCoordinator
+            ->withHistorySize(25);
+        $withPresentation = $withHistorySize
+            ->withPresentation('top', 65);
+        $withRoutePrefix = $withPresentation
+            ->withRoutePrefix('/developer/debug/');
+        $configured = $withRoutePrefix
+            ->withSkipUrls(['/health']);
+
+        $defaultState = [
+            'capturePolicy' => $defaultCapturePolicy,
+            'collectorCoordinator' => null,
+            'height' => 50,
+            'historySize' => 50,
+            'position' => 'bottom',
+            'routePrefix' => '/debug',
+            'skipUrls' => [],
+        ];
+        $withCapturePolicyState = [
+            ...$defaultState,
+            'capturePolicy' => $capturePolicy,
+        ];
+        $withCollectorCoordinatorState = [
+            ...$withCapturePolicyState,
+            'collectorCoordinator' => $collectorCoordinator,
+        ];
+        $withHistorySizeState = [
+            ...$withCollectorCoordinatorState,
+            'historySize' => 25,
+        ];
+        $withPresentationState = [
+            ...$withHistorySizeState,
+            'height' => 65,
+            'position' => 'top',
+        ];
+        $withRoutePrefixState = [
+            ...$withPresentationState,
+            'routePrefix' => '/developer/debug',
+        ];
+        $configuredState = [
+            ...$withRoutePrefixState,
+            'skipUrls' => ['/health'],
+        ];
+
+        self::assertSame(
+            [
+                $defaultState,
+                $withCapturePolicyState,
+                $withCollectorCoordinatorState,
+                $withHistorySizeState,
+                $withPresentationState,
+                $withRoutePrefixState,
+                $configuredState,
+            ],
+            [
+                self::configurationState($middleware),
+                self::configurationState($withCapturePolicy),
+                self::configurationState($withCollectorCoordinator),
+                self::configurationState($withHistorySize),
+                self::configurationState($withPresentation),
+                self::configurationState($withRoutePrefix),
+                self::configurationState($configured),
+            ],
+            'Each immutable copy must preserve its own state and settings applied by earlier methods.',
+        );
+    }
+
     public function testProcessAddsAjaxMetadataWithoutInjectingMarkup(): void
     {
         $store = $this->store();
@@ -139,6 +229,7 @@ final class ToolbarMiddlewareTest extends TestCase
             'Bypassed requests must not be captured.',
         );
     }
+
     public function testProcessCapturesResolvedInertiaPageWithoutChangingJsonResponse(): void
     {
         $store = $this->store();
@@ -483,7 +574,11 @@ final class ToolbarMiddlewareTest extends TestCase
             ->process(
                 $request,
                 $this->handler(
-                    HelperFactory::createResponse(200, ['Content-Type' => 'application/json'], '{"ok":true}'),
+                    HelperFactory::createResponse(
+                        200,
+                        ['Content-Type' => 'application/json'],
+                        '{"ok":true}',
+                    ),
                 ),
             );
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
@@ -508,6 +603,67 @@ final class ToolbarMiddlewareTest extends TestCase
             InertiaSnapshot::fromArray($snapshot->panels['inertia'], '$.panels.inertia')->data(),
             'Plain responses must not fabricate page or negotiation data.',
         );
+    }
+
+    public function testReturnNewInstanceWhenSettingConfiguration(): void
+    {
+        $middleware = $this->middleware($this->store());
+
+        self::assertNotSame(
+            $middleware,
+            $middleware->withCapturePolicy(new CapturePolicy()),
+            'Should return a new instance when setting the capture policy, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $middleware,
+            $middleware->withCollectorCoordinator(new CollectorCoordinator([])),
+            'Should return a new instance when setting the collector coordinator, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $middleware,
+            $middleware->withHistorySize(25),
+            'Should return a new instance when setting the history size, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $middleware,
+            $middleware->withPresentation('top', 65),
+            'Should return a new instance when setting the presentation, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $middleware,
+            $middleware->withRoutePrefix('/developer/debug'),
+            'Should return a new instance when setting the route prefix, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $middleware,
+            $middleware->withSkipUrls(['/health']),
+            'Should return a new instance when setting skipped URLs, ensuring immutability.',
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function configurationState(ToolbarMiddleware $middleware): array
+    {
+        $state = [];
+
+        foreach (
+            [
+                'capturePolicy',
+                'collectorCoordinator',
+                'height',
+                'historySize',
+                'position',
+                'routePrefix',
+                'skipUrls',
+            ] as $property
+        ) {
+            $state[$property] = (new ReflectionProperty(ToolbarMiddleware::class, $property))
+                ->getValue($middleware);
+        }
+
+        return $state;
     }
 
     private function handler(ResponseInterface $response): RequestHandlerInterface
@@ -537,7 +693,7 @@ final class ToolbarMiddlewareTest extends TestCase
         $assets = (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
 
-        return new ToolbarMiddleware(
+        $middleware = new ToolbarMiddleware(
             new ToolbarRenderer(
                 new WebView(),
                 $assets,
@@ -546,8 +702,11 @@ final class ToolbarMiddlewareTest extends TestCase
             $streamFactory,
             $store,
             new IpRanges(['127.0.0.1', '::1']),
-            collectorCoordinator: $collectorCoordinator,
         );
+
+        return $collectorCoordinator === null
+            ? $middleware
+            : $middleware->withCollectorCoordinator($collectorCoordinator);
     }
 
     private function store(): SnapshotStore

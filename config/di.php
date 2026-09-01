@@ -46,9 +46,9 @@ return [
             $assetManager,
             $configDataFactory,
             $aliases->get($config['viewPath']),
-            extensionPanels: $extensions->panelsWithBuiltIn($requestPanel),
         )
     )
+    ->withExtensionPanels($extensions->panelsWithBuiltIn($requestPanel))
     ->withRoutePrefix($config['routePrefix']),
     SnapshotStore::class => static fn(Aliases $aliases): SnapshotStore => new SnapshotStore(
         path: $aliases->get($config['storage']['path']),
@@ -71,11 +71,9 @@ return [
         RequestPanel $requestPanel,
         ExtensionRegistry $extensions,
     ): ToolbarDataFactory => (
-        new ToolbarDataFactory(
-            $assetManager,
-            extensionPanels: $extensions->panelsWithBuiltIn($requestPanel),
-        )
+        new ToolbarDataFactory($assetManager)
     )
+    ->withExtensionPanels($extensions->panelsWithBuiltIn($requestPanel))
     ->withRoutePrefix($config['routePrefix'])
     ->withPresentation($config['toolbar']['position'], $config['toolbar']['height']),
     ToolbarMiddleware::class => static fn(
@@ -90,10 +88,10 @@ return [
             $streamFactory,
             $store,
             new IpRanges($config['allowedIPs']),
-            collectorCoordinator: $collectorCoordinator,
-            capturePolicy: $capturePolicy,
         )
     )
+    ->withCollectorCoordinator($collectorCoordinator)
+    ->withCapturePolicy($capturePolicy)
     ->withRoutePrefix($config['routePrefix'])
     ->withHistorySize($config['historySize'])
     ->withSkipUrls($config['toolbar']['skipUrls'])

@@ -43,46 +43,22 @@ use const PHP_VERSION;
 /**
  * Renders debugger pages and optional extension panels with the shared Debug Core shell.
  */
-final readonly class DebugPageRenderer
+final class DebugPageRenderer
 {
     /**
      * @var array<string, ExtensionPanelInterface>
      */
-    private array $extensionPanels;
-    private string $routePrefix;
-    private string $viewPath;
+    private array $extensionPanels = [];
+    private string $routePrefix = '/debug';
+    private readonly string $viewPath;
 
-    /**
-     * @param iterable<ExtensionPanelInterface> $extensionPanels Optional panel presenters in sidebar order.
-     */
     public function __construct(
-        private WebView $view,
-        private AssetManager $assetManager,
-        private ConfigDataFactory $configDataFactory,
+        private readonly WebView $view,
+        private readonly AssetManager $assetManager,
+        private readonly ConfigDataFactory $configDataFactory,
         string $viewPath,
-        string $routePrefix = '/debug',
-        iterable $extensionPanels = [],
     ) {
-        $this->routePrefix = rtrim($routePrefix, '/');
         $this->viewPath = rtrim($viewPath, '/');
-
-        $panels = [];
-
-        foreach ($extensionPanels as $panel) {
-            $id = trim($panel->id());
-
-            if ($id === '') {
-                throw new InvalidArgumentException('Debug extension panel ID must not be empty.');
-            }
-
-            if (isset($panels[$id])) {
-                throw new InvalidArgumentException("Duplicate debug extension panel ID: {$id}.");
-            }
-
-            $panels[$id] = $panel;
-        }
-
-        $this->extensionPanels = $panels;
     }
 
     /**
@@ -267,16 +243,43 @@ final readonly class DebugPageRenderer
         );
     }
 
+    /**
+     * @param iterable<ExtensionPanelInterface> $extensionPanels Optional panel presenters in sidebar order.
+     */
+    public function withExtensionPanels(iterable $extensionPanels): self
+    {
+        $panels = [];
+
+        foreach ($extensionPanels as $panel) {
+            $id = trim($panel->id());
+
+            if ($id === '') {
+                throw new InvalidArgumentException(
+                    'Debug extension panel ID must not be empty.',
+                );
+            }
+
+            if (isset($panels[$id])) {
+                throw new InvalidArgumentException(
+                    "Duplicate debug extension panel ID: {$id}.",
+                );
+            }
+
+            $panels[$id] = $panel;
+        }
+
+        $new = clone $this;
+        $new->extensionPanels = $panels;
+
+        return $new;
+    }
+
     public function withRoutePrefix(string $routePrefix): self
     {
-        return new self(
-            $this->view,
-            $this->assetManager,
-            $this->configDataFactory,
-            $this->viewPath,
-            $routePrefix,
-            $this->extensionPanels,
-        );
+        $new = clone $this;
+        $new->routePrefix = rtrim($routePrefix, '/');
+
+        return $new;
     }
 
     /**
