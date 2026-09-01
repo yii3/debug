@@ -38,7 +38,7 @@ final class RequestCollectorTest extends TestCase
                 'User-Agent' => 'client shockwave flash',
                 'X-Multi' => ['first', 'second'],
                 'X-Pjax' => 'true',
-                'X-Requested-With' => 'XMLHttpRequest',
+                'X-Requested-With' => 'xMlHtTpReQuEsT',
             ],
             parsedBody: ['order' => 42],
             serverParams: ['REMOTE_ADDR' => '127.0.0.1'],

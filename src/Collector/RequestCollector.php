@@ -79,7 +79,8 @@ final class RequestCollector implements CollectorInterface
         $rawBody = $this->rawBody($request);
         $requestBody = $rawBody === '' ? [] : $this->capturePolicy->redactBody($rawBody, $parsedBody);
         $userAgent = $request->getHeaderLine('User-Agent');
-        $isAjax = $request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest';
+
+        $isAjax = strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest';
 
         $this->request = $this->capturePolicy->redact([
             'action' => null,
