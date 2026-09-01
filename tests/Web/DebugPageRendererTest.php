@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Web;
 
+use InvalidArgumentException;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
@@ -12,7 +13,7 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{InertiaPanel, RequestPanel, VitePanel};
+use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, RequestPanel, VitePanel};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -140,6 +141,55 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
+    public function testConfigurationMethodsPreserveExistingSettings(): void
+    {
+        $snapshot = new DebugSnapshot(
+            $this->manifest()['request-1'],
+            ['request' => $this->requestPayload()],
+            [],
+        );
+
+        $original = $this->rendererWithPanels('page-renderer-immutability-assets', []);
+
+        $withPanels = $original
+            ->withExtensionPanels([new RequestPanel()]);
+        $configured = $withPanels
+            ->withRoutePrefix('/developer/debug/');
+        $panelsLast = $original
+            ->withRoutePrefix('/developer/debug/')
+            ->withExtensionPanels([new RequestPanel()]);
+
+        self::assertFalse(
+            $original->hasExtensionPanel('request'),
+            'Configuration methods must not register panels on the original renderer.',
+        );
+        self::assertTrue(
+            $configured->hasExtensionPanel('request'),
+            'Route configuration must retain registered extension panels.',
+        );
+
+        $defaultRouteHtml = $withPanels->config('request-1', 'light', $this->manifest(), $snapshot);
+
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=request"',
+            $defaultRouteHtml,
+            'Route configuration must not mutate the renderer it was copied from.',
+        );
+        self::assertStringNotContainsString(
+            '/developer/debug/',
+            $defaultRouteHtml,
+            'The source renderer must retain its default route prefix.',
+        );
+
+        foreach ([$configured, $panelsLast] as $renderer) {
+            self::assertStringContainsString(
+                '/developer/debug/view?tag=request-1&amp;panel=request',
+                $renderer->config('request-1', 'light', $this->manifest(), $snapshot),
+                'Panel configuration must retain the route prefix regardless of call order.',
+            );
+        }
+    }
+
     public function testConfigUsesCoreRendererAndDarkTheme(): void
     {
         $html = $this->renderer()
@@ -264,6 +314,29 @@ final class DebugPageRendererTest extends TestCase
             $html,
             'Page must load the shared debugger runtime.',
         );
+    }
+
+    public function testExtensionPanelIdentifiersAreNormalizedBeforeDuplicateValidation(): void
+    {
+        $padded = self::createStub(ExtensionPanelInterface::class);
+
+        $padded
+            ->method('id')
+            ->willReturn(' request ');
+
+        $normalized = self::createStub(ExtensionPanelInterface::class);
+
+        $normalized
+            ->method('id')
+            ->willReturn('request');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Duplicate debug extension panel ID: request.',
+        );
+
+        $this->rendererWithPanels('page-renderer-normalized-panel-assets', [])
+            ->withExtensionPanels([$padded, $normalized]);
     }
 
     public function testHistoryAppliesRequestFilters(): void
@@ -530,14 +603,25 @@ final class DebugPageRendererTest extends TestCase
             'Request hero must use the selected capture duration.',
         );
         self::assertStringContainsString(
-            'Request data',
-            $html,
-            'Request detail must expose the shared tab set.',
-        );
-        self::assertStringContainsString(
             '/debug/view?tag=request-2&amp;panel=auto',
             $html,
             'Older request navigation must prefer Request while retaining a legacy-capture fallback.',
+        );
+    }
+
+    public function testReturnNewInstanceWhenSettingConfiguration(): void
+    {
+        $renderer = $this->rendererWithPanels('page-renderer-new-instance-assets', []);
+
+        self::assertNotSame(
+            $renderer,
+            $renderer->withExtensionPanels([]),
+            'Should return a new instance when setting extension panels, ensuring immutability.',
+        );
+        self::assertNotSame(
+            $renderer,
+            $renderer->withRoutePrefix('/developer/debug'),
+            'Should return a new instance when setting the route prefix, ensuring immutability.',
         );
     }
 
@@ -579,64 +663,49 @@ final class DebugPageRendererTest extends TestCase
 
     private function renderer(): DebugPageRenderer
     {
-        $aliases = new Aliases(
-            [
-                '@assets' => sys_get_temp_dir() . '/yii3-debug-page-renderer-assets',
-                '@assetsUrl' => '/debug-assets',
-                '@vendor' => dirname(__DIR__, 2) . '/vendor',
-            ],
-        );
-        $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
-            ->withPublisher(new AssetPublisher($aliases));
-
-        return new DebugPageRenderer(
-            new WebView(),
-            $assetManager,
-            new ConfigDataFactory(['name' => 'Test application']),
-            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new RequestPanel()],
+        return $this->rendererWithPanels(
+            'page-renderer-assets',
+            [new RequestPanel()],
         );
     }
 
     private function rendererWithInertia(): DebugPageRenderer
     {
+        return $this->rendererWithPanels(
+            'page-renderer-inertia-assets',
+            [new RequestPanel(), new InertiaPanel()],
+        );
+    }
+
+    /**
+     * @param list<ExtensionPanelInterface> $panels
+     */
+    private function rendererWithPanels(string $assetDirectory, array $panels): DebugPageRenderer
+    {
         $aliases = new Aliases(
             [
-                '@assets' => sys_get_temp_dir() . '/yii3-debug-page-renderer-inertia-assets',
+                '@assets' => sys_get_temp_dir() . '/yii3-debug-' . $assetDirectory,
                 '@assetsUrl' => '/debug-assets',
                 '@vendor' => dirname(__DIR__, 2) . '/vendor',
             ],
         );
         $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
-
-        return new DebugPageRenderer(
+        $renderer = new DebugPageRenderer(
             new WebView(),
             $assetManager,
             new ConfigDataFactory(['name' => 'Test application']),
             $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new RequestPanel(), new InertiaPanel()],
         );
+
+        return $panels === [] ? $renderer : $renderer->withExtensionPanels($panels);
     }
 
     private function rendererWithVite(): DebugPageRenderer
     {
-        $aliases = new Aliases(
-            [
-                '@assets' => sys_get_temp_dir() . '/yii3-debug-page-renderer-vite-assets',
-                '@assetsUrl' => '/debug-assets',
-                '@vendor' => dirname(__DIR__, 2) . '/vendor',
-            ],
-        );
-        $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
-            ->withPublisher(new AssetPublisher($aliases));
-
-        return new DebugPageRenderer(
-            new WebView(),
-            $assetManager,
-            new ConfigDataFactory(['name' => 'Test application']),
-            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            extensionPanels: [new RequestPanel(), new VitePanel()],
+        return $this->rendererWithPanels(
+            'page-renderer-vite-assets',
+            [new RequestPanel(), new VitePanel()],
         );
     }
 

@@ -59,10 +59,22 @@ final class VitePanelTest extends TestCase
             $this->panel->toolbarItems($payload),
             'An empty Vite capture must stay out of the toolbar.',
         );
-        self::assertStringContainsString(
-            'No Vite integrations captured',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Vite
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>0</strong> components</span>
+            </header><div class="yii-debug-empty-state">
+            <h2>
+            No Vite integrations captured
+            </h2><p>
+            This request did not use an initialized Vite application component.
+            </p>
+            </div>
+            HTML,
             $this->panel->render($payload),
-            'Direct access to an empty capture must retain the shared diagnostic state.',
+            'Direct access to an empty capture must render the complete shared diagnostic state.',
         );
     }
 
@@ -86,45 +98,130 @@ final class VitePanelTest extends TestCase
             ),
         );
 
-        self::assertStringContainsString(
-            'Production',
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Vite
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>1</strong> component</span><span class="yii-debug-grid-summary-sep">·</span><span>Production</span>
+            </header><section class="yii-debug-vite-component" aria-label="Vite component frontend">
+            <div class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-table-mono yii-debug-table-vite-overview">
+            <tbody>
+            <tr>
+            <th scope="row">
+            Component ID
+            </th><td>
+            frontend
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Class
+            </th><td>
+            PHPForge\Vite\Vite
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Implementation
+            </th><td>
+            modern
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Mode
+            </th><td>
+            Production
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Inspection
+            </th><td>
+            <span class="yii-debug-badge yii-debug-badge-success">Available</span>
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Entry points
+            </th><td>
+            resources/js/app.ts
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Base URL
+            </th><td>
+            /build
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Dev server
+            </th><td>
+            —
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Manifest
+            </th><td>
+            /app/public/build/.vite/manifest.json
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Vite client
+            </th><td>
+            Not applicable
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Module preload
+            </th><td>
+            Enabled
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div><div class="yii-debug-section-header">
+            <h2>
+            Build chunks
+            </h2>
+            </div><div class="yii-debug-table-wrap">
+            <table class="yii-debug-table">
+            <thead>
+            <tr>
+            <th scope="col">
+            #
+            </th><th scope="col">
+            Chunk
+            </th><th scope="col">
+            Output
+            </th><th scope="col">
+            CSS
+            </th><th scope="col">
+            Imports
+            </th><th scope="col">
+            Entry
+            </th>
+            </tr>
+            </thead><tbody>
+            <tr>
+            <td>
+            1
+            </td><td class="yii-debug-cell-mono">
+            <strong>resources/js/app.ts</strong>
+            </td><td class="yii-debug-cell-mono">
+            assets/app.js
+            </td><td class="yii-debug-cell-numeric">
+            2
+            </td><td class="yii-debug-cell-numeric">
+            1
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-success">entry</span>
+            </td>
+            </tr>
+            </tbody>
+            </table>
+            </div>
+            </section>
+            HTML,
             $html,
-            'The runtime mode must surface in the panel.',
-        );
-        self::assertStringContainsString(
-            'frontend',
-            $html,
-            'The configured component ID must remain visible.',
-        );
-        self::assertStringContainsString(
-            'resources/js/app.ts',
-            $html,
-            'Configured entrypoints and manifest chunk names must remain visible.',
-        );
-        self::assertStringContainsString(
-            '/build',
-            $html,
-            'The normalized asset base URL must remain visible.',
-        );
-        self::assertStringContainsString(
-            '/app/public/build/.vite/manifest.json',
-            $html,
-            'The manifest path must remain visible.',
-        );
-        self::assertStringContainsString(
-            'assets/app.js',
-            $html,
-            'The emitted chunk file must remain visible.',
-        );
-        self::assertStringContainsString(
-            'Enabled',
-            $html,
-            'The module-preload setting must remain visible.',
-        );
-        self::assertStringContainsString(
-            'Not applicable',
-            $html,
-            'Production must mark the Vite client as inapplicable.',
+            'Production detail must match the complete shared Vite panel markup.',
         );
     }
 

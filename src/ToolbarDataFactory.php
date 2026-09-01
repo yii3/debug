@@ -24,25 +24,46 @@ use const PHP_VERSION;
 /**
  * Creates toolbar data from framework metadata and captured extension panels.
  */
-final readonly class ToolbarDataFactory
+final class ToolbarDataFactory
 {
     /**
      * @var array<string, ExtensionPanelInterface>
      */
-    private array $extensionPanels;
-    private string $routePrefix;
+    private array $extensionPanels = [];
+    private int $height = 50;
+    private string $position = 'bottom';
+    private string $routePrefix = '/debug';
+
+    public function __construct(private readonly AssetManager $assetManager) {}
+
+    public function create(string $tag): ToolbarData
+    {
+        $logo = $this->assetManager->getUrl(ToolbarAsset::class, 'svg/yii.svg');
+        $iconBaseUrl = $this->assetManager->getUrl(ToolbarAsset::class, 'svg/ajax.svg');
+
+        $iconBaseUrl = substr($iconBaseUrl, 0, -strlen('ajax.svg'));
+
+        return ToolbarData::create($tag, 'Yii Debugger')
+            ->withNavigation(
+                $this->routePrefix,
+                "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=config',
+                "{$this->routePrefix}/php-info",
+            )
+            ->withPresentation($this->position, $this->height, $iconBaseUrl)
+            ->withBranding($logo, $logo, PHP_VERSION, '3');
+    }
+
+    public function createForSnapshot(DebugSnapshot $snapshot): ToolbarData
+    {
+        return $this->create($snapshot->summary->tag)
+            ->withPanels($this->panels($snapshot->summary->tag, $snapshot));
+    }
 
     /**
      * @param iterable<ExtensionPanelInterface> $extensionPanels Optional extension presenters in toolbar order.
      */
-    public function __construct(
-        private AssetManager $assetManager,
-        string $routePrefix = '/debug',
-        private string $position = 'bottom',
-        private int $height = 50,
-        iterable $extensionPanels = [],
-    ) {
-        $this->routePrefix = rtrim($routePrefix, '/');
+    public function withExtensionPanels(iterable $extensionPanels): self
+    {
         $panels = [];
 
         foreach ($extensionPanels as $panel) {
@@ -63,52 +84,27 @@ final readonly class ToolbarDataFactory
             $panels[$id] = $panel;
         }
 
-        $this->extensionPanels = $panels;
-    }
+        $new = clone $this;
+        $new->extensionPanels = $panels;
 
-    public function create(string $tag): ToolbarData
-    {
-        $logo = $this->assetManager->getUrl(ToolbarAsset::class, 'svg/yii.svg');
-        $iconBaseUrl = $this->assetManager->getUrl(ToolbarAsset::class, 'svg/ajax.svg');
-
-        $iconBaseUrl = substr($iconBaseUrl, 0, -strlen('ajax.svg'));
-
-        return ToolbarData::create($tag, 'Yii Debugger')
-            ->withNavigation(
-                $this->routePrefix,
-                $this->routePrefix . '/view?tag=' . rawurlencode($tag) . '&panel=config',
-                $this->routePrefix . '/php-info',
-            )
-            ->withPresentation($this->position, $this->height, $iconBaseUrl)
-            ->withBranding($logo, $logo, PHP_VERSION, '3');
-    }
-
-    public function createForSnapshot(DebugSnapshot $snapshot): ToolbarData
-    {
-        return $this->create($snapshot->summary->tag)
-            ->withPanels($this->panels($snapshot->summary->tag, $snapshot));
+        return $new;
     }
 
     public function withPresentation(string $position, int $height): self
     {
-        return new self(
-            $this->assetManager,
-            $this->routePrefix,
-            $position,
-            $height,
-            $this->extensionPanels,
-        );
+        $new = clone $this;
+        $new->position = $position;
+        $new->height = $height;
+
+        return $new;
     }
 
     public function withRoutePrefix(string $routePrefix): self
     {
-        return new self(
-            $this->assetManager,
-            $routePrefix,
-            $this->position,
-            $this->height,
-            $this->extensionPanels,
-        );
+        $new = clone $this;
+        $new->routePrefix = rtrim($routePrefix, '/');
+
+        return $new;
     }
 
     /**

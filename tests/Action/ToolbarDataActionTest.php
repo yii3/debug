@@ -157,6 +157,7 @@ final class ToolbarDataActionTest extends TestCase
             ),
             50,
         );
+
         $request = HelperFactory::createRequest(uri: '/debug/toolbar?tag=request-1');
 
         $response = ($this->action($store))($request);
@@ -208,6 +209,7 @@ final class ToolbarDataActionTest extends TestCase
             ),
             50,
         );
+
         $request = HelperFactory::createRequest(uri: '/debug/toolbar?tag=request-1');
 
         $response = ($this->action($store))($request);
@@ -242,13 +244,13 @@ final class ToolbarDataActionTest extends TestCase
     private function action(SnapshotStore|null $store = null): ToolbarDataAction
     {
         return new ToolbarDataAction(
-            new ToolbarDataFactory(
-                $this->assetManager(),
-                extensionPanels: [
-                    new RequestPanel(),
-                    new InertiaPanel(),
-                ],
-            ),
+            (new ToolbarDataFactory($this->assetManager()))
+                ->withExtensionPanels(
+                    [
+                        new RequestPanel(),
+                        new InertiaPanel(),
+                    ],
+                ),
             HelperFactory::createResponseFactory(),
             HelperFactory::createStreamFactory(),
             $store,

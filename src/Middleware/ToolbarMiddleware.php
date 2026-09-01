@@ -31,27 +31,27 @@ use function uniqid;
 /**
  * Captures debug snapshots and injects the toolbar into eligible HTML responses.
  */
-final readonly class ToolbarMiddleware implements MiddlewareInterface
+final class ToolbarMiddleware implements MiddlewareInterface
 {
-    private string $routePrefix;
+    private CapturePolicy $capturePolicy;
+    private CollectorCoordinator|null $collectorCoordinator = null;
+    private int $height = 50;
+    private int $historySize = 50;
+    private string $position = 'bottom';
+    private string $routePrefix = '/debug';
 
     /**
-     * @param list<string> $skipUrls Same-origin URLs excluded from AJAX tracking.
+     * @var list<string>
      */
+    private array $skipUrls = [];
+
     public function __construct(
-        private ToolbarRenderer $renderer,
-        private StreamFactoryInterface $streamFactory,
-        private SnapshotStore $store,
-        private IpRanges $allowedIpRanges,
-        string $routePrefix = '/debug',
-        private int $historySize = 50,
-        private array $skipUrls = [],
-        private string $position = 'bottom',
-        private int $height = 50,
-        private CollectorCoordinator|null $collectorCoordinator = null,
-        private CapturePolicy $capturePolicy = new CapturePolicy(),
+        private readonly ToolbarRenderer $renderer,
+        private readonly StreamFactoryInterface $streamFactory,
+        private readonly SnapshotStore $store,
+        private readonly IpRanges $allowedIpRanges,
     ) {
-        $this->routePrefix = rtrim($routePrefix, '/');
+        $this->capturePolicy = new CapturePolicy();
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -69,55 +69,45 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         return $this->captureRequest($request, $handler);
     }
 
+    public function withCapturePolicy(CapturePolicy $capturePolicy): self
+    {
+        $new = clone $this;
+        $new->capturePolicy = $capturePolicy;
+
+        return $new;
+    }
+
+    public function withCollectorCoordinator(CollectorCoordinator|null $collectorCoordinator): self
+    {
+        $new = clone $this;
+        $new->collectorCoordinator = $collectorCoordinator;
+
+        return $new;
+    }
+
     public function withHistorySize(int $historySize): self
     {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $this->routePrefix,
-            historySize: $historySize,
-            skipUrls: $this->skipUrls,
-            position: $this->position,
-            height: $this->height,
-            collectorCoordinator: $this->collectorCoordinator,
-            capturePolicy: $this->capturePolicy,
-        );
+        $new = clone $this;
+        $new->historySize = $historySize;
+
+        return $new;
     }
 
     public function withPresentation(string $position, int $height): self
     {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $this->routePrefix,
-            historySize: $this->historySize,
-            skipUrls: $this->skipUrls,
-            position: $position,
-            height: $height,
-            collectorCoordinator: $this->collectorCoordinator,
-            capturePolicy: $this->capturePolicy,
-        );
+        $new = clone $this;
+        $new->position = $position;
+        $new->height = $height;
+
+        return $new;
     }
 
     public function withRoutePrefix(string $routePrefix): self
     {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $routePrefix,
-            historySize: $this->historySize,
-            skipUrls: $this->skipUrls,
-            position: $this->position,
-            height: $this->height,
-            collectorCoordinator: $this->collectorCoordinator,
-            capturePolicy: $this->capturePolicy,
-        );
+        $new = clone $this;
+        $new->routePrefix = rtrim($routePrefix, '/');
+
+        return $new;
     }
 
     /**
@@ -125,19 +115,10 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
      */
     public function withSkipUrls(array $skipUrls): self
     {
-        return new self(
-            renderer: $this->renderer,
-            streamFactory: $this->streamFactory,
-            store: $this->store,
-            allowedIpRanges: $this->allowedIpRanges,
-            routePrefix: $this->routePrefix,
-            historySize: $this->historySize,
-            skipUrls: $skipUrls,
-            position: $this->position,
-            height: $this->height,
-            collectorCoordinator: $this->collectorCoordinator,
-            capturePolicy: $this->capturePolicy,
-        );
+        $new = clone $this;
+        $new->skipUrls = $skipUrls;
+
+        return $new;
     }
 
     private function captureRequest(
@@ -175,8 +156,8 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
             )
             ->withHeader(
                 'X-Debug-Link',
-                $this->routePrefix
-                    . '/view?tag=' . rawurlencode($tag)
+                "{$this->routePrefix}/view?tag="
+                    . rawurlencode($tag)
                     . '&panel=' . ($requestCollector === null ? 'config' : 'request'),
             );
 
@@ -211,7 +192,7 @@ final readonly class ToolbarMiddleware implements MiddlewareInterface
         }
 
         $toolbar = $this->renderer->render(
-            dataUrl: $this->routePrefix . '/toolbar?tag=' . rawurlencode($tag),
+            dataUrl: "{$this->routePrefix}/toolbar?tag=" . rawurlencode($tag),
             skipUrls: $this->skipUrls,
             position: $this->position,
             height: $this->height,
