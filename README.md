@@ -13,6 +13,8 @@ The package provides:
   complete top brand bar;
 - the built-in Request toolbar status, hero, routing and parameter sections, request/response headers, session and
   server tabs, using the same Debug Core presentation as Yii2;
+- the built-in Profiling toolbar time and peak-memory metrics, plus the Yii2-compatible filterable timing grid for
+  blocks recorded through `yiisoft/profiler`;
 - optional extension-panel navigation that is populated only by data captured for the selected request;
 - an Inertia toolbar chip and detail panel with the captured component, page metadata, visit type, shared/page prop
   origins, negotiation headers, version-conflict diagnostics, and redacted raw payload when explicitly registered;
@@ -78,6 +80,43 @@ Application metadata is optional; neutral values are used when it is omitted.
 `historySize` limits retained request summaries. The default storage directory is resolved through Yii aliases.
 `viewPath` accepts any registered Yii alias. Override `@yii3DebugViews` through `yiisoft/aliases.aliases`, or point
 `viewPath` at an application-owned template directory, to customize the shared debugger views.
+
+### Profiling
+
+The Profiling collector is enabled by default. Every captured request records its total processing time and peak
+memory usage. Inject Yii's profiler into a controller or service to add named blocks to the timing grid:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Web;
+
+use Psr\Http\Message\ResponseInterface;
+use Yiisoft\Profiler\ProfilerInterface;
+
+final readonly class HomeAction
+{
+    public function __construct(private ProfilerInterface $profiler) {}
+
+    public function __invoke(): ResponseInterface
+    {
+        $context = ['category' => self::class . '::__invoke'];
+
+        $this->profiler->begin('Build home response', $context);
+
+        try {
+            return $this->buildResponse();
+        } finally {
+            $this->profiler->end('Build home response', $context);
+        }
+    }
+}
+```
+
+The token and category passed to `begin()` and `end()` must match. Completed blocks retain their nesting, duration,
+memory delta, category, and token in the captured snapshot.
 
 ### Inertia extension
 
@@ -208,7 +247,8 @@ default. The routes use Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolba
 ## Captured data
 
 The package stores the request metadata required by the History grid and sidebar: tag, method, redacted URL, IP,
-status, time, AJAX state, duration, and peak memory. Its built-in Request snapshot also records the matched route and
+status, time, AJAX state, duration, and peak memory. Its built-in Profiling snapshot stores the request metrics,
+completed profile blocks, and their memory samples. Its built-in Request snapshot also records the matched route and
 action, route parameters, GET/POST/file buckets, request body, request/response headers, and redacted server data in
 the shared Yii2-compatible shape. Empty session and flash buckets retain the standard Session tab without mutating
 application session state. It also adds `X-Debug-Tag`, `X-Debug-Duration`, and `X-Debug-Link` response headers so the

@@ -8,7 +8,7 @@ use InvalidArgumentException;
 use PHPForge\Debug\Storage\{DebugSnapshot, ExceptionSnapshot};
 use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
 use Throwable;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, ToolbarPanelProviderInterface};
+use Yii3\Debug\Panel\{ExtensionPanelInterface, ToolbarPanelProviderInterface, ToolbarTitleProviderInterface};
 use Yiisoft\Assets\AssetManager;
 
 use function array_is_list;
@@ -136,6 +136,7 @@ final class ToolbarDataFactory
 
         foreach ($this->extensionPanels as $id => $panel) {
             $url = $this->viewUrl($tag, $id);
+
             $failure = $snapshot->failures[$id] ?? null;
 
             if ($failure !== null) {
@@ -166,6 +167,7 @@ final class ToolbarDataFactory
 
             try {
                 $items = $panel->toolbarItems($snapshot->panels[$id]);
+
                 self::assertToolbarItems($id, $items);
             } catch (Throwable $throwable) {
                 $toolbarPanels[] = new ToolbarPanel(
@@ -191,7 +193,7 @@ final class ToolbarDataFactory
 
             $toolbarPanels[] = new ToolbarPanel(
                 id: $id,
-                title: $panel->name(),
+                title: $panel instanceof ToolbarTitleProviderInterface ? $panel->toolbarTitle() : $panel->name(),
                 url: $url,
                 icon: $panel->icon(),
                 items: $items,

@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
@@ -13,7 +14,7 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, RequestPanel, VitePanel};
+use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, ProfilingPanel, RequestPanel, VitePanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -181,6 +182,48 @@ final class ToolbarDataFactoryTest extends TestCase
             ],
             $payload['items'],
             'A failed extension capture must match the Yii2 danger-item envelope.',
+        );
+    }
+
+    public function testCreateForSnapshotExposesProfilingMetricsWithoutATextTitle(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new ProfilingPanel()]);
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'profiling' => (new ProfilingSnapshot(2_097_152, 0.25, [], []))->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'profiling',
+                    'title' => '',
+                    'url' => '/debug/view?tag=request-1&panel=profiling',
+                    'icon' => 'profiling',
+                    'items' => [
+                        [
+                            'value' => '250 ms',
+                            'status' => 'default',
+                            'title' => 'Total processing time',
+                        ],
+                        [
+                            'value' => '2.000 MB',
+                            'status' => 'default',
+                            'title' => 'Peak memory',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'Profiling must match the Yii2 gauge, neutral time/memory chips, and hidden text-title contract.',
         );
     }
 

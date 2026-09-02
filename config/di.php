@@ -7,15 +7,16 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\SnapshotStore;
 use Psr\Http\Message\{ResponseFactoryInterface, StreamFactoryInterface};
 use Yii3\Debug\Action\ToolbarDataAction;
-use Yii3\Debug\Collector\RequestCollector;
+use Yii3\Debug\Collector\{ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
-use Yii3\Debug\Panel\RequestPanel;
+use Yii3\Debug\Panel\{ProfilingPanel, RequestPanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\NetworkUtilities\IpRanges;
+use Yiisoft\Profiler\ProfilerInterface;
 use Yiisoft\View\WebView;
 
 /** @var array<string, mixed> $params */
@@ -24,9 +25,10 @@ $config = $params['yii3/debug'];
 return [
     CollectorCoordinator::class => static fn(
         RequestCollector $requestCollector,
+        ProfilingCollector $profilingCollector,
         ExtensionRegistry $extensions,
     ): CollectorCoordinator => new CollectorCoordinator(
-        $extensions->collectorsWithBuiltIn($requestCollector),
+        $extensions->collectorsWithBuiltIns([$requestCollector, $profilingCollector]),
     ),
     ConfigDataFactory::class => [
         '__construct()' => [
@@ -39,6 +41,7 @@ return [
         ConfigDataFactory $configDataFactory,
         Aliases $aliases,
         RequestPanel $requestPanel,
+        ProfilingPanel $profilingPanel,
         ExtensionRegistry $extensions,
     ): DebugPageRenderer => (
         new DebugPageRenderer(
@@ -48,8 +51,11 @@ return [
             $aliases->get($config['viewPath']),
         )
     )
-    ->withExtensionPanels($extensions->panelsWithBuiltIn($requestPanel))
+    ->withExtensionPanels($extensions->panelsWithBuiltIns([$requestPanel, $profilingPanel]))
     ->withRoutePrefix($config['routePrefix']),
+    ProfilingCollector::class => static fn(
+        ProfilerInterface $profiler,
+    ): ProfilingCollector => new ProfilingCollector($profiler),
     SnapshotStore::class => static fn(Aliases $aliases): SnapshotStore => new SnapshotStore(
         path: $aliases->get($config['storage']['path']),
         dirMode: $config['storage']['dirMode'],
@@ -69,11 +75,12 @@ return [
     ToolbarDataFactory::class => static fn(
         AssetManager $assetManager,
         RequestPanel $requestPanel,
+        ProfilingPanel $profilingPanel,
         ExtensionRegistry $extensions,
     ): ToolbarDataFactory => (
         new ToolbarDataFactory($assetManager)
     )
-    ->withExtensionPanels($extensions->panelsWithBuiltIn($requestPanel))
+    ->withExtensionPanels($extensions->panelsWithBuiltIns([$requestPanel, $profilingPanel]))
     ->withRoutePrefix($config['routePrefix'])
     ->withPresentation($config['toolbar']['position'], $config['toolbar']['height']),
     ToolbarMiddleware::class => static fn(

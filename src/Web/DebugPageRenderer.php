@@ -7,6 +7,7 @@ namespace Yii3\Debug\Web;
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\{Format, Icon, Vocabulary};
 use PHPForge\Debug\Panel\Config\ConfigCardRenderer;
+use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
@@ -15,7 +16,7 @@ use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, SummaryAwarePanelInterface};
+use Yii3\Debug\Panel\{ContextAwarePanelInterface, ExtensionPanelInterface, SummaryAwarePanelInterface};
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
@@ -26,6 +27,7 @@ use function array_search;
 use function count;
 use function date;
 use function dirname;
+use function in_array;
 use function is_string;
 use function json_encode;
 use function memory_get_peak_usage;
@@ -45,6 +47,11 @@ use const PHP_VERSION;
  */
 final class DebugPageRenderer
 {
+    /**
+     * Built-in panels shown in the primary request navigation.
+     */
+    private const array PRIMARY_PANEL_IDS = ['request', 'profiling'];
+
     /**
      * @var array<string, ExtensionPanelInterface>
      */
@@ -123,12 +130,14 @@ final class DebugPageRenderer
      * Renders one captured extension panel.
      *
      * @param array<string, RequestSummary> $manifest
+     * @param array<array-key, mixed> $queryParams
      */
     public function extension(
         DebugSnapshot $snapshot,
         string $panelId,
         string $theme,
         array $manifest = [],
+        array $queryParams = [],
     ): string {
         $panel = $this->extensionPanels[$panelId] ?? null;
 
@@ -143,9 +152,24 @@ final class DebugPageRenderer
 
         if (array_key_exists($panelId, $snapshot->panels)) {
             try {
-                $panelContent = $panel instanceof SummaryAwarePanelInterface
-                    ? $panel->renderWithSummary($payload, $snapshot->summary)
-                    : $panel->render($payload);
+                $panelContent = match (true) {
+                    $panel instanceof SummaryAwarePanelInterface => $panel->renderWithSummary(
+                        $payload,
+                        $snapshot->summary,
+                    ),
+                    $panel instanceof ContextAwarePanelInterface => $panel->renderWithContext(
+                        $payload,
+                        new PanelRenderContext(
+                            $snapshot->summary->tag,
+                            $panelId,
+                            $queryParams,
+                            $theme,
+                            new DebugUrlGenerator($this->routePrefix),
+                            $snapshot->panels,
+                        ),
+                    ),
+                    default => $panel->render($payload),
+                };
             } catch (Throwable $throwable) {
                 $renderError = $throwable::class . ': ' . $throwable->getMessage();
             }
@@ -297,7 +321,7 @@ final class DebugPageRenderer
         $items = [];
 
         foreach ($this->extensionPanels as $id => $panel) {
-            if ($id === 'request') {
+            if (in_array($id, self::PRIMARY_PANEL_IDS, true)) {
                 continue;
             }
 
@@ -352,11 +376,8 @@ final class DebugPageRenderer
      * @param array<string, RequestSummary> $manifest
      * @param array<array-key, mixed> $queryParams
      */
-    private function historySidebar(
-        array $manifest,
-        array $queryParams,
-        DebugSnapshot|null $snapshot,
-    ): SidebarView {
+    private function historySidebar(array $manifest, array $queryParams, DebugSnapshot|null $snapshot): SidebarView
+    {
         $newestTag = array_key_first($manifest);
 
         $summary = $newestTag === null ? null : $manifest[$newestTag];
@@ -449,25 +470,33 @@ final class DebugPageRenderer
         DebugSnapshot|null $snapshot,
         string|null $activePanelId = null,
     ): array {
-        if (
-            $summary === null
-            || $snapshot === null
-            || !isset($this->extensionPanels['request'])
-            || (!array_key_exists('request', $snapshot->panels)
-                && !array_key_exists('request', $snapshot->failures))
-        ) {
+        if ($summary === null || $snapshot === null) {
             return [];
         }
 
-        return [
-            new SidebarNavItem(
-                label: 'Request',
-                iconSvg: Icon::render('request'),
-                url: $this->viewUrl($summary->tag, 'request'),
-                tooltip: 'View Request panel',
-                isActive: $activePanelId === 'request',
-            ),
-        ];
+        $items = [];
+
+        foreach (self::PRIMARY_PANEL_IDS as $id) {
+            $panel = $this->extensionPanels[$id] ?? null;
+
+            if (
+                $panel === null
+                || (!array_key_exists($id, $snapshot->panels)
+                    && !array_key_exists($id, $snapshot->failures))
+            ) {
+                continue;
+            }
+
+            $items[] = new SidebarNavItem(
+                label: $panel->name(),
+                iconSvg: Icon::render($panel->icon()),
+                url: $this->viewUrl($summary->tag, $id),
+                tooltip: 'View ' . $panel->name() . ' panel',
+                isActive: $activePanelId === $id,
+            );
+        }
+
+        return $items;
     }
 
     /**
@@ -482,9 +511,11 @@ final class DebugPageRenderer
         string $panelId = 'config',
     ): SidebarSnapshot {
         $navigationPanelId = $panelId === 'request' ? 'auto' : $panelId;
+
         $tags = array_keys($manifest);
         $requestCount = count($tags);
         $index = array_search($summary->tag, $tags, true);
+
         $newestTag = $tags[0] ?? null;
         $oldestTag = $tags[$requestCount - 1] ?? null;
         $newerTag = $index !== false && $index > 0 ? ($tags[$index - 1] ?? null) : null;

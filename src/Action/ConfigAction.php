@@ -86,7 +86,7 @@ final readonly class ConfigAction
             }
 
             return $this->response(
-                $this->renderer->extension($snapshot, $panel, $theme, $manifest),
+                $this->renderer->extension($snapshot, $panel, $theme, $manifest, $query),
                 'text/html; charset=UTF-8',
             );
         }
