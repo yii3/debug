@@ -58,22 +58,58 @@ final readonly class ExtensionRegistry
      */
     public function collectorsWithBuiltIn(CollectorInterface $builtIn): array
     {
-        $first = $builtIn;
-        $collectors = [];
-        $overridden = false;
+        return $this->collectorsWithBuiltIns([$builtIn]);
+    }
 
-        foreach ($this->collectors as $collector) {
-            if (!$overridden && $collector->id() === $builtIn->id()) {
-                $first = $collector;
-                $overridden = true;
+    /**
+     * Returns built-in collectors first, replacing each one with an explicitly registered collector of the same ID.
+     *
+     * @param iterable<CollectorInterface> $builtIns Built-in collectors in capture order.
+     *
+     * @return list<CollectorInterface> Built-in and enabled collectors in capture order.
+     */
+    public function collectorsWithBuiltIns(iterable $builtIns): array
+    {
+        $collectors = $this->collectors;
 
-                continue;
+        $resolved = [];
+
+        foreach ($builtIns as $builtIn) {
+            $resolvedBuiltIn = $builtIn;
+
+            foreach ($collectors as $index => $collector) {
+                if ($collector->id() !== $builtIn->id()) {
+                    continue;
+                }
+
+                $resolvedBuiltIn = $collector;
+
+                unset($collectors[$index]);
+
+                break;
             }
 
-            $collectors[] = $collector;
+            $resolved[] = $resolvedBuiltIn;
         }
 
-        return [$first, ...$collectors];
+        return [
+            ...$resolved,
+            ...$collectors,
+        ];
+    }
+
+    /**
+     * Creates a registry from explicitly enabled collectors and panels.
+     *
+     * @param iterable<CollectorInterface> $collectors Enabled collectors in capture order.
+     * @param iterable<ExtensionPanelInterface> $panels Enabled panels in navigation order.
+     */
+    public static function create(iterable $collectors = [], iterable $panels = []): self
+    {
+        return new self(
+            $collectors,
+            $panels,
+        );
     }
 
     /**
@@ -91,31 +127,65 @@ final readonly class ExtensionRegistry
      */
     public function panelsWithBuiltIn(ExtensionPanelInterface $builtIn): array
     {
-        $first = $builtIn;
-        $panels = [];
-        $overridden = false;
+        return $this->panelsWithBuiltIns([$builtIn]);
+    }
 
-        foreach ($this->panels as $panel) {
-            if (!$overridden && $panel->id() === $builtIn->id()) {
-                $first = $panel;
-                $overridden = true;
+    /**
+     * Returns built-in panels first, replacing each one with an explicitly registered panel of the same ID.
+     *
+     * @param iterable<ExtensionPanelInterface> $builtIns Built-in panels in navigation order.
+     *
+     * @return list<ExtensionPanelInterface> Built-in and enabled panels in navigation order.
+     */
+    public function panelsWithBuiltIns(iterable $builtIns): array
+    {
+        $panels = $this->panels;
 
-                continue;
+        $resolved = [];
+
+        foreach ($builtIns as $builtIn) {
+            $resolvedBuiltIn = $builtIn;
+
+            foreach ($panels as $index => $panel) {
+                if ($panel->id() !== $builtIn->id()) {
+                    continue;
+                }
+
+                $resolvedBuiltIn = $panel;
+
+                unset($panels[$index]);
+
+                break;
             }
 
-            $panels[] = $panel;
+            $resolved[] = $resolvedBuiltIn;
         }
 
-        return [$first, ...$panels];
+        return [
+            ...$resolved,
+            ...$panels,
+        ];
     }
 
     public function withCollector(CollectorInterface $collector): self
     {
-        return new self([...$this->collectors, $collector], $this->panels);
+        return new self(
+            [
+                ...$this->collectors,
+                $collector,
+            ],
+            $this->panels,
+        );
     }
 
     public function withPanel(ExtensionPanelInterface $panel): self
     {
-        return new self($this->collectors, [...$this->panels, $panel]);
+        return new self(
+            $this->collectors,
+            [
+                ...$this->panels,
+                $panel,
+            ],
+        );
     }
 }
