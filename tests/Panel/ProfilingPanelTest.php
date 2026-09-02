@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Panel;
 
+use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\PanelRenderContext;
-use PHPForge\Debug\Storage\HydrationException;
+use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\ProfilingPanel;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_slice;
+use function strpos;
+use function substr;
+use function substr_count;
 
 /**
  * Unit tests for the filterable Profiling panel and its toolbar metrics.
@@ -27,7 +31,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
             <table class="yii-debug-table">
@@ -89,6 +93,64 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
+    public function testContextWithoutSummaryKeepsLegacyTableOnlyRendering(): void
+    {
+        $html = (new ProfilingPanel())
+            ->renderWithContext(self::payload(), self::context([]));
+
+        self::assertStringNotContainsString(
+            'class="yii-debug-tabs"',
+            $html,
+            'The existing context-only contract must retain its Table-only output.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-grid-profile',
+            $html,
+            'Legacy rendering must keep the complete profiling table.',
+        );
+    }
+
+    public function testLegacyViewParameterIsIgnoredAndNeverEmitted(): void
+    {
+        $panel = new ProfilingPanel();
+
+        $summary = RequestSummary::create('request-1')
+            ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+            ->withProfiling(0.1, 2_097_152);
+
+        $unified = $panel->renderWithContextAndSummary(
+            self::payload(),
+            self::context([]),
+            $summary,
+        );
+        $legacyUrl = $panel->renderWithContextAndSummary(
+            self::payload(),
+            self::context(['Timeline' => ['category' => 'ignored'], 'view' => 'timeline']),
+            $summary,
+        );
+
+        self::assertSame(
+            $unified,
+            $legacyUrl,
+            'Legacy view and Timeline parameters must not change the unified representation.',
+        );
+        self::assertStringContainsString(
+            '<section class="yii-debug-tl">',
+            $unified,
+            'The unified page must always render its Timeline overview.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-grid-profile',
+            $unified,
+            'The unified page must always render its detailed table.',
+        );
+        self::assertStringNotContainsString(
+            'view=timeline',
+            $legacyUrl,
+            'Generated links must not emit the removed view state.',
+        );
+    }
+
     public function testMalformedPayloadRetainsTheNativeHydrationFailure(): void
     {
         $this->expectException(HydrationException::class);
@@ -125,7 +187,7 @@ final class ProfilingPanelTest extends TestCase
         );
         self::assertTrue(
             $panel->hasContent(self::emptyPayload()),
-            'A valid capture must expose the panel even when it contains no explicit blocks.',
+            'A valid capture must expose the panel even when it contains no explicit spans.',
         );
     }
 
@@ -139,7 +201,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
             <table class="yii-debug-table">
@@ -201,7 +263,7 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testRenderShowsSummaryStripAndGuidanceWithoutProfileBlocks(): void
+    public function testRenderShowsSummaryStripAndGuidanceWithoutProfilingData(): void
     {
         $html = (new ProfilingPanel())
             ->render(self::emptyPayload());
@@ -211,12 +273,12 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>0</strong> of 0 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>13 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>0</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>13 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
             </header><div class="yii-debug-empty-state">
             <h2>
-            No profile blocks captured
+            No profiling data captured
             </h2><p>
-            This request did not produce any <code>ProfilerInterface::begin()</code> / <code>ProfilerInterface::end()</code> blocks, so the timing table is empty.
+            This request did not produce any <code>ProfilerInterface::begin()</code> / <code>ProfilerInterface::end()</code> spans, so the Timeline and details are empty.
             </p><p>
             To populate this view, wrap interesting sections of code with profile markers:
             </p><pre class="yii-debug-empty-state-code">
@@ -233,7 +295,7 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextExplainsWhenFiltersMatchNoBlocks(): void
+    public function testRenderWithContextExplainsWhenFiltersMatchNoSpans(): void
     {
         $html = (new ProfilingPanel())
             ->renderWithContext(
@@ -246,14 +308,14 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>0</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>0</strong> of 3 spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
             </header><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
             <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=25" title="Remove this filter" aria-label="Remove info: missing filter"><span class="yii-debug-active-filter-attr">info</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">missing</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=25" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
             </div><div class="yii-debug-empty-state">
             <h2>
-            No profile blocks match the active filters
+            No spans match the active filters
             </h2><p>
-            Adjust or clear the filters to show the captured profile blocks.
+            Adjust or clear the filters to show the captured spans.
             </p>
             </div>
             HTML,
@@ -282,7 +344,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -375,7 +437,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>1</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>1</strong> of 3 spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -466,7 +528,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -555,7 +617,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -644,7 +706,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> of 3 profile blocks</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -730,7 +792,210 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testSummaryUsesTheSingularBlockLabel(): void
+    public function testSummaryContextRendersTimelineAndTableFromSharedFilteredRows(): void
+    {
+        $payload = self::payload();
+
+        $payload['samples'] = [
+            ['time' => 1_000.0, 'memory' => 1_048_576],
+            ['time' => 1_100.0, 'memory' => 2_097_152],
+        ];
+
+        $html = (new ProfilingPanel())
+            ->renderWithContextAndSummary(
+                $payload,
+                self::context(
+                    [
+                        'Profile' => ['duration' => '20', 'category' => 'Yii3', 'info' => 'i'],
+                        'page' => '2',
+                        'per-page' => '1',
+                        'sort' => '-duration',
+                        'yii_debug_theme' => 'dark',
+                    ],
+                    [
+                        'log' => LogSnapshot::capture(
+                            [['checkpoint', 200, 'application', 1.075, [], 1_572_864]],
+                        )->jsonSerialize(),
+                    ],
+                ),
+                RequestSummary::create('request-1')
+                    ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+                    ->withProfiling(0.1, 2_097_152),
+            );
+
+        $tableOffset = strpos($html, '<div class="yii-debug-grid yii-debug-grid-profile">');
+        $timelineOffset = strpos($html, '<section class="yii-debug-tl">');
+        $detailsOffset = strpos($html, '<header class="yii-debug-section-header">');
+
+        self::assertIsInt(
+            $tableOffset,
+            'The unified page must contain the detailed profile grid.',
+        );
+        self::assertIsInt(
+            $timelineOffset,
+            'The unified page must contain the Timeline overview.',
+        );
+        self::assertIsInt(
+            $detailsOffset,
+            'The unified page must contain the details heading.',
+        );
+
+        $tableHtml = substr($html, $tableOffset);
+        $timelineHtml = substr($html, $timelineOffset, $detailsOffset - $timelineOffset);
+
+        self::assertSame(
+            1,
+            substr_count($html, 'class="yii-debug-grid-summary"'),
+            'The unified page must render one shared capture summary.',
+        );
+        self::assertStringNotContainsString(
+            'class="yii-debug-tabs"',
+            $html,
+            'The unified page must not retain the redundant representation tabs.',
+        );
+        self::assertStringNotContainsString(
+            'aria-label="Profiling views"',
+            $html,
+            'Timeline and table must be document sections rather than separate destinations.',
+        );
+        self::assertStringContainsString(
+            'aria-label="Profiling filters"',
+            $html,
+            'The shared filters must be exposed as one labelled form.',
+        );
+        self::assertStringContainsString(
+            '<strong>2</strong> of 3 spans',
+            $html,
+            'The summary must distinguish the shared filtered subset from the capture total.',
+        );
+        self::assertStringContainsString(
+            '<h2>' . "\n" . 'Timeline',
+            $html,
+            'The chart must be a visible section of the unified page.',
+        );
+        self::assertStringContainsString(
+            '<h2>' . "\n" . 'Details',
+            $html,
+            'The detailed grid must be a visible section of the unified page.',
+        );
+        self::assertLessThan(
+            strpos($html, 'yii-debug-grid-profile'),
+            strpos($html, '<section class="yii-debug-tl">'),
+            'The Timeline overview must precede the detailed table.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-tl-row-app',
+            $html,
+            'Application spans must use the shared Timeline category styling.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-tl-row-view',
+            $html,
+            'View spans must use the shared Timeline category styling.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-tl-memory-gradient',
+            $html,
+            'Profiler memory samples must feed the shared memory graph.',
+        );
+        self::assertStringContainsString(
+            'name="Profile[duration]" type="number" value="20" min="0"',
+            $html,
+            'Minimum duration must use the shared Profile filter group.',
+        );
+        self::assertStringContainsString(
+            'name="Profile[category]" type="text" value="Yii3"',
+            $html,
+            'Category must use the shared Profile filter group.',
+        );
+        self::assertStringContainsString(
+            'name="Profile[info]" type="text" value="i"',
+            $html,
+            'Info must use the shared Profile filter group.',
+        );
+        self::assertStringContainsString(
+            'value="request-1"',
+            $html,
+            'The shared filter form must preserve the selected capture tag.',
+        );
+        self::assertStringContainsString(
+            'value="dark"',
+            $html,
+            'The shared filter form must preserve an explicit theme selection.',
+        );
+        self::assertStringNotContainsString(
+            'name="view"',
+            $html,
+            'The shared form must not preserve the removed representation parameter.',
+        );
+        self::assertStringNotContainsString(
+            'name="Timeline[',
+            $html,
+            'The obsolete Timeline filter namespace must not be emitted.',
+        );
+        self::assertStringNotContainsString(
+            'name="page"',
+            $html,
+            'Applying shared filters must reset table pagination.',
+        );
+        self::assertStringContainsString(
+            'name="sort" type="hidden" value="-duration"',
+            $html,
+            'Applying a shared filter must preserve the table sort state.',
+        );
+        self::assertStringContainsString(
+            'name="per-page" type="hidden" value="1"',
+            $html,
+            'Applying shared filters must preserve the table page size.',
+        );
+        self::assertSame(
+            2,
+            substr_count($html, 'class="yii-debug-tl-row yii-debug-tl-row-'),
+            'The Timeline must retain every shared filtered row before table pagination.',
+        );
+        self::assertStringNotContainsString(
+            '<wbr>',
+            $timelineHtml,
+            'Timeline labels must not expose a line-break opportunity.',
+        );
+        self::assertStringContainsString(
+            '<wbr>',
+            $tableHtml,
+            'Removing Timeline breaks must not change the detailed table labels.',
+        );
+        self::assertStringNotContainsString(
+            'SLOW application',
+            $tableHtml,
+            'The first filtered span must remain in the Timeline while page two omits it from the table.',
+        );
+        self::assertStringContainsString(
+            'MIDDLE view',
+            $tableHtml,
+            'The second filtered span must appear in the requested table page.',
+        );
+        self::assertStringNotContainsString(
+            'SELECT 1',
+            $tableHtml,
+            'The same shared filters must exclude the database span from both representations.',
+        );
+        self::assertStringContainsString(
+            "style='left: 0%; width: 100%;'",
+            $html,
+            'The request-start span must fill the exact 100 ms capture geometry.',
+        );
+        self::assertStringContainsString(
+            "style='left: 50%; width: 50%;'",
+            $html,
+            'A span beginning 50 ms into the request must occupy its exact half-width geometry.',
+        );
+        self::assertStringContainsString(
+            'points="0 40 0 20 1440 10 1920 0 1920 0"',
+            $html,
+            'Memory geometry must combine sorted profiler and log samples at exact millisecond coordinates.',
+        );
+    }
+
+    public function testSummaryUsesTheSingularSpanLabel(): void
     {
         $html = (new ProfilingPanel())
             ->render(self::payload(entryCount: 1));
@@ -740,7 +1005,7 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>1</strong> of 1 profile block</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>1</strong> span</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
             <table class="yii-debug-table">
@@ -776,7 +1041,164 @@ final class ProfilingPanelTest extends TestCase
             </div>
             HTML,
             $html,
-            'A single profile row must match the complete grid with the singular block label.',
+            'A single profile row must match the complete grid with the singular span label.',
+        );
+    }
+
+    public function testTimelineIgnoresMalformedSiblingLogPayload(): void
+    {
+        $payload = self::payload();
+
+        $payload['samples'] = [
+            ['time' => 1_000.0, 'memory' => 1_048_576],
+            ['time' => 1_100.0, 'memory' => 2_097_152],
+        ];
+        $html = (new ProfilingPanel())
+            ->renderWithContextAndSummary(
+                $payload,
+                self::context([], ['log' => ['entries' => [['invalid']]]]),
+                RequestSummary::create('request-1')
+                    ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+                    ->withProfiling(0.1, 2_097_152),
+            );
+
+        self::assertStringContainsString(
+            '<section class="yii-debug-tl">',
+            $html,
+            'Malformed optional Log data must not prevent valid profiling data from rendering.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-grid-profile',
+            $html,
+            'Malformed optional Log data must not prevent the profiling details from rendering.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-tl-memory-gradient',
+            $html,
+            'Malformed optional Log data must not discard valid profiler memory samples.',
+        );
+    }
+
+    public function testTimelineReportsUnavailableGeometryWithoutInventingFallbackTiming(): void
+    {
+        $validSummary = RequestSummary::create('request-1')
+            ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+            ->withProfiling(0.1, 2_097_152);
+        $missingStart = RequestSummary::create('request-1')
+            ->withProfiling(0.1, 2_097_152);
+
+        $missingDuration = self::payload();
+
+        $missingDuration['time'] = 0.0;
+
+        $missingMemory = self::payload();
+
+        $missingMemory['memory'] = 0;
+
+        $panel = new ProfilingPanel();
+
+        foreach (
+            [
+                'request start' => [self::payload(), $missingStart],
+                'profiling duration' => [$missingDuration, $validSummary],
+                'peak memory' => [$missingMemory, $validSummary],
+            ] as $missing => [$payload, $summary]
+        ) {
+            $html = $panel->renderWithContextAndSummary(
+                $payload,
+                self::context([]),
+                $summary,
+            );
+
+            self::assertStringContainsString(
+                'Timeline unavailable',
+                $html,
+                "Missing {$missing} must produce a dedicated unavailable state.",
+            );
+            self::assertStringContainsString(
+                'yii-debug-tl-filter',
+                $html,
+                "Missing {$missing} must retain shared filters for the detailed table.",
+            );
+            self::assertStringNotContainsString(
+                '<section class="yii-debug-tl">',
+                $html,
+                "Missing {$missing} must not fabricate a request-relative chart.",
+            );
+            self::assertStringContainsString(
+                'yii-debug-grid-profile',
+                $html,
+                "Missing {$missing} must keep the detailed profile table available.",
+            );
+        }
+    }
+
+    public function testTimelineShowsShortClassNameAndKeepsFullCategoryOnHover(): void
+    {
+        $payload = self::payload(
+            entryCount: 1,
+            firstCategory: 'App\\Web\\Workbench\\HomeAction::__invoke',
+        );
+
+        $html = (new ProfilingPanel())
+            ->renderWithContextAndSummary(
+                $payload,
+                self::context([]),
+                RequestSummary::create('request-1')
+                    ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+                    ->withProfiling(0.1, 2_097_152),
+            );
+
+        self::assertStringContainsString(
+            '<span class="yii-debug-tl-name" title="App\\Web\\Workbench\\HomeAction::__invoke">'
+            . '<strong>HomeAction</strong></span>',
+            $html,
+            'Timeline must keep only the short class visible and expose the full category through its hover title.',
+        );
+    }
+
+    public function testTimelineUsesExactRequestRelativeMillisecondGeometry(): void
+    {
+        $payload = self::payload();
+
+        $payload['samples'] = [
+            ['time' => 1_000.0, 'memory' => 1_048_576],
+            ['time' => 1_100.0, 'memory' => 2_097_152],
+        ];
+
+        $html = (new ProfilingPanel())
+            ->renderWithContextAndSummary(
+                $payload,
+                self::context([]),
+                RequestSummary::create('request-1')
+                    ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+                    ->withProfiling(0.1, 2_097_152),
+            );
+
+        self::assertStringContainsString(
+            '<strong>100 ms</strong> total',
+            $html,
+            'The profiling duration must cross the seconds-to-milliseconds boundary exactly once.',
+        );
+        self::assertStringContainsString(
+            "style='left: 0%; width: 100%;'",
+            $html,
+            'The outer 100 ms span must occupy the complete 100 ms request.',
+        );
+        self::assertStringContainsString(
+            "style='left: 25%; width: 10%;'",
+            $html,
+            'The 10 ms database span must begin 25 ms into the request.',
+        );
+        self::assertStringContainsString(
+            "style='left: 50%; width: 50%;'",
+            $html,
+            'The 50 ms view span must occupy the second half of the request.',
+        );
+        self::assertStringContainsString(
+            'points="0 40 0 20 1920 0 1920 0"',
+            $html,
+            'Memory samples at the request boundaries must map to x=0 and x=1920.',
         );
     }
 
@@ -816,10 +1238,66 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
+    public function testUnifiedScreenDistinguishesAnEmptyCaptureFromAnEmptyFilterResult(): void
+    {
+        $summary = RequestSummary::create('request-1')
+            ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+            ->withProfiling(0.1, 2_097_152);
+
+        $panel = new ProfilingPanel();
+
+        $captureEmpty = $panel->renderWithContextAndSummary(
+            self::emptyPayload(),
+            self::context([]),
+            $summary,
+        );
+        $filterEmpty = $panel->renderWithContextAndSummary(
+            self::payload(),
+            self::context(
+                [
+                    'Profile' => ['category' => 'missing'],
+                ],
+            ),
+            $summary,
+        );
+
+        self::assertStringContainsString(
+            'No profiling data captured',
+            $captureEmpty,
+            'A request without profiler spans must describe the missing capture rather than blame a filter.',
+        );
+        self::assertStringNotContainsString(
+            'yii-debug-tl-filter',
+            $captureEmpty,
+            'A capture-empty request must not expose filters for data that was never captured.',
+        );
+        self::assertStringContainsString(
+            'No spans match the active filters',
+            $filterEmpty,
+            'A nonempty capture filtered to zero must identify the shared active filters.',
+        );
+        self::assertStringContainsString(
+            '>Clear all</a>',
+            $filterEmpty,
+            'A filtered-empty page must provide one direct shared reset action.',
+        );
+        self::assertStringNotContainsString(
+            '<section class="yii-debug-tl">',
+            $filterEmpty,
+            'A shared empty result must not render an empty chart.',
+        );
+        self::assertStringNotContainsString(
+            'yii-debug-grid-profile',
+            $filterEmpty,
+            'A shared empty result must not render a second table empty state.',
+        );
+    }
+
     /**
      * @param array<array-key, mixed> $queryParams
+     * @param array<string, array<string, mixed>> $panels
      */
-    private static function context(array $queryParams): PanelRenderContext
+    private static function context(array $queryParams, array $panels = []): PanelRenderContext
     {
         return new PanelRenderContext(
             'request-1',
@@ -827,6 +1305,7 @@ final class ProfilingPanelTest extends TestCase
             $queryParams,
             'light',
             new DebugUrlGenerator(),
+            $panels,
         );
     }
 
@@ -846,13 +1325,16 @@ final class ProfilingPanelTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private static function payload(string $firstInfo = 'SLOW application', int $entryCount = 3): array
-    {
+    private static function payload(
+        string $firstInfo = 'SLOW application',
+        int $entryCount = 3,
+        string $firstCategory = 'Yii3\\Application::handle',
+    ): array {
         $entries = [
             [
                 'timestamp' => 1_000.0,
                 'duration' => 100.0,
-                'category' => 'Yii3\\Application::handle',
+                'category' => $firstCategory,
                 'info' => $firstInfo,
                 'level' => 0,
                 'seq' => 0,
