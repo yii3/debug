@@ -9,6 +9,7 @@ use PHPForge\Debug\Storage\HydrationException;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\ProfilingPanel;
 use Yii3\Debug\Web\DebugUrlGenerator;
+
 use function array_slice;
 
 /**
@@ -800,15 +801,18 @@ final class ProfilingPanelTest extends TestCase
         );
         self::assertSame(
             'Total processing time',
-            $items[0]->title, 'Time chip must carry its tooltip.',
+            $items[0]->title,
+            'Time chip must carry its tooltip.',
         );
         self::assertSame(
             '2.000 MB',
-            $items[1]->value, 'Memory chip must render megabytes.',
+            $items[1]->value,
+            'Memory chip must render megabytes.',
         );
         self::assertSame(
             'Peak memory',
-            $items[1]->title, 'Memory chip must carry its tooltip.',
+            $items[1]->title,
+            'Memory chip must carry its tooltip.',
         );
     }
 
