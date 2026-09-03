@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Yii3\Debug;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Data\FilterPrefix;
+use PHPForge\Debug\Helper\LogLevel;
 use PHPForge\Debug\Storage\{DebugSnapshot, ExceptionSnapshot};
 use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
 use Throwable;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, ToolbarPanelProviderInterface, ToolbarTitleProviderInterface};
+use Yii3\Debug\Panel\{ExtensionPanelInterface, LogPanel, ToolbarPanelProviderInterface, ToolbarTitleProviderInterface};
+use Yii3\Debug\Web\DebugUrlGenerator;
 use Yiisoft\Assets\AssetManager;
 
 use function array_is_list;
@@ -128,6 +131,45 @@ final class ToolbarDataFactory
     }
 
     /**
+     * Adds Logs panel filter URLs to its error and warning toolbar metrics.
+     *
+     * @param list<ToolbarItem> $items
+     *
+     * @return list<ToolbarItem>
+     */
+    private function logFilterLinks(string $tag, array $items): array
+    {
+        $linked = [];
+        $urls = new DebugUrlGenerator($this->routePrefix);
+
+        foreach ($items as $item) {
+            $level = match ($item->id) {
+                'errors' => LogLevel::ERROR,
+                'warnings' => LogLevel::WARNING,
+                default => null,
+            };
+
+            $linked[] = $level === null
+                ? $item
+                : new ToolbarItem(
+                    value: $item->value,
+                    label: $item->label,
+                    icon: $item->icon,
+                    status: $item->status,
+                    title: $item->title,
+                    url: $urls->panel(
+                        $tag,
+                        'log',
+                        [FilterPrefix::LOG => ['level' => (string) $level]],
+                    ),
+                    id: $item->id,
+                );
+        }
+
+        return $linked;
+    }
+
+    /**
      * @return list<ToolbarPanel>
      */
     private function panels(string $tag, DebugSnapshot $snapshot): array
@@ -169,6 +211,10 @@ final class ToolbarDataFactory
                 $items = $panel->toolbarItems($snapshot->panels[$id]);
 
                 self::assertToolbarItems($id, $items);
+
+                if ($panel instanceof LogPanel) {
+                    $items = $this->logFilterLinks($tag, $items);
+                }
             } catch (Throwable $throwable) {
                 $toolbarPanels[] = new ToolbarPanel(
                     id: $id,

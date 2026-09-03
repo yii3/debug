@@ -26,3 +26,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor: keep service constructors focused on essential dependencies; migrate removed optional arguments to `withExtensionPanels()`, `withCollectorCoordinator()`, `withCapturePolicy()`, and the existing immutable configuration methods.
 - feat(ui): add the built-in Yii3 Profiling collector, time and peak-memory toolbar metrics, and the Yii2-compatible filterable timing panel.
 - fix(ui): unify Profiling filters and terminology, shorten Timeline labels with full hover text, align chart colors and duration gauges with Yii2, and preserve request-scoped timing and post-flush spans.
+- feat(ui): add filterable Yii3 Logs with severity and Trace shortcuts, logger integration, Delta column, and ordered navigation.

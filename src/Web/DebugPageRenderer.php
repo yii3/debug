@@ -55,7 +55,11 @@ final class DebugPageRenderer
     /**
      * Built-in panels shown in the primary request navigation.
      */
-    private const array PRIMARY_PANEL_IDS = ['request', 'profiling'];
+    private const array PRIMARY_PANEL_IDS = [
+        'request',
+        'log',
+        'profiling',
+    ];
 
     /**
      * @var array<string, ExtensionPanelInterface>
