@@ -7,6 +7,7 @@ namespace Yii3\Debug\Tests\Web;
 use Closure;
 use InvalidArgumentException;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
@@ -15,7 +16,7 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, ProfilingPanel, RequestPanel, VitePanel};
+use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, LogPanel, ProfilingPanel, RequestPanel, VitePanel};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -28,6 +29,7 @@ use function implode;
 use function ini_get;
 use function php_uname;
 use function preg_match;
+use function preg_match_all;
 use function sys_get_temp_dir;
 
 use const PHP_SAPI;
@@ -1940,6 +1942,75 @@ final class DebugPageRendererTest extends TestCase
             HTML,
             $html,
             'The Inertia page must match the complete rendered document.',
+        );
+    }
+
+    public function testLogsPanelRendersActiveFiltersAndTheRequestedPrimaryNavigationOrder(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            [
+                'request' => $this->requestPayload(),
+                'log' => LogSnapshot::capture(
+                    [
+                        ['request started', 4, 'application', 1_725_000_756.001, [], 1_048_576],
+                        ['slow query detected', 2, 'app.db', 1_725_000_756.002, [], 1_114_112],
+                    ],
+                )->jsonSerialize(),
+                'profiling' => $this->profilingPayload(),
+            ],
+            [],
+        );
+
+        $renderer = $this->rendererWithPanels(
+            'page-renderer-log-assets',
+            [new RequestPanel(), new LogPanel(), new ProfilingPanel()],
+        );
+
+        [, $html] = self::renderWithPeakMemory(
+            static fn(): string => $renderer->extension(
+                $snapshot,
+                'log',
+                'dark',
+                $manifest,
+                ['Log' => ['level' => '4'], 'yii_debug_theme' => 'dark'],
+            ),
+        );
+
+        $sidebar = explode('</aside>', $html, 2)[0];
+
+        preg_match_all(
+            '~<span class="yii-debug-nav-link-label">\s*(History|Request|Logs|Profiling)\s*</span>~',
+            $sidebar,
+            $matches,
+        );
+
+        self::assertSame(
+            ['History', 'Request', 'Logs', 'Profiling'],
+            $matches[1],
+            'The primary sidebar must follow the requested History, Request, Logs, Profiling order.',
+        );
+        self::assertStringContainsString(
+            'title="View Logs panel" aria-current="page"',
+            $sidebar,
+            'Logs must be the only active primary panel.',
+        );
+        self::assertStringContainsString(
+            '<span class="yii-debug-active-filters-label">1 filter active</span>',
+            $html,
+            'The complete page must expose the active Logs filter.',
+        );
+        self::assertStringContainsString(
+            'request started',
+            $html,
+            'The selected info message must remain visible.',
+        );
+        self::assertStringNotContainsString(
+            'slow query detected',
+            $html,
+            'The warning message must be excluded by the active info filter.',
         );
     }
 

@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
@@ -18,6 +19,7 @@ use RuntimeException;
 use Yii3\Debug\Panel\{
     ExtensionPanelInterface,
     InertiaPanel,
+    LogPanel,
     ProfilingPanel,
     RequestPanel,
     ToolbarPanelProviderInterface,
@@ -451,6 +453,64 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotLinksLogSeverityMetricsToTheirFilters(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new LogPanel()])
+            ->withRoutePrefix('/developer/debug/');
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'log' => LogSnapshot::capture(
+                    [
+                        ['request started', 4, 'application', 1.0, [], 1024],
+                        ['slow query detected', 2, 'app.db', 2.0, [], 2048],
+                        ['database went away', 1, 'app.db', 3.0, [], 4096],
+                    ],
+                )->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'log',
+                    'title' => 'Logs',
+                    'url' => '/developer/debug/view?tag=request-1&panel=log',
+                    'icon' => 'logs',
+                    'items' => [
+                        [
+                            'value' => '3',
+                            'status' => 'default',
+                            'id' => 'total',
+                        ],
+                        [
+                            'label' => 'Errors',
+                            'value' => '1',
+                            'status' => 'danger',
+                            'url' => '/developer/debug/view?tag=request-1&panel=log&Log%5Blevel%5D=1',
+                            'id' => 'errors',
+                        ],
+                        [
+                            'label' => 'Warnings',
+                            'value' => '1',
+                            'status' => 'warning',
+                            'url' => '/developer/debug/view?tag=request-1&panel=log&Log%5Blevel%5D=2',
+                            'id' => 'warnings',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'Logs toolbar severity metrics must open the corresponding filtered panel without changing the total.',
+        );
+    }
+
     public function testCreateForSnapshotOmitsInertiaWithoutAComponent(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
@@ -464,6 +524,41 @@ final class ToolbarDataFactoryTest extends TestCase
             [],
             $payload['items'],
             'An Inertia capture without a component must not create an empty toolbar panel.',
+        );
+    }
+
+    public function testCreateForSnapshotPreservesToolbarUrlsFromAnApplicationLogPanelOverride(): void
+    {
+        $panel = self::createStub(ToolbarPanelProviderInterface::class);
+
+        $panel->method('id')->willReturn('log');
+        $panel->method('name')->willReturn('Application Logs');
+        $panel->method('toolbarItems')->willReturn(
+            [
+                new ToolbarItem(
+                    value: '1',
+                    label: 'Errors',
+                    url: '/application/logs?severity=error',
+                    id: 'errors',
+                ),
+            ],
+        );
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['log' => ['application-owned' => true]],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([$panel])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            '/application/logs?severity=error',
+            $payload['items'][0]['items'][0]['url'] ?? null,
+            'Built-in Logs filter links must not overwrite an application panel override with the same stable ID.',
         );
     }
 

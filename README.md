@@ -9,10 +9,12 @@ The package provides:
 - minimal filesystem persistence for request summaries and redacted Request snapshots;
 - the Yii version chip linked to the live Configuration page;
 - the PHP version chip linked to the Debug Core phpinfo page;
-- the shared Yii-style page shell with the current-request card, primary History and Request navigation, and the
-  complete top brand bar;
+- the shared Yii-style page shell with the current-request card, primary History, Request, Logs, and Profiling
+  navigation, and the complete top brand bar;
 - the built-in Request toolbar status, hero, routing and parameter sections, request/response headers, session and
   server tabs, using the same Debug Core presentation as Yii2;
+- the built-in Logs toolbar counters and filterable message grid, including severity shortcuts, removable active
+  filters, IDE-linked source traces, and request-scoped memory samples;
 - the built-in Profiling toolbar time and peak-memory metrics, plus a unified Timeline and table over spans recorded
   through `yiisoft/profiler`;
 - optional extension-panel navigation that is populated only by data captured for the selected request;
@@ -32,8 +34,9 @@ composer require yii3/debug --dev
 ```
 
 With Yii Config Plugin enabled, the package contributes its parameters, DI definitions, protected history,
-comparison, and brand-page routes, toolbar-data route, and toolbar middleware. The base debugger requires no
-application-owned DI definitions.
+comparison, and brand-page routes, toolbar-data route, and toolbar middleware. The base debugger and its empty
+built-in panels require no application-owned DI definitions. Capturing application logs additionally requires the
+development logger integration described in [Logs](#logs).
 
 The package contributes `ToolbarMiddleware` through the recursive `yiisoft/middleware-dispatcher.middlewares` parameter.
 The application should build its dispatcher from the merged middleware parameters once.
@@ -80,6 +83,44 @@ Application metadata is optional; neutral values are used when it is omitted.
 `historySize` limits retained request summaries. The default storage directory is resolved through Yii aliases.
 `viewPath` accepts any registered Yii alias. Override `@yii3DebugViews` through `yiisoft/aliases.aliases`, or point
 `viewPath` at an application-owned template directory, to customize the shared debugger views.
+
+### Logs
+
+The Logs collector and panel are enabled by default. Add the container-managed `DebugLogTarget` to the targets of the
+application logger in the development environment so the collector receives the same messages as the other log
+targets:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Psr\Log\LoggerInterface;
+use Yii3\Debug\Log\DebugLogTarget;
+use Yiisoft\Definitions\ReferencesArray;
+use Yiisoft\Log\{Logger, StreamTarget};
+
+return [
+    LoggerInterface::class => [
+        'class' => Logger::class,
+        '__construct()' => [
+            'targets' => ReferencesArray::from([
+                DebugLogTarget::class,
+                StreamTarget::class,
+            ]),
+        ],
+    ],
+];
+```
+
+Keep any existing application targets in that list. The debug target is reset at the beginning and end of every
+captured request. When that exact target belongs to a `Yiisoft\Log\Logger`, the collector flushes the logger before
+snapshotting so pending messages are not lost. Applications using a different PSR logger need an application-owned
+bridge that forwards messages to this target.
+
+The summary is calculated from the complete capture, while `Log[level]`, `Log[category]`, and `Log[message]` filter the
+grid. Nonzero severity counters provide direct level filters. Every active filter is displayed in a removable pill,
+and **Clear all** removes only the Logs filter group while retaining the current capture and unrelated URL state.
 
 ### Profiling
 
@@ -254,9 +295,10 @@ default. The routes use Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolba
 ## Captured data
 
 The package stores the request metadata required by the History grid and sidebar: tag, method, redacted URL, IP,
-status, time, AJAX state, duration, and peak memory. Its built-in Profiling snapshot stores the request metrics,
-completed spans, and their memory samples. The Timeline section derives its request origin from the existing
-request summary and can enrich the curve from a captured Log payload, so it does not persist a duplicate Timeline
+status, time, AJAX state, duration, and peak memory. Its built-in Logs snapshot stores the captured message, level,
+category, timestamp, source trace, and memory reading for each entry. Its built-in Profiling snapshot stores the
+request metrics, completed spans, and their memory samples. The Timeline section derives its request origin from the
+existing request summary and can enrich the curve from captured Logs, so it does not persist a duplicate Timeline
 payload. Its built-in Request snapshot also records the matched route and action, route parameters, GET/POST/file
 buckets, request body, request/response headers, and redacted server data in the shared Yii2-compatible shape. Empty
 session and flash buckets retain the standard Session tab without mutating application session state. It also adds
