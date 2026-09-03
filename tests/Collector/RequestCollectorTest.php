@@ -629,4 +629,30 @@ final class RequestCollectorTest extends TestCase
             'A new lifecycle must not inherit previous response headers.',
         );
     }
+
+    public function testStartupIsIdempotentAndPreservesNonStringServerEntries(): void
+    {
+        $collector = new RequestCollector();
+
+        $collector->startup();
+        $collector->collectRequest(
+            HelperFactory::createRequest(
+                uri: 'https://example.test/',
+                serverParams: [
+                    'SERVER_PORT' => 443,
+                ],
+            ),
+        );
+        $collector->collectResponse(HelperFactory::createResponse());
+        $collector->startup();
+        $data = $collector->capture()?->data() ?? [];
+
+        self::assertSame(
+            [
+                'SERVER_PORT' => 443,
+            ],
+            $data['SERVER'] ?? null,
+            'Repeated startup calls must preserve the active request and non-string server entries.',
+        );
+    }
 }

@@ -594,14 +594,6 @@ final readonly class ProfilingPanel implements
 
         $spans = TimelineGeometry::spans($rows, $start, $duration);
 
-        if ($spans === []) {
-            return EmptyState::card(
-                'Timeline unavailable',
-                P::tag()->content('The filtered spans cannot be positioned on this request timeline.'),
-                P::tag()->content('The profiling details remain available below.'),
-            );
-        }
-
         $memorySvg = TimelineMemoryRenderer::render(
             self::timelineMemorySamples($profiling, $context),
             $start,

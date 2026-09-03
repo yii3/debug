@@ -61,10 +61,6 @@ final class ProfilingCollector implements CollectorInterface
      */
     public function collectRequestStart(float $start): void
     {
-        if ($this->started === false) {
-            return;
-        }
-
         $this->start = $start;
     }
 

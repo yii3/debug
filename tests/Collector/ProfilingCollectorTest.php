@@ -358,4 +358,31 @@ final class ProfilingCollectorTest extends TestCase
             'Direct lifecycle callers must retain the SAPI request-start fallback.',
         );
     }
+
+    public function testStartupRemainsIdempotentWithoutAdvancingMessageCursor(): void
+    {
+        $profiler = new Profiler(new NullLogger());
+        $collector = new ProfilingCollector($profiler);
+
+        $collector->startup();
+
+        $profiler->begin('current');
+        $profiler->end('current');
+
+        $collector->startup();
+
+        $snapshot = $collector->capture();
+
+        $collector->shutdown();
+
+        self::assertNotNull(
+            $snapshot,
+            'An active collector must expose a snapshot after repeated startup calls.',
+        );
+        self::assertSame(
+            'current',
+            $snapshot->entries()[0]->info ?? null,
+            'Repeated startup calls must not move the cursor past messages captured in the active lifecycle.',
+        );
+    }
 }

@@ -1139,6 +1139,112 @@ final class DebugPageRendererTest extends TestCase
             ->withExtensionPanels([$padded, $normalized]);
     }
 
+    public function testExtensionPanelRejectsAnEmptyNormalizedIdentifier(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('   ');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Debug extension panel ID must not be empty.');
+
+        $this->renderer()
+            ->withExtensionPanels([$panel]);
+    }
+
+    public function testExtensionRejectsUnknownPanel(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Unknown debug extension panel: unknown.',
+        );
+
+        $this->renderer()->extension(
+            new DebugSnapshot($this->manifest()['request-1'], [], []),
+            'unknown',
+            'light',
+        );
+    }
+
+    public function testExtensionRenderAndVisibilityFailuresRemainDiscoverable(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('unstable');
+        $panel
+            ->method('name')
+            ->willReturn('Unstable');
+        $panel
+            ->method('icon')
+            ->willReturn('history');
+        $panel
+            ->method('hasContent')
+            ->willThrowException(new RuntimeException('Unable to inspect panel content.'));
+        $panel
+            ->method('render')
+            ->willThrowException(new RuntimeException('Unable to render panel.'));
+
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            ['unstable' => ['value' => true]],
+            [],
+        );
+
+        $html = $this->rendererWithPanels('page-renderer-failing-panel-assets', [$panel])
+            ->extension($snapshot, 'unstable', 'light', $manifest);
+
+        self::assertStringContainsString(
+            'Panel rendering failed.',
+            $html,
+            'A panel renderer exception must produce the shared failure callout.',
+        );
+        self::assertStringContainsString(
+            'RuntimeException: Unable to render panel.',
+            $html,
+            'The failure callout must identify the renderer exception.',
+        );
+        self::assertStringContainsString(
+            'title="View Unstable panel" aria-current="page"',
+            $html,
+            'A panel whose visibility check fails must remain discoverable in the sidebar.',
+        );
+    }
+
+    public function testHistoryAndConfigurationRenderWithoutAManifestSummary(): void
+    {
+        $renderer = $this->renderer();
+
+        $history = $renderer->history([], [], 'light');
+        $configuration = $renderer->config('missing', 'light');
+
+        self::assertStringContainsString(
+            '<title>Request history — Yii Debugger</title>',
+            $history,
+            'An empty history must retain the complete debugger page.',
+        );
+        self::assertStringNotContainsString(
+            'aria-label="Current request"',
+            $history,
+            'An empty history must omit the unavailable request summary.',
+        );
+        self::assertStringContainsString(
+            '<title>Configuration — Yii Debugger</title>',
+            $configuration,
+            'Configuration must render when its tag is absent from an empty manifest.',
+        );
+        self::assertStringNotContainsString(
+            'aria-label="Current request"',
+            $configuration,
+            'Configuration must omit an unavailable request summary.',
+        );
+    }
+
     public function testHistoryAppliesRequestFilters(): void
     {
         $tab = "\t";
@@ -2407,6 +2513,30 @@ final class DebugPageRendererTest extends TestCase
             $renderer,
             $renderer->withRoutePrefix('/developer/debug'),
             'Should return a new instance when setting the route prefix, ensuring immutability.',
+        );
+    }
+
+    public function testSnapshotSidebarPreservesFragmentsAndMalformedUrls(): void
+    {
+        $renderer = $this->renderer();
+
+        $fragmentSummary = RequestSummary::create('fragment')
+            ->withRequest('https://example.test/path?query=yes#section', 'GET', '127.0.0.1', 1.0);
+        $malformedSummary = RequestSummary::create('malformed')
+            ->withRequest('http://example.test:invalid/path', 'GET', '127.0.0.1', 1.0);
+
+        $fragment = $renderer->config('fragment', 'light', ['fragment' => $fragmentSummary]);
+        $malformed = $renderer->config('malformed', 'light', ['malformed' => $malformedSummary]);
+
+        self::assertStringContainsString(
+            'data-snapshot-field="url">/path?query=yes#section</span>',
+            $fragment,
+            'A captured URL fragment must remain visible in the sidebar path.',
+        );
+        self::assertStringContainsString(
+            'data-snapshot-field="url">http://example.test:invalid/path</span>',
+            $malformed,
+            'A URL that parse_url() rejects must fall back to the captured value.',
         );
     }
 

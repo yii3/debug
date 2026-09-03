@@ -336,4 +336,44 @@ final class InertiaCollectorTest extends TestCase
             'A new lifecycle must retain only the new request and response state.',
         );
     }
+
+    public function testStartupIsIdempotentWithinTheActiveLifecycle(): void
+    {
+        $collector = new InertiaCollector();
+
+        $collector->startup();
+        $collector->collectRequest(
+            HelperFactory::createRequest(
+                'GET',
+                'https://example.test/dashboard',
+                ['X-Inertia' => 'true'],
+            ),
+        );
+        $collector->observe(
+            ['component' => 'Dashboard/Index', 'props' => [], 'url' => '/dashboard', 'version' => 'one'],
+            ['auth'],
+        );
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $collector->startup();
+
+        $snapshot = $collector->capture();
+
+        self::assertNotNull(
+            $snapshot,
+            'Repeated startup calls must keep the current lifecycle active.',
+        );
+
+        $page = $snapshot->data()['page'] ?? null;
+
+        self::assertIsArray(
+            $page,
+            'An observed Inertia page must retain its array shape.',
+        );
+        self::assertSame(
+            'Dashboard/Index',
+            $page['component'] ?? null,
+            'Repeated startup calls must not discard an observed Inertia page.',
+        );
+    }
 }

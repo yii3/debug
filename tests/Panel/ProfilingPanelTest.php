@@ -7,8 +7,10 @@ namespace Yii3\Debug\Tests\Panel;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\ProfilingPanel;
+use Yii3\Debug\Tests\Provider\ProfilingPanelProvider;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_slice;
@@ -18,6 +20,8 @@ use function substr_count;
 
 /**
  * Unit tests for the filterable Profiling panel and its toolbar metrics.
+ *
+ * {@see ProfilingPanelProvider} for test case data providers.
  */
 final class ProfilingPanelTest extends TestCase
 {
@@ -790,6 +794,40 @@ final class ProfilingPanelTest extends TestCase
             $default,
             'Default sorting must match the complete descending-duration grid and links.',
         );
+    }
+
+    /**
+     * @param list<string> $categories
+     */
+    #[DataProviderExternal(ProfilingPanelProvider::class, 'sortAttributeProvider')]
+    public function testRenderWithContextSortsRowsBySequenceCategoryAndInfo(
+        string $sort,
+        string $firstInfo,
+        array $categories,
+    ): void {
+        $html = (new ProfilingPanel())
+            ->renderWithContext(
+                self::payload(firstInfo: $firstInfo),
+                self::context(['sort' => $sort, 'per-page' => 'all']),
+            );
+
+        $previousPosition = -1;
+
+        foreach ($categories as $category) {
+            $position = strpos($html, "title=\"{$category}\"");
+
+            self::assertIsInt(
+                $position,
+                "The sorted grid must contain the {$category} category.",
+            );
+            self::assertGreaterThan(
+                $previousPosition,
+                $position,
+                "The {$category} category must appear in the requested sort order.",
+            );
+
+            $previousPosition = $position;
+        }
     }
 
     public function testSummaryContextRendersTimelineAndTableFromSharedFilteredRows(): void
