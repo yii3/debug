@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: enhance User panel with RBAC support and add related configuration files.
 - feat: consume shared UI contracts, retain data facades, and add context-aware panel rendering.
 - feat(ui): align Logs, Database, Events, EXPLAIN, and toolbar links with Yii2.
-- feat(ui): capture Yii3 profiler spans and add complete Profiling and Timeline panels.
+- feat(ui): capture Yii3 profiler spans and add the Profiling panel with Timeline and detailed views.
 - feat(ui): align User guest, RBAC, searchable switch grids, CSRF validation, and safe identity restoration.
 - feat(ui): add Yii3 Dump, Mail, and Queue collectors, panels, secure actions, decorators, redaction, tests, and demo fixtures.
 - fix(ui): harden response capture and ship the keyboard-resizable drawer with focus restoration.
@@ -25,3 +25,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(ui): add the built-in Yii3 Request collector, align its toolbar, detail view, navigation, and security with Yii2, and keep Request history navigation compatible with captures created before the built-in panel.
 - refactor: keep service constructors focused on essential dependencies; migrate removed optional arguments to `withExtensionPanels()`, `withCollectorCoordinator()`, `withCapturePolicy()`, and the existing immutable configuration methods.
 - feat(ui): add the built-in Yii3 Profiling collector, time and peak-memory toolbar metrics, and the Yii2-compatible filterable timing panel.
+- fix(ui): unify Profiling filters and terminology, shorten Timeline labels with full hover text, align chart colors and duration gauges with Yii2, and preserve request-scoped timing and post-flush spans.

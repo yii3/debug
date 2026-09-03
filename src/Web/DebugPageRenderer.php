@@ -16,7 +16,12 @@ use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{ContextAwarePanelInterface, ExtensionPanelInterface, SummaryAwarePanelInterface};
+use Yii3\Debug\Panel\{
+    ContextAndSummaryAwarePanelInterface,
+    ContextAwarePanelInterface,
+    ExtensionPanelInterface,
+    SummaryAwarePanelInterface,
+};
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
@@ -142,7 +147,9 @@ final class DebugPageRenderer
         $panel = $this->extensionPanels[$panelId] ?? null;
 
         if ($panel === null) {
-            throw new InvalidArgumentException("Unknown debug extension panel: {$panelId}.");
+            throw new InvalidArgumentException(
+                "Unknown debug extension panel: {$panelId}.",
+            );
         }
 
         $payload = $snapshot->panels[$panelId] ?? [];
@@ -152,21 +159,27 @@ final class DebugPageRenderer
 
         if (array_key_exists($panelId, $snapshot->panels)) {
             try {
+                $context = new PanelRenderContext(
+                    $snapshot->summary->tag,
+                    $panelId,
+                    $queryParams,
+                    $theme,
+                    new DebugUrlGenerator($this->routePrefix),
+                    $snapshot->panels,
+                );
                 $panelContent = match (true) {
+                    $panel instanceof ContextAndSummaryAwarePanelInterface => $panel->renderWithContextAndSummary(
+                        $payload,
+                        $context,
+                        $snapshot->summary,
+                    ),
                     $panel instanceof SummaryAwarePanelInterface => $panel->renderWithSummary(
                         $payload,
                         $snapshot->summary,
                     ),
                     $panel instanceof ContextAwarePanelInterface => $panel->renderWithContext(
                         $payload,
-                        new PanelRenderContext(
-                            $snapshot->summary->tag,
-                            $panelId,
-                            $queryParams,
-                            $theme,
-                            new DebugUrlGenerator($this->routePrefix),
-                            $snapshot->panels,
-                        ),
+                        $context,
                     ),
                     default => $panel->render($payload),
                 };
@@ -195,7 +208,6 @@ final class DebugPageRenderer
                 'url' => self::path($snapshot->summary->url),
             ],
         );
-
         return $this->page(
             $panel->name(),
             $content,
@@ -567,7 +579,11 @@ final class DebugPageRenderer
                 ),
             navItems: [
                 $this->historyNavItem(false, $summary?->tag),
-                ...$this->primaryPanelNavItems($summary, $snapshot, $activePanelId),
+                ...$this->primaryPanelNavItems(
+                    $summary,
+                    $snapshot,
+                    $activePanelId,
+                ),
             ],
             navGroups: $this->extensionNavGroups($summary, $snapshot, $activePanelId),
         );
