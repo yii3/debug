@@ -7,6 +7,7 @@ namespace Yii3\Debug\Tests\Middleware;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\SnapshotStore;
 use PHPUnit\Framework\Attributes\Group;
@@ -14,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionProperty;
-use Yii3\Debug\Collector\{InertiaCollector, RequestCollector};
+use Yii3\Debug\Collector\{InertiaCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\ToolbarRenderer;
@@ -24,6 +25,7 @@ use Yiisoft\NetworkUtilities\IpRanges;
 use Yiisoft\View\WebView;
 
 use function json_encode;
+use function microtime;
 use function sys_get_temp_dir;
 
 use const JSON_THROW_ON_ERROR;
@@ -454,6 +456,55 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testProcessKeepsFallbackSummaryAndProfilingTimingCoherent(): void
+    {
+        $store = $this->store();
+
+        $coordinator = new CollectorCoordinator([new ProfilingCollector()]);
+
+        $request = HelperFactory::createRequest(
+            'GET',
+            'https://example.test/profile',
+            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+        );
+
+        $response = $this->middleware($store, $coordinator)
+            ->process(
+                $request,
+                $this->handler(HelperFactory::createResponse(204)),
+            );
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+        self::assertNotNull(
+            $snapshot,
+            'Profiling requests must persist a debug snapshot.',
+        );
+        self::assertArrayHasKey(
+            'profiling',
+            $snapshot->panels,
+            'Profiling requests must retain their collector payload.',
+        );
+
+        $profiling = ProfilingSnapshot::fromArray($snapshot->panels['profiling'], '$.panels.profiling');
+
+        $processingTime = $snapshot->summary->processingTime;
+
+        self::assertNotNull(
+            $processingTime,
+            'The request summary must retain its processing duration.',
+        );
+        self::assertGreaterThanOrEqual(
+            $processingTime,
+            $profiling->time,
+            'Profiling capture must end after request handling while sharing the summary request origin.',
+        );
+        self::assertLessThan(
+            0.05,
+            $profiling->time - $processingTime,
+            'Summary and profiling fallback timing must differ only by snapshot-capture overhead.',
+        );
+    }
+
     public function testProcessPersistsASecretFreeRequestPanel(): void
     {
         $store = $this->store();
@@ -556,6 +607,52 @@ final class ToolbarMiddlewareTest extends TestCase
                 "Persisted Request data must not contain the $secret fixture.",
             );
         }
+    }
+
+    public function testProcessProvidesCurrentRequestTimingToProfilingCollector(): void
+    {
+        $store = $this->store();
+
+        $coordinator = new CollectorCoordinator([new ProfilingCollector()]);
+
+        $request = HelperFactory::createRequest(
+            'GET',
+            'https://example.test/profile',
+            serverParams: [
+                'REMOTE_ADDR' => '127.0.0.1',
+                'REQUEST_TIME_FLOAT' => microtime(true) - 5.0,
+            ],
+        );
+
+        $response = $this->middleware($store, $coordinator)
+            ->process(
+                $request,
+                $this->handler(HelperFactory::createResponse(204)),
+            );
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+        self::assertNotNull(
+            $snapshot,
+            'Profiling requests must persist a debug snapshot.',
+        );
+        self::assertArrayHasKey(
+            'profiling',
+            $snapshot->panels,
+            'The Profiling collector must persist its request-scoped metrics.',
+        );
+
+        $profiling = ProfilingSnapshot::fromArray($snapshot->panels['profiling'], '$.panels.profiling');
+
+        self::assertGreaterThan(
+            4.0,
+            $profiling->time,
+            'Middleware must pass the current request start timestamp to the Profiling collector.',
+        );
+        self::assertLessThan(
+            60.0,
+            $profiling->time,
+            'Profiling time must remain scoped to the current request.',
+        );
     }
 
     public function testProcessRetainsEmptyInertiaSnapshotForPlainResponseDiagnostics(): void

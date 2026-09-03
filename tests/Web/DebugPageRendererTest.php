@@ -41,7 +41,9 @@ final class DebugPageRendererTest extends TestCase
     public function testConfigOmitsExtensionsGroupForEmptyInertiaCapture(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             [
@@ -55,10 +57,15 @@ final class DebugPageRendererTest extends TestCase
             ],
             [],
         );
+
         $renderer = $this->rendererWithInertia();
+
         [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+
         $phpVersion = PHP_VERSION;
+
         $requestTime = date('H:i:s', 1_725_000_756);
+
         [$peakMemory, $html] = self::renderWithPeakMemory(
             static fn(): string => $renderer->config('request-1', 'light', $manifest, $snapshot),
         );
@@ -169,16 +176,23 @@ final class DebugPageRendererTest extends TestCase
     public function testConfigShowsCapturedInertiaUnderExtensions(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             ['inertia' => $this->inertiaPayload()],
             [],
         );
+
         $renderer = $this->rendererWithInertia();
+
         [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+
         $phpVersion = PHP_VERSION;
+
         $requestTime = date('H:i:s', 1_725_000_756);
+
         [$peakMemory, $html] = self::renderWithPeakMemory(
             static fn(): string => $renderer->config('request-1', 'light', $manifest, $snapshot),
         );
@@ -306,16 +320,23 @@ final class DebugPageRendererTest extends TestCase
     public function testConfigShowsCapturedViteUnderExtensions(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             ['vite' => $this->vitePayload()],
             [],
         );
+
         $renderer = $this->rendererWithVite();
+
         [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+
         $phpVersion = PHP_VERSION;
+
         $requestTime = date('H:i:s', 1_725_000_756);
+
         [$peakMemory, $html] = self::renderWithPeakMemory(
             static fn(): string => $renderer->config('request-1', 'light', $manifest, $snapshot),
         );
@@ -443,7 +464,9 @@ final class DebugPageRendererTest extends TestCase
     public function testConfigShowsFailedInertiaCaptureUnderExtensions(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             [],
@@ -454,10 +477,15 @@ final class DebugPageRendererTest extends TestCase
                 ),
             ],
         );
+
         $renderer = $this->rendererWithInertia();
+
         [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+
         $phpVersion = PHP_VERSION;
+
         $requestTime = date('H:i:s', 1_725_000_756);
+
         [$peakMemory, $html] = self::renderWithPeakMemory(
             static fn(): string => $renderer->config('request-1', 'light', $manifest, $snapshot),
         );
@@ -585,13 +613,17 @@ final class DebugPageRendererTest extends TestCase
     public function testConfigurationMethodsPreserveExistingSettings(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             ['request' => $this->requestPayload()],
             [],
         );
+
         $original = $this->rendererWithPanels('page-renderer-immutability-assets', []);
+
         $withPanels = $original
             ->withExtensionPanels([new RequestPanel()]);
         $configured = $withPanels
@@ -610,8 +642,11 @@ final class DebugPageRendererTest extends TestCase
         );
 
         [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+
         $phpVersion = PHP_VERSION;
+
         $requestTime = date('H:i:s', 1_725_000_756);
+
         [$peakMemory, $html] = self::renderWithPeakMemory(
             static fn(): string => $withPanels->config('request-1', 'light', $manifest, $snapshot),
         );
@@ -964,11 +999,16 @@ final class DebugPageRendererTest extends TestCase
     public function testConfigUsesCoreRendererAndDarkTheme(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
         $renderer = $this->renderer();
+
         [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+
         $phpVersion = PHP_VERSION;
+
         $requestTime = date('H:i:s', 1_725_000_756);
+
         [$peakMemory, $html] = self::renderWithPeakMemory(
             static fn(): string => $renderer->config('request-1', 'dark', $manifest),
         );
@@ -1099,12 +1139,121 @@ final class DebugPageRendererTest extends TestCase
             ->withExtensionPanels([$padded, $normalized]);
     }
 
+    public function testExtensionPanelRejectsAnEmptyNormalizedIdentifier(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('   ');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Debug extension panel ID must not be empty.');
+
+        $this->renderer()
+            ->withExtensionPanels([$panel]);
+    }
+
+    public function testExtensionRejectsUnknownPanel(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Unknown debug extension panel: unknown.',
+        );
+
+        $this->renderer()->extension(
+            new DebugSnapshot($this->manifest()['request-1'], [], []),
+            'unknown',
+            'light',
+        );
+    }
+
+    public function testExtensionRenderAndVisibilityFailuresRemainDiscoverable(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('unstable');
+        $panel
+            ->method('name')
+            ->willReturn('Unstable');
+        $panel
+            ->method('icon')
+            ->willReturn('history');
+        $panel
+            ->method('hasContent')
+            ->willThrowException(new RuntimeException('Unable to inspect panel content.'));
+        $panel
+            ->method('render')
+            ->willThrowException(new RuntimeException('Unable to render panel.'));
+
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            ['unstable' => ['value' => true]],
+            [],
+        );
+
+        $html = $this->rendererWithPanels('page-renderer-failing-panel-assets', [$panel])
+            ->extension($snapshot, 'unstable', 'light', $manifest);
+
+        self::assertStringContainsString(
+            'Panel rendering failed.',
+            $html,
+            'A panel renderer exception must produce the shared failure callout.',
+        );
+        self::assertStringContainsString(
+            'RuntimeException: Unable to render panel.',
+            $html,
+            'The failure callout must identify the renderer exception.',
+        );
+        self::assertStringContainsString(
+            'title="View Unstable panel" aria-current="page"',
+            $html,
+            'A panel whose visibility check fails must remain discoverable in the sidebar.',
+        );
+    }
+
+    public function testHistoryAndConfigurationRenderWithoutAManifestSummary(): void
+    {
+        $renderer = $this->renderer();
+
+        $history = $renderer->history([], [], 'light');
+        $configuration = $renderer->config('missing', 'light');
+
+        self::assertStringContainsString(
+            '<title>Request history — Yii Debugger</title>',
+            $history,
+            'An empty history must retain the complete debugger page.',
+        );
+        self::assertStringNotContainsString(
+            'aria-label="Current request"',
+            $history,
+            'An empty history must omit the unavailable request summary.',
+        );
+        self::assertStringContainsString(
+            '<title>Configuration — Yii Debugger</title>',
+            $configuration,
+            'Configuration must render when its tag is absent from an empty manifest.',
+        );
+        self::assertStringNotContainsString(
+            'aria-label="Current request"',
+            $configuration,
+            'Configuration must omit an unavailable request summary.',
+        );
+    }
+
     public function testHistoryAppliesRequestFilters(): void
     {
         $tab = "\t";
+
         $renderer = $this->renderer();
         $manifest = $this->manifest();
+
         $phpVersion = PHP_VERSION;
+
         $requestOneTime = date('H:i:s', 1_725_000_756);
         $requestTwoDateTime = date('Y-m-d H:i:s', 1_725_000_700);
         $requestTwoTime = date('H:i:s', 1_725_000_700);
@@ -1338,9 +1487,12 @@ final class DebugPageRendererTest extends TestCase
     public function testHistoryRendersSummaryFiltersRowsAndNewestRequestSidebar(): void
     {
         $tab = "\t";
+
         $renderer = $this->renderer();
         $manifest = $this->manifest();
+
         $phpVersion = PHP_VERSION;
+
         $requestOneDateTime = date('Y-m-d H:i:s', 1_725_000_756);
         $requestOneTime = date('H:i:s', 1_725_000_756);
         $requestTwoDateTime = date('Y-m-d H:i:s', 1_725_000_700);
@@ -1589,14 +1741,19 @@ final class DebugPageRendererTest extends TestCase
     public function testInertiaPanelIsActiveAndRequestNavigationRetainsPanel(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             ['inertia' => $this->inertiaPayload()],
             [],
         );
+
         $renderer = $this->rendererWithInertia();
+
         $phpVersion = PHP_VERSION;
+
         $requestOneTime = date('H:i:s', 1_725_000_756);
 
         [$peakMemory, $html] = self::renderWithPeakMemory(
@@ -1789,10 +1946,13 @@ final class DebugPageRendererTest extends TestCase
     public function testPhpInfoUsesCoreRenderer(): void
     {
         $tab = "\t";
+
         $renderer = $this->renderer();
         $manifest = $this->manifest();
+
         $phpVersion = PHP_VERSION;
         $phpSapi = PHP_SAPI;
+
         $phpOs = php_uname('s') . ' ' . php_uname('r');
         $memoryLimit = ini_get('memory_limit');
         $requestOneTime = date('H:i:s', 1_725_000_756);
@@ -1931,23 +2091,29 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
-    public function testProfilingPanelIsPrimaryActiveAndReceivesQueryContext(): void
+    public function testProfilingPanelRendersUnifiedContentAndCanonicalNavigation(): void
     {
-        $tab = "\t";
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             ['profiling' => $this->profilingPayload()],
             [],
         );
-        $renderer = $this->rendererWithProfiling();
-        $queryParams = ['Profile' => ['category' => 'HomeAction']];
-        $phpVersion = PHP_VERSION;
-        $requestTime = date('H:i:s', 1_725_000_756);
-        $profileDateTime = date('Y-m-d H:i:s.000', 1_725_000_756);
-        $profileTime = date('H:i:s.000', 1_725_000_756);
 
-        [$peakMemory, $html] = self::renderWithPeakMemory(
+        $renderer = $this->rendererWithProfiling();
+
+        $queryParams = [
+            'Profile' => [
+                'duration' => '20',
+                'category' => 'HomeAction',
+                'info' => 'Build',
+            ],
+            'Timeline' => ['category' => 'ignored'],
+            'view' => 'timeline',
+        ];
+
+        [, $html] = self::renderWithPeakMemory(
             static fn(): string => $renderer->extension(
                 $snapshot,
                 'profiling',
@@ -1957,166 +2123,132 @@ final class DebugPageRendererTest extends TestCase
             ),
         );
 
-        self::assertSame(
-            <<<HTML
-            <!doctype html>
-            <html lang="en" data-yii-debug-theme="dark">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <meta name="robots" content="none">
-                <title>Profiling — Yii Debugger</title>
-                <link rel="icon" type="image/svg+xml" href="/debug-assets/yii3-debug/test/svg/yii.svg">
-                <link rel="stylesheet" href="/debug-assets/yii3-debug/test/dist/css/debug.min.css"></head>
-            <body class="yii-debug">
-            <div class="yii-debug-page default-view">
-            <a class="yii-debug-skip-link" href="#yii-debug-main">Skip to debug content</a><header class="yii-debug-brand-bar">
-            <a class="yii-debug-brand-chip yii-debug-brand-chip-yii" href="/debug"><span class="yii-debug-brand-icon"><svg xmlns:serif="http://www.serif.com/" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Layer_1" x="0px" y="0px" viewBox="0 0 650.832 800" style="enable-background:new 0 0 650.832 800;" xml:space="preserve">
-            <style type="text/css">
-            {$tab}.st0{fill:#40B3D8;}
-            {$tab}.st1{fill:#83C933;}
-            {$tab}.st2{fill-rule:evenodd;clip-rule:evenodd;fill:#F18A2A;}
-            {$tab}.st3{fill:#7FB93C;}
-            </style>
-            <g id="Слой-1">
-            {$tab}<g>
-            {$tab}{$tab}<path class="st0" d="M481.395,508.535c-5.4-71.26-28.382-117.45-39.574-143.628c-11.187-26.174-28.387-50.675-28.398-50.637    c-0.033,0.112-15.486,83.388-43.271,143.639c-4.638,10.064-10.797,22.626-17.013,32.744l0.002,0.001    c-19.183,33.866-47.013,66.265-63.604,99.105c-16.449,32.546-19.501,64.78-17.97,101.427    c1.543,36.85,10.054,72.992,18.227,108.816c30.81-6.647,57.628-18.023,80.825-32.563c61.05-38.274,97.939-99.492,108.423-165.444    c0,0,0.511-2.678,0.738-5.945C484.509,545.078,482.945,528.996,481.395,508.535z"/>
-            {$tab}{$tab}<path class="st1" d="M481.395,508.535c-5.4-71.26-28.382-117.45-39.574-143.628c-11.187-26.174-28.387-50.675-28.398-50.637    c0,0-0.004,0.017-0.004,0.018c0.001-0.011,0.004-0.023,0.004-0.023l-4.106-6.105c-90.029-126.38-262.69-189.479-408.57-130.996    c-7.024,88.584,34.046,241.004,183.875,283.517c60.572,18.634,109.076,13.803,168.521,29.966    c-0.003,0.002-0.003,0.004-0.005,0.005c0,0,60.424,21.058,95.576,52.638c15.813,14.202,31.646,32.891,30.851,55.121    C484.574,545.505,482.97,529.32,481.395,508.535z"/>
-            {$tab}{$tab}<g transform="matrix(1,0,0,1,233.564,496.875)">
-            {$tab}{$tab}{$tab}<path class="st2" d="M182.406-256.769c-21.289-62.282-12.267-104.016,26.679-162.096c18.575-27.711,50.648-59.854,78.756-78.01     C401.25-425.808,443.183-293.436,401.476-170.5c-30.354,89.45-58.833,126.955-130.84,218.99     c8.393-98.569-26.297-166.901-60.359-242.831C201.61-213.659,189.622-235.652,182.406-256.769"/>
-            {$tab}{$tab}</g>
-            {$tab}{$tab}<g transform="matrix(1,0,0,1,245.403,498.558)">
-            {$tab}{$tab}{$tab}<path class="st3" d="M234.164,99.853c0.795-22.23-15.038-40.919-30.852-55.121c-35.152-31.579-95.574-52.637-95.574-52.637     c6.217-10.118,12.375-22.681,17.012-32.745c27.786-60.252,43.239-143.526,43.272-143.639c0.011-0.038,17.21,24.464,28.398,50.637     c11.193,26.179,34.175,72.368,39.574,143.628C237.567,30.761,239.171,46.947,234.164,99.853z"/>
-            {$tab}{$tab}</g>
-            {$tab}</g>
-            </g>
-            </svg></span><span class="yii-debug-brand-label">Yii</span><span class="yii-debug-brand-value">3</span></a><span class="yii-debug-brand-chip yii-debug-brand-chip-php"><span class="yii-debug-brand-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1.99em" height="1em" viewBox="0 0 512 258"><title xmlns="">php-alt</title><path d="M116.448 54.116c22.287.187 38.436 6.612 48.449 19.266q15.018 18.98 9.916 51.849q-1.982 15.018-8.783 29.466c-4.346 9.633-10.387 18.32-18.133 26.066q-14.168 14.73-30.316 18.7q-16.15 3.968-33.433 3.967H50.15l-10.766 53.832H0L40.516 54.116zm335.893 0c22.287.187 38.437 6.612 48.45 19.266q15.017 18.98 9.916 51.849q-1.982 15.018-8.783 29.466c-4.347 9.633-10.387 18.32-18.133 26.066q-14.168 14.73-30.316 18.7q-16.152 3.968-33.433 3.967h-34l-10.766 53.832h-39.383L376.41 54.116zM258.775 0l-11.05 54.116h35.133q28.898.57 43.065 11.9c9.634 7.553 12.467 21.912 8.5 43.065L315.44 203.43h-39.666l18.133-90.099q2.83-14.168-1.7-20.116q-4.53-5.95-19.55-5.95l-31.449-.283l-23.233 116.448h-39.099L219.676 0zM85.848 86.415a79 79 0 0 1-6.516.283h-5.724l-16.942 84.715q1.7.283 3.4.284h3.966c18.133.187 33.246-1.604 45.333-5.383c12.087-3.967 20.212-17.754 24.366-41.366q5.1-29.751-10.2-34.283c-10.013-3.02-22.57-4.437-37.683-4.25m335.894 0a79 79 0 0 1-6.517.283h-5.724l-16.942 84.715q1.7.283 3.4.284h3.967c18.133.187 33.245-1.604 45.332-5.383c12.087-3.967 20.213-17.754 24.366-41.366q5.1-29.751-10.2-34.283c-10.012-3.02-22.57-4.437-37.682-4.25"/></svg></span><span class="yii-debug-brand-value">{$phpVersion}</span></span><span class="yii-debug-brand-chip yii-debug-brand-chip-mem"><span class="yii-debug-brand-label">Memory</span><span class="yii-debug-brand-value">{$peakMemory}</span></span><a class="yii-debug-brand-chip yii-debug-brand-chip-config" href="/debug/view?tag=request-1&amp;panel=config" title="Open configuration" aria-label="Open configuration"><span class="yii-debug-brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065M9 12a3 3 0 1 0 6 0a3 3 0 0 0-6 0"/></svg></span><span class="yii-debug-brand-label">Config</span></a><button class="yii-debug-brand-chip yii-debug-brand-chip-control yii-debug-brand-chip-copy" type="button" title="Copy debug link" aria-label="Copy debug link" data-yii-debug-copy-link="true"><span class="yii-debug-brand-label" aria-live="polite" data-yii-debug-copy-label="true">Copy link</span></button><button class="yii-debug-brand-chip yii-debug-brand-chip-theme" type="button" title="Switch to light theme" aria-label="Switch to light theme" aria-pressed="true" data-yii-debug-theme-toggle="true" data-current-theme="dark" data-icon-sun="&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;1em&quot; height=&quot;1em&quot; viewBox=&quot;0 0 24 24&quot;&gt;&lt;path fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; stroke-width=&quot;2&quot; d=&quot;M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M3 12h1m8-9v1m8 8h1m-9 8v1m-6.4-15.4l.7.7m12.1-.7l-.7.7m0 11.4l.7.7m-12.1-.7l-.7.7&quot;/&gt;&lt;/svg&gt;" data-icon-moon="&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;1em&quot; height=&quot;1em&quot; viewBox=&quot;0 0 24 24&quot;&gt;&lt;path fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; stroke-width=&quot;2&quot; d=&quot;M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1-8.313-12.454l0 .008&quot;/&gt;&lt;/svg&gt;"><span class="yii-debug-brand-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M3 12h1m8-9v1m8 8h1m-9 8v1m-6.4-15.4l.7.7m12.1-.7l-.7.7m0 11.4l.7.7m-12.1-.7l-.7.7"/></svg></span></button>
-            </header><div class="yii-debug-layout">
-            <aside class="yii-debug-sidebar">
-            <section class="yii-debug-side-section yii-debug-request-nav" aria-label="Current request">
-            <header class="yii-debug-side-section-title">
-            Current request
-            </header><div class="yii-debug-history-card" title="GET https://example.test/?page=2">
-            <div class="yii-debug-snapshot-line">
-            <span class="yii-debug-snapshot-method yii-debug-verb-get" data-snapshot-field="method">GET</span><span class="yii-debug-snapshot-url" title="https://example.test/?page=2" data-snapshot-field="url">/?page=2</span>
-            </div><div class="yii-debug-snapshot-meta">
-            <span class="yii-debug-snapshot-status yii-debug-status-2xx" data-snapshot-field="status">200</span><span class="yii-debug-snapshot-time" data-snapshot-field="time">{$requestTime}</span><span class="yii-debug-snapshot-tag" data-snapshot-field="ajax" hidden>AJAX</span>
-            </div><div class="yii-debug-request-nav-row" role="group">
-            <button class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-icon is-disabled" type="button" title="Newest request" disabled aria-label="Newest captured request"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m7 11l5-5l5 5"/><path d="m7 17l5-5l5 5"/></g></svg></button><button class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-icon is-disabled" type="button" title="Newer request" disabled aria-label="Newer captured request"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m6 15l6-6l6 6"/></g></svg></button><a class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-icon" href="/debug/view?tag=request-2&amp;panel=profiling" title="Older request" aria-label="Older captured request"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m6 9l6 6l6-6"/></g></svg></a><a class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-icon" href="/debug/view?tag=request-2&amp;panel=profiling" title="Oldest request" aria-label="Oldest captured request"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m7 7l5 5l5-5"/><path d="m7 13l5 5l5-5"/></g></svg></a>
-            </div>
-            </div>
-            </section><nav class="yii-debug-nav yii-debug-nav-iconed" aria-label="Debug panels">
-            <ul>
-            <li>
-            <a class="yii-debug-nav-link" href="/debug?cursor=request-1" title="View request history">
-            <span class="yii-debug-nav-link-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 8v4l2 2"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></g></svg>
-            </span>
-            <span class="yii-debug-nav-link-label">
-            History
-            </span>
-            </a>
-            </li>
-            <li>
-            <a class="yii-debug-nav-link is-active" href="/debug/view?tag=request-1&amp;panel=profiling" title="View Profiling panel" aria-current="page">
-            <span class="yii-debug-nav-link-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0"/><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0m2.41-1.41L16 8m-9 4a5 5 0 0 1 5-5"/></g></svg>
-            </span>
-            <span class="yii-debug-nav-link-label">
-            Profiling
-            </span>
-            </a>
-            </li>
-            </ul>
-            </nav>
-            </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
-            <h1 class="yii-debug-sr-only">
-            GET /?page=2
-            </h1><h1 class="yii-debug-sr-only">
-            Performance Profiling
-            </h1><header class="yii-debug-grid-summary">
-            <span><strong>1</strong> of 1 profile block</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>25 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
-            <option value="10">
-            10
-            </option>
-            <option value="25">
-            25
-            </option>
-            <option value="50" selected>
-            50
-            </option>
-            <option value="100">
-            100
-            </option>
-            <option value="all">
-            All
-            </option>
-            </select></label>
-            </header><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
-            <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling" title="Remove this filter" aria-label="Remove category: HomeAction filter"><span class="yii-debug-active-filter-attr">category</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">HomeAction</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
-            </div><div class="yii-debug-grid yii-debug-grid-profile">
-            <div class="yii-debug-table-wrap">
-            <table class="yii-debug-table">
-            <thead>
-            <tr>
-            <th scope="col">
-            <a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=HomeAction&amp;sort=seq">Time</a>
-            </th><th scope="col">
-            <a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=HomeAction&amp;sort=duration">Duration</a>
-            </th><th scope="col">
-            <a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=HomeAction&amp;sort=category">Category</a>
-            </th><th scope="col">
-            <a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=HomeAction&amp;sort=info">Info</a>
-            </th>
-            </tr><tr class="filters">
-            <td>
-            </td><td>
-            </td><td>
-            <input class="yii-debug-input" name="Profile[category]" type="text" value="HomeAction">
-            </td><td>
-            <input class="yii-debug-input" name="Profile[info]" type="text">
-            </td>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="{$profileDateTime}">{$profileTime}</span>
-            </td><td class="yii-debug-cell-numeric">
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">25.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="App\Web\HomeAction::__invoke"><span class="yii-debug-muted">App\Web\</span><wbr><strong>HomeAction::__invoke</strong></span>
-            </td><td>
-            Build home response
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><div class="yii-debug-grid-footer">
-            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 items.</span>
-            </div>
-            </div>
-            </main>
-            </div>
-            </div><script src="/debug-assets/yii3-debug/test/dist/js/debug.min.js" type="module"></script></body>
-            </html>
+        $sidebar = explode('</aside>', $html, 2)[0];
 
-            HTML,
+        self::assertStringContainsString(
+            '<html lang="en" data-yii-debug-theme="dark">',
             $html,
-            'The Profiling page must match the complete rendered document.',
+            'The Profiling page must preserve the selected theme.',
+        );
+        self::assertStringContainsString(
+            '<title>Profiling — Yii Debugger</title>',
+            $html,
+            'The merged page must retain the Profiling document title.',
+        );
+        self::assertStringContainsString(
+            'title="View Profiling panel" aria-current="page"',
+            $sidebar,
+            'Profiling must remain the single active performance navigation item.',
+        );
+        self::assertStringNotContainsString(
+            'View Timeline panel',
+            $sidebar,
+            'Timeline must not duplicate Profiling in the sidebar.',
+        );
+        self::assertStringNotContainsString(
+            'aria-label="Profiling views"',
+            $html,
+            'The unified detail page must not retain a representation switcher.',
+        );
+        self::assertStringNotContainsString(
+            'class="yii-debug-tabs"',
+            $html,
+            'The unified detail page must not render redundant tabs.',
+        );
+        self::assertStringContainsString(
+            '<section class="yii-debug-tl">',
+            $html,
+            'The Timeline overview must render in the Profiling page.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-grid-profile',
+            $html,
+            'The detailed table must render below the Timeline overview.',
+        );
+        self::assertStringContainsString(
+            '<h2>' . "\n" . 'Details',
+            $html,
+            'The unified page must use the concise details heading.',
+        );
+        self::assertStringNotContainsString(
+            'profile blocks',
+            $html,
+            'The unified page must use span terminology consistently.',
+        );
+        self::assertStringContainsString(
+            'name="Profile[duration]" type="number" value="20" min="0"',
+            $html,
+            'The shared duration filter must receive the current query value.',
+        );
+        self::assertStringContainsString(
+            'name="Profile[category]" type="text" value="HomeAction"',
+            $html,
+            'The shared category filter must receive the current query value.',
+        );
+        self::assertStringContainsString(
+            'name="Profile[info]" type="text" value="Build"',
+            $html,
+            'The shared info filter must receive the current query value.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-tl-row-other',
+            $html,
+            'The Timeline must compose the same filtered profile row as the table.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-tl-memory-gradient',
+            $html,
+            'The unified Timeline must compose the captured memory samples.',
+        );
+        self::assertStringContainsString(
+            'action="/debug/view?tag=request-1&amp;panel=profiling"',
+            $html,
+            'Shared filtering must remain in the Profiling panel.',
+        );
+        self::assertStringNotContainsString(
+            'name="view"',
+            $html,
+            'The shared form must not preserve the removed view state.',
+        );
+        self::assertStringNotContainsString(
+            'name="Timeline[',
+            $html,
+            'The shared form must not emit the obsolete Timeline filter namespace.',
+        );
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-2&amp;panel=profiling" title="Older request"',
+            $sidebar,
+            'Request navigation must target the canonical unified Profiling page.',
+        );
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=profiling" '
+                . 'title="View Profiling panel" aria-current="page"',
+            $sidebar,
+            'The active navigation item must target the canonical unified Profiling page.',
+        );
+        self::assertStringNotContainsString(
+            'view=timeline',
+            $html,
+            'Legacy view state must be accepted but never re-emitted.',
         );
     }
 
     public function testRequestPanelIsPrimaryActiveAndUsesTheCapturedSummary(): void
     {
         $tab = "\t";
+
         $manifest = $this->manifest();
+
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             ['request' => $this->requestPayload()],
             [],
         );
+
         $renderer = $this->renderer();
+
         $phpVersion = PHP_VERSION;
+
         $requestOneTime = date('H:i:s', 1_725_000_756);
 
         [$peakMemory, $html] = self::renderWithPeakMemory(
@@ -2384,17 +2516,44 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
+    public function testSnapshotSidebarPreservesFragmentsAndMalformedUrls(): void
+    {
+        $renderer = $this->renderer();
+
+        $fragmentSummary = RequestSummary::create('fragment')
+            ->withRequest('https://example.test/path?query=yes#section', 'GET', '127.0.0.1', 1.0);
+        $malformedSummary = RequestSummary::create('malformed')
+            ->withRequest('http://example.test:invalid/path', 'GET', '127.0.0.1', 1.0);
+
+        $fragment = $renderer->config('fragment', 'light', ['fragment' => $fragmentSummary]);
+        $malformed = $renderer->config('malformed', 'light', ['malformed' => $malformedSummary]);
+
+        self::assertStringContainsString(
+            'data-snapshot-field="url">/path?query=yes#section</span>',
+            $fragment,
+            'A captured URL fragment must remain visible in the sidebar path.',
+        );
+        self::assertStringContainsString(
+            'data-snapshot-field="url">http://example.test:invalid/path</span>',
+            $malformed,
+            'A URL that parse_url() rejects must fall back to the captured value.',
+        );
+    }
+
     /**
      * @return array{string, string, string}
      */
     private static function expectedConfigFragments(): array
     {
         $summary = (new ConfigDataFactory(['name' => 'Test application']))->create();
+
         $phpVersion = $summary->php->version;
+
         [$xdebugVariant, $xdebugState] = self::extensionState($summary->php->xdebug);
         [$apcuVariant, $apcuState] = self::extensionState($summary->php->apcu);
         [$memcacheVariant, $memcacheState] = self::extensionState($summary->php->memcache);
         [$memcachedVariant, $memcachedState] = self::extensionState($summary->php->memcached);
+
         $packageRows = [];
 
         foreach ($summary->extensions as $name => $version) {
@@ -2412,8 +2571,11 @@ final class DebugPageRendererTest extends TestCase
         }
 
         $packageCount = count($packageRows);
+
         $packageLabel = $packageCount === 1 ? 'package' : 'packages';
+
         $packageRows = implode('', $packageRows);
+
         $installedExtensions = $packageCount === 0
             ? ''
             : <<<HTML
@@ -2599,6 +2761,7 @@ final class DebugPageRendererTest extends TestCase
     private static function renderWithPeakMemory(Closure $render): array
     {
         $html = $render();
+
         $matched = preg_match(
             '~<span class="yii-debug-brand-chip yii-debug-brand-chip-mem">'
                 . '<span class="yii-debug-brand-label">Memory</span>'

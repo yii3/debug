@@ -13,8 +13,8 @@ The package provides:
   complete top brand bar;
 - the built-in Request toolbar status, hero, routing and parameter sections, request/response headers, session and
   server tabs, using the same Debug Core presentation as Yii2;
-- the built-in Profiling toolbar time and peak-memory metrics, plus the Yii2-compatible filterable timing grid for
-  blocks recorded through `yiisoft/profiler`;
+- the built-in Profiling toolbar time and peak-memory metrics, plus a unified Timeline and table over spans recorded
+  through `yiisoft/profiler`;
 - optional extension-panel navigation that is populated only by data captured for the selected request;
 - an Inertia toolbar chip and detail panel with the captured component, page metadata, visit type, shared/page prop
   origins, negotiation headers, version-conflict diagnostics, and redacted raw payload when explicitly registered;
@@ -84,7 +84,7 @@ Application metadata is optional; neutral values are used when it is omitted.
 ### Profiling
 
 The Profiling collector is enabled by default. Every captured request records its total processing time and peak
-memory usage. Inject Yii's profiler into a controller or service to add named blocks to the timing grid:
+memory usage. Inject Yii's profiler into a controller or service to add named spans to the unified Profiling view:
 
 ```php
 <?php
@@ -115,8 +115,15 @@ final readonly class HomeAction
 }
 ```
 
-The token and category passed to `begin()` and `end()` must match. Completed blocks retain their nesting, duration,
+The token and category passed to `begin()` and `end()` must match. Completed spans retain their nesting, duration,
 memory delta, category, and token in the captured snapshot.
+
+Profiling is the single performance entry in the debugger sidebar. One screen presents the request-relative
+**Timeline** first and the sortable, paginated details table below it. Minimum-duration, category, and information
+filters apply to both representations, while sorting and pagination affect only the detailed table. The Timeline keeps
+the complete filtered capture order and includes a memory curve composed from profiler samples and available log
+samples. Class-like categories show only their short class name on one line and preserve the full category and method
+as hover text. Filter results remain shareable through the canonical `Profile[...]` URL parameters.
 
 ### Inertia extension
 
@@ -248,10 +255,12 @@ default. The routes use Yii's official `Yiisoft\Yii\Middleware\IpFilter`; toolba
 
 The package stores the request metadata required by the History grid and sidebar: tag, method, redacted URL, IP,
 status, time, AJAX state, duration, and peak memory. Its built-in Profiling snapshot stores the request metrics,
-completed profile blocks, and their memory samples. Its built-in Request snapshot also records the matched route and
-action, route parameters, GET/POST/file buckets, request body, request/response headers, and redacted server data in
-the shared Yii2-compatible shape. Empty session and flash buckets retain the standard Session tab without mutating
-application session state. It also adds `X-Debug-Tag`, `X-Debug-Duration`, and `X-Debug-Link` response headers so the
+completed spans, and their memory samples. The Timeline section derives its request origin from the existing
+request summary and can enrich the curve from a captured Log payload, so it does not persist a duplicate Timeline
+payload. Its built-in Request snapshot also records the matched route and action, route parameters, GET/POST/file
+buckets, request body, request/response headers, and redacted server data in the shared Yii2-compatible shape. Empty
+session and flash buckets retain the standard Session tab without mutating application session state. It also adds
+`X-Debug-Tag`, `X-Debug-Duration`, and `X-Debug-Link` response headers so the
 shared toolbar runtime can display AJAX activity and open the captured Request panel.
 
 With the Inertia extension explicitly registered, each snapshot also stores its Inertia context: the resolved page,

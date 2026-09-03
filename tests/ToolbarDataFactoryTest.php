@@ -10,11 +10,19 @@ use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
+use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, ProfilingPanel, RequestPanel, VitePanel};
+use Yii3\Debug\Panel\{
+    ExtensionPanelInterface,
+    InertiaPanel,
+    ProfilingPanel,
+    RequestPanel,
+    ToolbarPanelProviderInterface,
+    VitePanel,
+};
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -30,6 +38,32 @@ use const PHP_VERSION;
 #[Group('toolbar')]
 final class ToolbarDataFactoryTest extends TestCase
 {
+    public function testCapturedPanelWithoutToolbarProviderIsOmitted(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('details-only');
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['details-only' => ['value' => true]],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([$panel])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [],
+            $payload['items'],
+            'A details-only extension panel must not create an empty toolbar panel.',
+        );
+    }
+
     public function testConfigurationMethodsPreserveExistingSettings(): void
     {
         $snapshot = $this->snapshot($this->inertiaPayload('Site/Index'));
@@ -491,6 +525,73 @@ final class ToolbarDataFactoryTest extends TestCase
 
         (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([$padded, $normalized]);
+    }
+
+    public function testExtensionPanelRejectsAnEmptyNormalizedIdentifier(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('   ');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Debug toolbar extension panel ID must not be empty.',
+        );
+
+        (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([$panel]);
+    }
+
+    public function testInvalidToolbarItemCollectionsBecomeDangerItems(): void
+    {
+        $invalidCollections = [
+            'associative collection' => [
+                ['metric' => new ToolbarItem('value')],
+                'Debug toolbar extension panel associative collection must return a list of items.',
+            ],
+            'invalid item type' => [
+                ['invalid'],
+                'Debug toolbar extension panel invalid item type must return only ToolbarItem instances.',
+            ],
+        ];
+
+        foreach ($invalidCollections as $case => [$items, $expectedMessage]) {
+            $panel = self::createStub(ToolbarPanelProviderInterface::class);
+
+            $panel
+                ->method('id')
+                ->willReturn($case);
+            $panel
+                ->method('name')
+                ->willReturn($case);
+            $panel
+                ->method('toolbarItems')
+                ->willReturn($items);
+
+            $snapshot = new DebugSnapshot(
+                RequestSummary::create('request-1'),
+                [$case => ['value' => true]],
+                [],
+            );
+
+            $payload = (new ToolbarDataFactory($this->assetManager()))
+                ->withExtensionPanels([$panel])
+                ->createForSnapshot($snapshot)
+                ->jsonSerialize();
+
+            self::assertSame(
+                'danger',
+                $payload['items'][0]['items'][0]['status'] ?? null,
+                "The {$case} must be isolated as a danger toolbar item.",
+            );
+            self::assertSame(
+                $expectedMessage,
+                $payload['items'][0]['items'][0]['title'] ?? null,
+                "The {$case} must expose its validation error.",
+            );
+        }
     }
 
     public function testReturnNewInstanceWhenSettingConfiguration(): void

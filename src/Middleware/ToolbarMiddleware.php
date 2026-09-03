@@ -9,7 +9,7 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
-use Yii3\Debug\Collector\{InertiaCollector, RequestCollector};
+use Yii3\Debug\Collector\{InertiaCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
@@ -130,7 +130,12 @@ final class ToolbarMiddleware implements MiddlewareInterface
         $start = self::requestStart($request);
 
         $inertiaCollector = $this->collectorCoordinator?->collector('inertia');
+        $profilingCollector = $this->collectorCoordinator?->collector('profiling');
         $requestCollector = $this->collectorCoordinator?->collector('request');
+
+        if ($profilingCollector instanceof ProfilingCollector) {
+            $profilingCollector->collectRequestStart($start);
+        }
 
         if ($requestCollector instanceof RequestCollector) {
             $requestCollector->collectRequest($request);

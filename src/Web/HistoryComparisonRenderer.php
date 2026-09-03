@@ -12,7 +12,7 @@ use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\{Label, Span};
 use UIAwesome\Html\Sectioning\{Article, Section};
 use UIAwesome\Html\Table\{Caption, Table, Tbody, Td, Th, Thead, Tr};
-use Yii3\Debug\Comparison\{HistoryComparison, HistoryMetricComparison, HistoryPanelComparison};
+use Yii3\Debug\Comparison\{HistoryComparison, HistoryPanelComparison};
 
 use function count;
 use function date;
@@ -55,7 +55,7 @@ final class HistoryComparisonRenderer
                 'yii-debug-compare-metrics-title',
                 '03',
                 'Request metrics',
-                self::renderMetrics($comparison, $routePrefix),
+                self::renderMetrics($comparison),
             )
             . self::renderPanelSection($comparison, $routePrefix);
     }
@@ -239,31 +239,16 @@ final class HistoryComparisonRenderer
             );
     }
 
-    private static function renderMetricLabel(
-        HistoryMetricComparison $metric,
-        string $target,
-        string $routePrefix,
-    ): A|string {
-        if ($metric->panelId() !== 'config') {
-            return $metric->label;
-        }
-
-        return A::tag()
-            ->content($metric->label)
-            ->href(self::captureUrl($routePrefix, $target));
-    }
-
-    private static function renderMetrics(HistoryComparison $comparison, string $routePrefix): string
+    private static function renderMetrics(HistoryComparison $comparison): string
     {
         $rows = [];
-        $target = $comparison->target->summary->tag;
 
         foreach ($comparison->metrics as $metric) {
             $rows[] = Tr::tag()
                 ->html(
                     Th::tag()
                         ->scope('row')
-                        ->html(self::renderMetricLabel($metric, $target, $routePrefix)),
+                        ->content($metric->label),
                     Td::tag()
                         ->class('yii-debug-cell-mono')
                         ->content($metric->baseline()),

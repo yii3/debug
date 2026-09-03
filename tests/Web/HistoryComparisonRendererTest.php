@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Web;
 
-use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
+use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Web\{DebugPageRenderer, HistoryComparisonRenderer, HistoryGridRenderer};
@@ -13,6 +14,8 @@ use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\View\WebView;
 
+use function str_repeat;
+use function substr;
 use function sys_get_temp_dir;
 
 /**
@@ -93,6 +96,38 @@ final class HistoryComparisonRendererTest extends TestCase
             'yii-debug-history-compare-title',
             $single,
             'A single capture must not offer an unusable comparison form.',
+        );
+    }
+
+    public function testHistoryGridRendersPagerAndMarksTheCurrentPage(): void
+    {
+        [, $manifest] = $this->comparison();
+
+        $html = HistoryGridRenderer::render(
+            $manifest,
+            ['per-page' => '1', 'page' => '2'],
+            '/developer/debug',
+        );
+
+        self::assertStringContainsString(
+            '<ul class="yii-debug-pager">',
+            $html,
+            'Multiple pages must render the history pager.',
+        );
+        self::assertStringContainsString(
+            '/developer/debug?per-page=1&amp;page=1',
+            $html,
+            'The pager must link to the first page while preserving the page size.',
+        );
+        self::assertStringContainsString(
+            '<li class="yii-debug-pager-item is-active">',
+            $html,
+            'The current page must be marked as active.',
+        );
+        self::assertStringContainsString(
+            '/developer/debug?per-page=1&amp;page=2',
+            $html,
+            'The pager must render a link for the current page.',
         );
     }
 
@@ -181,6 +216,65 @@ final class HistoryComparisonRendererTest extends TestCase
             'Panel structure comparison',
             $html,
             'An empty panel comparison must not render an empty seven-column table.',
+        );
+    }
+
+    public function testResultsRenderFailureMissingAndUnsupportedPanelStatesAndTruncateLongUrls(): void
+    {
+        $longUrl = 'https://example.test/' . str_repeat('segment-', 12);
+
+        $baseline = RequestSummary::create('baseline')
+            ->withRequest($longUrl, 'GET', '127.0.0.1', 1.0);
+        $target = RequestSummary::create('target')
+            ->withRequest('https://example.test/target', 'GET', '127.0.0.1', 2.0);
+        $failure = PanelFailure::fromThrowable(
+            PanelFailure::CAPTURE,
+            new RuntimeException('Capture failed.'),
+        );
+        $comparison = HistoryComparison::fromSnapshots(
+            new DebugSnapshot(
+                $baseline,
+                ['custom' => ['value' => true]],
+                ['failed' => $failure],
+            ),
+            new DebugSnapshot($target, [], []),
+            ['custom' => 'Custom', 'failed' => 'Failed panel'],
+        );
+        $html = HistoryComparisonRenderer::render(
+            $comparison,
+            ['target' => $target, 'baseline' => $baseline],
+            '/developer/debug',
+        );
+
+        self::assertStringContainsString(
+            substr($longUrl, 0, 69) . '...',
+            $html,
+            'Long captured URLs must be truncated in the comparison selectors.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-badge-danger">Failed</span>',
+            $html,
+            'A failed panel capture must use the danger state badge.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-badge-muted">Not captured</span>',
+            $html,
+            'A missing panel capture must use the muted state badge.',
+        );
+        self::assertStringContainsString(
+            'class="yii-debug-not-set">—</span>',
+            $html,
+            'A missing panel capture must include the not-set marker.',
+        );
+        self::assertStringNotContainsString(
+            'panel=custom',
+            $html,
+            'Unsupported custom panels must render their state without a deep link.',
+        );
+        self::assertStringNotContainsString(
+            'panel=failed',
+            $html,
+            'Failed custom panels must render their state without a deep link.',
         );
     }
 

@@ -7,11 +7,11 @@ namespace Yii3\Debug\Collector;
 use PHPForge\Debug\Collector\CollectorInterface;
 use PHPForge\Debug\Helper\Coerce;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
+use Psr\Http\Message\ServerRequestInterface;
 use Yiisoft\Profiler\{Message, Profiler, ProfilerInterface};
 
 use function array_slice;
 use function class_exists;
-use function count;
 use function error_reporting;
 use function is_float;
 use function is_int;
@@ -22,11 +22,11 @@ use function usort;
 use const E_DEPRECATED;
 
 /**
- * Captures request metrics and completed Yii profiler blocks in the canonical Profiling panel payload.
+ * Captures request metrics and completed Yii profiler spans in the canonical Profiling panel payload.
  */
 final class ProfilingCollector implements CollectorInterface
 {
-    private int $messageOffset = 0;
+    private Message|null $messageCursor = null;
     private float $start = 0.0;
     private bool $started = false;
 
@@ -47,6 +47,23 @@ final class ProfilingCollector implements CollectorInterface
         );
     }
 
+    public function collectRequest(ServerRequestInterface $request): void
+    {
+        $start = $request->getServerParams()['REQUEST_TIME_FLOAT'] ?? null;
+
+        $this->collectRequestStart(
+            is_float($start) || is_int($start) ? (float) $start : microtime(true),
+        );
+    }
+
+    /**
+     * Uses the request start already resolved by the middleware so summary and profiler timing share one origin.
+     */
+    public function collectRequestStart(float $start): void
+    {
+        $this->start = $start;
+    }
+
     public function id(): string
     {
         return 'profiling';
@@ -55,7 +72,7 @@ final class ProfilingCollector implements CollectorInterface
     public function shutdown(): void
     {
         $this->started = false;
-        $this->messageOffset = 0;
+        $this->messageCursor = null;
         $this->start = 0.0;
     }
 
@@ -65,15 +82,20 @@ final class ProfilingCollector implements CollectorInterface
             return;
         }
 
-        if ($this->profiler instanceof Profiler) {
-            self::loadMessageClass();
-        }
-
         $start = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
 
         $this->start = is_float($start) || is_int($start) ? (float) $start : microtime(true);
 
-        $this->messageOffset = $this->profiler instanceof Profiler ? count($this->profiler->getMessages()) : 0;
+        $this->messageCursor = null;
+
+        if ($this->profiler instanceof Profiler) {
+            self::loadMessageClass();
+
+            foreach ($this->profiler->getMessages() as $message) {
+                $this->messageCursor = $message;
+            }
+        }
+
         $this->started = true;
     }
 
@@ -103,9 +125,27 @@ final class ProfilingCollector implements CollectorInterface
             return [];
         }
 
+        $profilerMessages = $this->profiler->getMessages();
+
+        $messageOffset = 0;
+
+        if ($this->messageCursor !== null) {
+            $index = 0;
+
+            foreach ($profilerMessages as $message) {
+                if ($message === $this->messageCursor) {
+                    $messageOffset = $index + 1;
+
+                    break;
+                }
+
+                $index++;
+            }
+        }
+
         $messages = [];
 
-        foreach (array_slice($this->profiler->getMessages(), $this->messageOffset) as $message) {
+        foreach (array_slice($profilerMessages, $messageOffset) as $message) {
             $context = $message->context();
             $messages[] = [
                 'token' => $message->token(),
