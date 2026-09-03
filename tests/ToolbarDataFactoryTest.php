@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
@@ -17,6 +18,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Panel\{
+    EventPanel,
     ExtensionPanelInterface,
     InertiaPanel,
     LogPanel,
@@ -177,6 +179,49 @@ final class ToolbarDataFactoryTest extends TestCase
             '/svg/',
             $payload['iconBaseUrl'],
             'AJAX icons must use the published SVG path.',
+        );
+    }
+
+    public function testCreateForSnapshotExposesOneEventCounter(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new EventPanel()]);
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'event' => (new EventSnapshot(
+                    [
+                        new EventRow(1.0, 'App\\Event\\FirstEvent', 'App\\Event\\FirstEvent', '0', ''),
+                        new EventRow(2.0, 'App\\Event\\SecondEvent', 'App\\Event\\SecondEvent', '0', ''),
+                    ],
+                ))->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'event',
+                    'title' => 'Events',
+                    'url' => '/debug/view?tag=request-1&panel=event',
+                    'icon' => 'events',
+                    'items' => [
+                        [
+                            'value' => '2',
+                            'status' => 'default',
+                            'id' => 'total',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'Events must contribute one total counter regardless of the captured event classes.',
         );
     }
 
@@ -511,6 +556,28 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotOmitsEventCounterWithoutEvents(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new EventPanel()]);
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['event' => (new EventSnapshot([]))->jsonSerialize()],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [],
+            $payload['items'],
+            'An empty Events capture must not create a zero-value toolbar counter.',
+        );
+    }
+
     public function testCreateForSnapshotOmitsInertiaWithoutAComponent(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
@@ -524,6 +591,42 @@ final class ToolbarDataFactoryTest extends TestCase
             [],
             $payload['items'],
             'An Inertia capture without a component must not create an empty toolbar panel.',
+        );
+    }
+
+    public function testCreateForSnapshotPreservesTheBuiltInToolbarOrder(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels(
+                [new RequestPanel(), new LogPanel(), new EventPanel(), new ProfilingPanel()],
+            );
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
+                'log' => LogSnapshot::capture(
+                    [['request started', 4, 'application', 1.0, [], 1024]],
+                )->jsonSerialize(),
+                'event' => (new EventSnapshot(
+                    [new EventRow(2.0, 'App\\Event\\Rendered', 'App\\Event\\Rendered', '0', 'App\\Action')],
+                ))->jsonSerialize(),
+                'profiling' => (new ProfilingSnapshot(2_097_152, 0.25, [], []))->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['request', 'log', 'event', 'profiling'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'The built-in toolbar must place Events immediately after Logs and before Profiling.',
         );
     }
 

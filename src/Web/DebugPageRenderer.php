@@ -58,6 +58,7 @@ final class DebugPageRenderer
     private const array PRIMARY_PANEL_IDS = [
         'request',
         'log',
+        'event',
         'profiling',
     ];
 

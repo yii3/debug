@@ -11,11 +11,11 @@ use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
-use Yii3\Debug\Collector\{InertiaCollector, LogCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{EventCollector, InertiaCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
 use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
-use Yii3\Debug\Panel\{InertiaPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\{EventPanel, InertiaPanel, LogPanel, ProfilingPanel, RequestPanel};
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
@@ -102,9 +102,16 @@ final class ExtensionRegistryTest extends TestCase
 
         $requestCollector = new RequestCollector();
         $logCollector = new LogCollector(new DebugLogTarget());
+        $eventCollector = new EventCollector();
         $profilingCollector = new ProfilingCollector();
 
-        $coordinator = $coordinatorFactory($requestCollector, $logCollector, $profilingCollector, $registry);
+        $coordinator = $coordinatorFactory(
+            $requestCollector,
+            $logCollector,
+            $eventCollector,
+            $profilingCollector,
+            $registry,
+        );
 
         self::assertInstanceOf(
             CollectorCoordinator::class,
@@ -115,10 +122,11 @@ final class ExtensionRegistryTest extends TestCase
             [
                 'request' => $requestCollector,
                 'log' => $logCollector,
+                'event' => $eventCollector,
                 'profiling' => $profilingCollector,
             ],
             (new ReflectionProperty(CollectorCoordinator::class, 'collectors'))->getValue($coordinator),
-            'Default DI must register Request, Log, and Profiling collectors in built-in order.',
+            'Default DI must register Request, Log, Event, and Profiling collectors in built-in order.',
         );
         self::assertFalse(
             $coordinator->hasCollector('inertia'),
@@ -133,6 +141,11 @@ final class ExtensionRegistryTest extends TestCase
             $logCollector,
             $coordinator->collector('log'),
             'Log must be registered independently from the empty extension registry.',
+        );
+        self::assertSame(
+            $eventCollector,
+            $coordinator->collector('event'),
+            'Event must be registered independently from the empty extension registry.',
         );
         self::assertSame(
             $profilingCollector,
@@ -163,6 +176,8 @@ final class ExtensionRegistryTest extends TestCase
         $requestCollectorOverride = new RequestCollector(capturePolicy: $capturePolicy);
         $builtInLogCollector = new LogCollector(new DebugLogTarget());
         $logCollectorOverride = new LogCollector(new DebugLogTarget());
+        $builtInEventCollector = new EventCollector();
+        $eventCollectorOverride = new EventCollector();
         $builtInProfilingCollector = new ProfilingCollector();
         $profilingCollectorOverride = new ProfilingCollector();
         $panel = new InertiaPanel();
@@ -170,12 +185,26 @@ final class ExtensionRegistryTest extends TestCase
         $requestPanelOverride = new RequestPanel();
         $builtInLogPanel = new LogPanel();
         $logPanelOverride = new LogPanel();
+        $builtInEventPanel = new EventPanel();
+        $eventPanelOverride = new EventPanel();
         $builtInProfilingPanel = new ProfilingPanel();
         $profilingPanelOverride = new ProfilingPanel();
 
         $registry = ExtensionRegistry::create(
-            collectors: [$collector, $requestCollectorOverride, $logCollectorOverride, $profilingCollectorOverride],
-            panels: [$panel, $requestPanelOverride, $logPanelOverride, $profilingPanelOverride],
+            collectors: [
+                $collector,
+                $requestCollectorOverride,
+                $logCollectorOverride,
+                $eventCollectorOverride,
+                $profilingCollectorOverride,
+            ],
+            panels: [
+                $panel,
+                $requestPanelOverride,
+                $logPanelOverride,
+                $eventPanelOverride,
+                $profilingPanelOverride,
+            ],
         );
 
         $aliases = new Aliases(
@@ -198,34 +227,66 @@ final class ExtensionRegistryTest extends TestCase
         );
 
         self::assertSame(
-            [$requestCollectorOverride, $collector, $logCollectorOverride, $profilingCollectorOverride],
+            [
+                $requestCollectorOverride,
+                $collector,
+                $logCollectorOverride,
+                $eventCollectorOverride,
+                $profilingCollectorOverride,
+            ],
             $registry->collectorsWithBuiltIn($builtInRequestCollector),
             'An explicit Request collector override must replace the built-in instance and remain first.',
         );
         self::assertSame(
-            [$requestPanelOverride, $panel, $logPanelOverride, $profilingPanelOverride],
+            [
+                $requestPanelOverride,
+                $panel,
+                $logPanelOverride,
+                $eventPanelOverride,
+                $profilingPanelOverride,
+            ],
             $registry->panelsWithBuiltIn($builtInRequestPanel),
             'An explicit Request panel override must replace the built-in instance and remain first.',
         );
         self::assertSame(
-            [$requestCollectorOverride, $logCollectorOverride, $profilingCollectorOverride, $collector],
+            [
+                $requestCollectorOverride,
+                $logCollectorOverride,
+                $eventCollectorOverride,
+                $profilingCollectorOverride,
+                $collector,
+            ],
             $registry->collectorsWithBuiltIns(
-                [$builtInRequestCollector, $builtInLogCollector, $builtInProfilingCollector],
+                [$builtInRequestCollector, $builtInLogCollector, $builtInEventCollector, $builtInProfilingCollector],
             ),
             'Every explicit collector override must replace its built-in instance in built-in order.',
         );
         self::assertSame(
-            [$requestPanelOverride, $logPanelOverride, $profilingPanelOverride, $panel],
-            $registry->panelsWithBuiltIns([$builtInRequestPanel, $builtInLogPanel, $builtInProfilingPanel]),
+            [$requestPanelOverride, $logPanelOverride, $eventPanelOverride, $profilingPanelOverride, $panel],
+            $registry->panelsWithBuiltIns(
+                [$builtInRequestPanel, $builtInLogPanel, $builtInEventPanel, $builtInProfilingPanel],
+            ),
             'Every explicit panel override must replace its built-in instance in built-in order.',
         );
         self::assertSame(
-            [$collector, $requestCollectorOverride, $logCollectorOverride, $profilingCollectorOverride],
+            [
+                $collector,
+                $requestCollectorOverride,
+                $logCollectorOverride,
+                $eventCollectorOverride,
+                $profilingCollectorOverride,
+            ],
             $registry->collectors(),
             'Built-in composition must not alter the explicit collector registry.',
         );
         self::assertSame(
-            [$panel, $requestPanelOverride, $logPanelOverride, $profilingPanelOverride],
+            [
+                $panel,
+                $requestPanelOverride,
+                $logPanelOverride,
+                $eventPanelOverride,
+                $profilingPanelOverride,
+            ],
             $registry->panels(),
             'Built-in composition must not alter the explicit panel registry.',
         );
@@ -233,6 +294,7 @@ final class ExtensionRegistryTest extends TestCase
         $coordinator = $coordinatorFactory(
             $builtInRequestCollector,
             $builtInLogCollector,
+            $builtInEventCollector,
             $builtInProfilingCollector,
             $registry,
         );
@@ -246,6 +308,7 @@ final class ExtensionRegistryTest extends TestCase
             [
                 'request' => $requestCollectorOverride,
                 'log' => $logCollectorOverride,
+                'event' => $eventCollectorOverride,
                 'profiling' => $profilingCollectorOverride,
                 'inertia' => $collector,
             ],
@@ -268,6 +331,11 @@ final class ExtensionRegistryTest extends TestCase
             'Collector coordinator must use an explicit Log override without creating a duplicate ID.',
         );
         self::assertSame(
+            $eventCollectorOverride,
+            $coordinator->collector('event'),
+            'Collector coordinator must use an explicit Event override without creating a duplicate ID.',
+        );
+        self::assertSame(
             $profilingCollectorOverride,
             $coordinator->collector('profiling'),
             'Collector coordinator must use an explicit Profiling override without creating a duplicate ID.',
@@ -288,6 +356,7 @@ final class ExtensionRegistryTest extends TestCase
             $aliases,
             $builtInRequestPanel,
             $builtInLogPanel,
+            $builtInEventPanel,
             $builtInProfilingPanel,
             $registry,
         );
@@ -301,6 +370,7 @@ final class ExtensionRegistryTest extends TestCase
             [
                 'request' => $requestPanelOverride,
                 'log' => $logPanelOverride,
+                'event' => $eventPanelOverride,
                 'profiling' => $profilingPanelOverride,
                 'inertia' => $panel,
             ],
@@ -320,6 +390,10 @@ final class ExtensionRegistryTest extends TestCase
             'Debug page renderer must receive the resolved Log panel without a duplicate ID.',
         );
         self::assertTrue(
+            $renderer->hasExtensionPanel('event'),
+            'Debug page renderer must receive the resolved Event panel without a duplicate ID.',
+        );
+        self::assertTrue(
             $renderer->hasExtensionPanel('profiling'),
             'Debug page renderer must receive the resolved Profiling panel without a duplicate ID.',
         );
@@ -336,6 +410,7 @@ final class ExtensionRegistryTest extends TestCase
             $assetManager,
             $builtInRequestPanel,
             $builtInLogPanel,
+            $builtInEventPanel,
             $builtInProfilingPanel,
             $registry,
         );
@@ -349,6 +424,7 @@ final class ExtensionRegistryTest extends TestCase
             [
                 'request' => $requestPanelOverride,
                 'log' => $logPanelOverride,
+                'event' => $eventPanelOverride,
                 'profiling' => $profilingPanelOverride,
                 'inertia' => $panel,
             ],

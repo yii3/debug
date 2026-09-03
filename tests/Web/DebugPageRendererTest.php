@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Web;
 
 use Closure;
 use InvalidArgumentException;
+use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
@@ -16,7 +17,15 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, InertiaPanel, LogPanel, ProfilingPanel, RequestPanel, VitePanel};
+use Yii3\Debug\Panel\{
+    EventPanel,
+    ExtensionPanelInterface,
+    InertiaPanel,
+    LogPanel,
+    ProfilingPanel,
+    RequestPanel,
+    VitePanel,
+};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -1959,6 +1968,17 @@ final class DebugPageRendererTest extends TestCase
                         ['slow query detected', 2, 'app.db', 1_725_000_756.002, [], 1_114_112],
                     ],
                 )->jsonSerialize(),
+                'event' => (new EventSnapshot(
+                    [
+                        new EventRow(
+                            1_725_000_756.003,
+                            'App\\Event\\PageRendered',
+                            'App\\Event\\PageRendered',
+                            '0',
+                            '',
+                        ),
+                    ],
+                ))->jsonSerialize(),
                 'profiling' => $this->profilingPayload(),
             ],
             [],
@@ -1966,7 +1986,7 @@ final class DebugPageRendererTest extends TestCase
 
         $renderer = $this->rendererWithPanels(
             'page-renderer-log-assets',
-            [new RequestPanel(), new LogPanel(), new ProfilingPanel()],
+            [new RequestPanel(), new LogPanel(), new EventPanel(), new ProfilingPanel()],
         );
 
         [, $html] = self::renderWithPeakMemory(
@@ -1982,15 +2002,15 @@ final class DebugPageRendererTest extends TestCase
         $sidebar = explode('</aside>', $html, 2)[0];
 
         preg_match_all(
-            '~<span class="yii-debug-nav-link-label">\s*(History|Request|Logs|Profiling)\s*</span>~',
+            '~<span class="yii-debug-nav-link-label">\s*(History|Request|Logs|Events|Profiling)\s*</span>~',
             $sidebar,
             $matches,
         );
 
         self::assertSame(
-            ['History', 'Request', 'Logs', 'Profiling'],
+            ['History', 'Request', 'Logs', 'Events', 'Profiling'],
             $matches[1],
-            'The primary sidebar must follow the requested History, Request, Logs, Profiling order.',
+            'The primary sidebar must follow the requested History, Request, Logs, Events, Profiling order.',
         );
         self::assertStringContainsString(
             'title="View Logs panel" aria-current="page"',

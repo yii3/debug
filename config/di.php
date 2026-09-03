@@ -7,10 +7,10 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\SnapshotStore;
 use Psr\Http\Message\{ResponseFactoryInterface, StreamFactoryInterface};
 use Yii3\Debug\Action\ToolbarDataAction;
-use Yii3\Debug\Collector\{LogCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{EventCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
-use Yii3\Debug\Panel\{LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\{EventPanel, LogPanel, ProfilingPanel, RequestPanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
@@ -26,10 +26,13 @@ return [
     CollectorCoordinator::class => static fn(
         RequestCollector $requestCollector,
         LogCollector $logCollector,
+        EventCollector $eventCollector,
         ProfilingCollector $profilingCollector,
         ExtensionRegistry $extensions,
     ): CollectorCoordinator => new CollectorCoordinator(
-        $extensions->collectorsWithBuiltIns([$requestCollector, $logCollector, $profilingCollector]),
+        $extensions->collectorsWithBuiltIns(
+            [$requestCollector, $logCollector, $eventCollector, $profilingCollector],
+        ),
     ),
     ConfigDataFactory::class => [
         '__construct()' => [
@@ -43,6 +46,7 @@ return [
         Aliases $aliases,
         RequestPanel $requestPanel,
         LogPanel $logPanel,
+        EventPanel $eventPanel,
         ProfilingPanel $profilingPanel,
         ExtensionRegistry $extensions,
     ): DebugPageRenderer => (
@@ -53,7 +57,9 @@ return [
             $aliases->get($config['viewPath']),
         )
     )
-    ->withExtensionPanels($extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $profilingPanel]))
+    ->withExtensionPanels(
+        $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel]),
+    )
     ->withRoutePrefix($config['routePrefix']),
     ProfilingCollector::class => static fn(
         ProfilerInterface $profiler,
@@ -78,12 +84,15 @@ return [
         AssetManager $assetManager,
         RequestPanel $requestPanel,
         LogPanel $logPanel,
+        EventPanel $eventPanel,
         ProfilingPanel $profilingPanel,
         ExtensionRegistry $extensions,
     ): ToolbarDataFactory => (
         new ToolbarDataFactory($assetManager)
     )
-    ->withExtensionPanels($extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $profilingPanel]))
+    ->withExtensionPanels(
+        $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel]),
+    )
     ->withRoutePrefix($config['routePrefix'])
     ->withPresentation($config['toolbar']['position'], $config['toolbar']['height']),
     ToolbarMiddleware::class => static fn(
