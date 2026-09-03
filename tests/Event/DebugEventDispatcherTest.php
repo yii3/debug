@@ -61,7 +61,7 @@ final class DebugEventDispatcherTest extends TestCase
         );
         $event = new EventStub();
         $innerResult = new ResultStub();
-        $inner = new RecordingEventDispatcherStub($innerResult);+
+        $inner = new RecordingEventDispatcherStub($innerResult);
         $returned = (new DebugEventDispatcher($inner, $collector, $guard))
             ->dispatch($event);
 
