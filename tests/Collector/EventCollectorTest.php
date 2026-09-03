@@ -12,6 +12,7 @@ use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Tests\Support\Stubs\{
     AlternateEventStub,
+    AnonymousEventStubFactory,
     AnonymousMiddlewareStubFactory,
     EventStub,
     MiddlewareStub,
@@ -21,6 +22,8 @@ use Yii3\Debug\Tests\Support\Stubs\{
 
 use function array_map;
 use function array_shift;
+use function dirname;
+use function get_debug_type;
 use function json_encode;
 use function microtime;
 
@@ -130,12 +133,72 @@ final class EventCollectorTest extends TestCase
             $snapshot,
             'An active collector must expose its Event snapshot.',
         );
+        $sources = array_map(static fn(EventRow $row): string => $row->senderClass, $snapshot->entries());
+
         self::assertSame(
-            [$invalidMiddleware::class, $throwingMiddleware::class],
-            array_map(static fn(EventRow $row): string => $row->senderClass, $snapshot->entries()),
+            [get_debug_type($invalidMiddleware), get_debug_type($throwingMiddleware)],
+            $sources,
             'Untrusted or failing debug metadata must retain the anonymous middleware class as the safe source.',
         );
+
+        foreach ($sources as $source) {
+            self::assertStringNotContainsString(
+                "\0",
+                $source,
+                'Anonymous middleware source metadata must not retain PHP\'s internal NUL-delimited path suffix.',
+            );
+            self::assertStringNotContainsString(
+                dirname(__DIR__),
+                $source,
+                'Anonymous middleware source metadata must not expose the tests filesystem path.',
+            );
+        }
     }
+
+    public function testCaptureNormalizesAnonymousEventClassWithoutExposingItsDeclarationPath(): void
+    {
+        $event = AnonymousEventStubFactory::create();
+
+        $collector = new EventCollector();
+
+        $collector->startup();
+        $collector->record($event);
+
+        $entry = $collector->capture()?->entries()[0] ?? null;
+
+        self::assertInstanceOf(
+            EventRow::class,
+            $entry,
+            'An anonymous dispatched event must produce one typed row.',
+        );
+
+        $expectedClass = get_debug_type($event);
+
+        self::assertSame(
+            $expectedClass,
+            $entry->name,
+            'An anonymous event name must use PHP\'s path-free debug type.',
+        );
+        self::assertSame(
+            $expectedClass,
+            $entry->class,
+            'An anonymous event class must use PHP\'s path-free debug type.',
+        );
+
+        foreach ([$entry->name, $entry->class] as $class) {
+            self::assertStringNotContainsString(
+                "\0",
+                $class,
+                'Anonymous event metadata must not retain PHP\'s internal NUL-delimited path suffix.',
+            );
+            self::assertStringNotContainsString(
+                dirname(__DIR__),
+                $class,
+                'Anonymous event metadata must not expose the tests filesystem path.',
+            );
+        }
+    }
+
     public function testCaptureRecordsOnlyEventMetadataInDispatchOrder(): void
     {
         $collector = new EventCollector();

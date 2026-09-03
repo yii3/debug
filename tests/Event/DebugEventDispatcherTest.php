@@ -17,6 +17,7 @@ use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\Tests\Support\Stubs\{
     AlternateEventStub,
+    AnonymousEventCallerStubFactory,
     CollectorAwareEventDispatcherStub,
     EventStub,
     NestedEventDispatcherStub,
@@ -29,6 +30,8 @@ use Yii3\Debug\Tests\Support\Stubs\{
 };
 
 use function array_map;
+use function dirname;
+use function get_debug_type;
 
 /**
  * Unit tests for transparent, fail-open PSR-14 event-dispatcher instrumentation.
@@ -58,9 +61,9 @@ final class DebugEventDispatcherTest extends TestCase
         );
         $event = new EventStub();
         $innerResult = new ResultStub();
-        $inner = new RecordingEventDispatcherStub($innerResult);
-
-        $returned = (new DebugEventDispatcher($inner, $collector, $guard))->dispatch($event);
+        $inner = new RecordingEventDispatcherStub($innerResult);+
+        $returned = (new DebugEventDispatcher($inner, $collector, $guard))
+            ->dispatch($event);
 
         self::assertInstanceOf(
             Error::class,
@@ -76,6 +79,45 @@ final class DebugEventDispatcherTest extends TestCase
             $innerResult,
             $returned,
             'Collector failure must not alter the real dispatcher result.',
+        );
+    }
+
+    public function testDispatchNormalizesAnonymousCallerWithoutExposingItsDeclarationPath(): void
+    {
+        $collector = new EventCollector();
+
+        $caller = AnonymousEventCallerStubFactory::create();
+
+        $event = new EventStub();
+
+        $collector->startup();
+
+        $returned = $caller->dispatch(
+            new DebugEventDispatcher(new PassthroughEventDispatcherStub(), $collector),
+            $event,
+        );
+
+        $senderClass = $collector->capture()?->entries()[0]->senderClass ?? null;
+
+        self::assertSame(
+            $event,
+            $returned,
+            'An anonymous caller must not change the dispatcher result.',
+        );
+        self::assertSame(
+            get_debug_type($caller),
+            $senderClass,
+            'An anonymous caller must retain its type label without PHP source-location metadata.',
+        );
+        self::assertStringNotContainsString(
+            "\0",
+            $senderClass,
+            'The source label must not contain a NUL byte.',
+        );
+        self::assertStringNotContainsString(
+            dirname(__DIR__),
+            $senderClass,
+            'The source label must not expose the test declaration path.',
         );
     }
 

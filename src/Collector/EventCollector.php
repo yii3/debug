@@ -18,6 +18,8 @@ use function is_object;
 use function is_string;
 use function method_exists;
 use function microtime;
+use function strpos;
+use function substr;
 
 /**
  * Captures PSR-14 event metadata for the current request.
@@ -63,9 +65,8 @@ final class EventCollector implements CollectorInterface
             return;
         }
 
-        $class = $event::class;
-
-        $source = self::source($event, $senderClass);
+        $class = self::normalizeClassLabel($event::class);
+        $source = self::normalizeClassLabel(self::source($event, $senderClass));
 
         $this->events[] = new EventRow(
             time: microtime(true),
@@ -112,6 +113,16 @@ final class EventCollector implements CollectorInterface
         }
 
         return self::wrappedActionName($debugInfo['callback'] ?? null) ?? $middleware::class;
+    }
+
+    /**
+     * Removes PHP's NUL-delimited source suffix from anonymous class labels.
+     */
+    private static function normalizeClassLabel(string $label): string
+    {
+        $separator = strpos($label, "\0");
+
+        return $separator === false ? $label : substr($label, 0, $separator);
     }
 
     /**
