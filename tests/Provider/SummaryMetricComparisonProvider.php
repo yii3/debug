@@ -199,7 +199,7 @@ final class SummaryMetricComparisonProvider
                     'Not captured',
                     'No change',
                     'neutral',
-                     null,
+                    null,
                 ],
                 [
                     'Method',
@@ -313,7 +313,6 @@ final class SummaryMetricComparisonProvider
                     'up',
                     'profiling',
                 ],
-                [
                 [
                     'SQL queries',
                     '0',
