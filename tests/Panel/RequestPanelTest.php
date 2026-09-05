@@ -677,7 +677,8 @@ final class RequestPanelTest extends TestCase
 
         self::assertNotFalse(
             $overview,
-            'The shared request execution overview must be rendered.');
+            'The shared request execution overview must be rendered.'
+        );
         self::assertNotFalse(
             $tabs,
             'The canonical Request tabs must be rendered.',
