@@ -8,6 +8,10 @@ use Yiisoft\Router\{Group, Route};
 use Yiisoft\Validator\ValidatorInterface;
 use Yiisoft\Yii\Middleware\IpFilter;
 
+if (!(require __DIR__ . '/enabled.php')) {
+    return [];
+}
+
 /** @var array<string, mixed> $params */
 $config = $params['yii3/debug'];
 $prefix = rtrim($config['routePrefix'], '/');

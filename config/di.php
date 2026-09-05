@@ -5,19 +5,29 @@ declare(strict_types=1);
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Storage\SnapshotStore;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\{ResponseFactoryInterface, StreamFactoryInterface};
+use Psr\Log\LoggerInterface;
 use Yii3\Debug\Action\ToolbarDataAction;
 use Yii3\Debug\Collector\{EventCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
+use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Panel\{EventPanel, LogPanel, ProfilingPanel, RequestPanel};
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\AssetManager;
+use Yiisoft\Definitions\ReferencesArray;
+use Yiisoft\EventDispatcher\Dispatcher\Dispatcher;
+use Yiisoft\Log\Logger;
 use Yiisoft\NetworkUtilities\IpRanges;
 use Yiisoft\Profiler\ProfilerInterface;
 use Yiisoft\View\WebView;
+
+if (!(require __DIR__ . '/enabled.php')) {
+    return [];
+}
 
 /** @var array<string, mixed> $params */
 $config = $params['yii3/debug'];
@@ -61,6 +71,16 @@ return [
         $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel]),
     )
     ->withRoutePrefix($config['routePrefix']),
+    EventDispatcherInterface::class => static fn(
+        Dispatcher $dispatcher,
+        EventCollector $collector,
+    ): EventDispatcherInterface => new DebugEventDispatcher($dispatcher, $collector),
+    LoggerInterface::class => [
+        'class' => Logger::class,
+        '__construct()' => [
+            'targets' => ReferencesArray::from($params['yiisoft/log']['targets']),
+        ],
+    ],
     ProfilingCollector::class => static fn(
         ProfilerInterface $profiler,
     ): ProfilingCollector => new ProfilingCollector($profiler),

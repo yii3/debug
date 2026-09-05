@@ -368,9 +368,12 @@ final class LogPanelTest extends TestCase
         $panel = new LogPanel();
 
         self::assertSame(
-            [],
-            $panel->toolbarItems(['entries' => []]),
-            'An empty capture must not create an empty toolbar panel.',
+            [['value' => '0', 'status' => 'default', 'id' => 'total']],
+            array_map(
+                static fn(ToolbarItem $item): array => $item->jsonSerialize(),
+                $panel->toolbarItems(['entries' => []]),
+            ),
+            'An empty capture must keep the Logs toolbar accessible with a zero count.',
         );
         self::assertSame(
             [

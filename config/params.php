@@ -2,11 +2,21 @@
 
 declare(strict_types=1);
 
+use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yiisoft\Log\StreamTarget;
+
+if (!(require __DIR__ . '/enabled.php')) {
+    return [];
+}
 
 return [
     'yii3/debug' => [
         'application' => [],
+        'extensions' => [
+            'inertia' => false,
+            'vite' => false,
+        ],
         'allowedIPs' => ['127.0.0.1', '::1'],
         'historySize' => 50,
         'routePrefix' => '/debug',
@@ -25,6 +35,12 @@ return [
     'yiisoft/aliases' => [
         'aliases' => [
             '@yii3DebugViews' => '@vendor/php-forge/debug-core/resources/views',
+        ],
+    ],
+    'yiisoft/log' => [
+        'targets' => [
+            'debug' => DebugLogTarget::class,
+            'stream' => StreamTarget::class,
         ],
     ],
     'yiisoft/middleware-dispatcher' => [

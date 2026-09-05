@@ -9,6 +9,9 @@
   failOnWarning="true"
   cacheDirectory=".phpunit.cache"
 >
+  <php>
+    <env name="APP_ENV" value="test"/>
+  </php>
   <testsuites>
     <testsuite name="Yii3-Debug">
       <directory>./tests</directory>
