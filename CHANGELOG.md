@@ -31,3 +31,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(ui): consolidate Request, Server, Session, Flashes, routing, headers, and input diagnostics into searchable, compact views.
 - refactor(history): share typed comparison with Debug Core and add `HistoryMetricComparison::create()` for immutable panel-link configuration.
 - refactor: delegate history metric calculations and formatting to Debug Core while preserving adapter models, public contracts, and exact comparison output.
+- refactor: delegate panel comparison to Debug Core while preserving public history models, exact ordering, capture states, difference counts, and diagnostic values.
