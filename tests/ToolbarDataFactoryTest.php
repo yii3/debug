@@ -315,7 +315,12 @@ final class ToolbarDataFactoryTest extends TestCase
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
-                'request' => RequestSnapshot::capture(['statusCode' => 201])->jsonSerialize(),
+                'request' => RequestSnapshot::capture(
+                    [
+                        'route' => 'site/index',
+                        'statusCode' => 201,
+                    ],
+                )->jsonSerialize(),
                 'inertia' => $this->inertiaPayload('Site/Index'),
             ],
             [],
@@ -334,9 +339,16 @@ final class ToolbarDataFactoryTest extends TestCase
                     'icon' => 'request',
                     'items' => [
                         [
+                            'value' => 'site/index',
+                            'status' => 'default',
+                            'title' => 'Resolved route: site/index',
+                            'id' => 'route',
+                        ],
+                        [
                             'value' => '201',
                             'status' => 'status-2xx',
                             'title' => 'Status code: 201 Created',
+                            'id' => 'status',
                         ],
                     ],
                 ],
@@ -355,7 +367,7 @@ final class ToolbarDataFactoryTest extends TestCase
                 ],
             ],
             $payload['items'],
-            'Request status must precede opt-in extension metrics like Yii2.',
+            'The combined Request route and status must precede opt-in extension metrics like Yii2.',
         );
     }
 

@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use PHPForge\Debug\Helper\Vocabulary;
-use PHPForge\Debug\Panel\Request\{RequestDataNormalizer, RequestSectionRenderer, RequestSnapshot};
+use PHPForge\Debug\Panel\Request\{
+    RequestDataNormalizer,
+    RequestRenderer,
+    RequestSnapshot,
+    RequestToolbarItemFactory,
+};
 use PHPForge\Debug\Storage\RequestSummary;
-use PHPForge\Debug\Toolbar\ToolbarItem;
+use Yii3\Debug\Routing\RequestRoutingViewFactory;
 use Yiisoft\Http\Status;
+use Yiisoft\Router\RouteCollectionInterface;
 
-use function rtrim;
+use function is_string;
 
 /**
  * Presents the captured PSR-7 request and response with the shared Yii Request panel UI.
  */
 final readonly class RequestPanel implements SummaryAwarePanelInterface, ToolbarPanelProviderInterface
 {
+    public function __construct(private RouteCollectionInterface|null $routes = null) {}
+
     public function hasContent(array $payload): bool
     {
         return $payload !== [];
@@ -49,17 +56,14 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
 
     public function toolbarItems(array $payload): array
     {
-        $statusCode = self::snapshot($payload)->statusCode;
-        $statusClass = Vocabulary::statusClass($statusCode);
-        $statusText = Status::TEXTS[$statusCode] ?? '';
+        $snapshot = self::snapshot($payload);
+        $data = $snapshot->data();
 
-        return [
-            new ToolbarItem(
-                value: (string) $statusCode,
-                status: $statusClass === 'none' ? 'default' : "status-{$statusClass}",
-                title: rtrim("Status code: {$statusCode} {$statusText}"),
-            ),
-        ];
+        return RequestToolbarItemFactory::create(
+            route: is_string($data['route'] ?? null) ? $data['route'] : '',
+            statusCode: $snapshot->statusCode,
+            statusText: Status::TEXTS[$snapshot->statusCode] ?? '',
+        );
     }
 
     /**
@@ -67,10 +71,13 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
      */
     private function renderView(array $payload, RequestSummary|null $summary): string
     {
-        $view = RequestDataNormalizer::fromPanelData(self::snapshot($payload)->data(), $summary);
+        $data = self::snapshot($payload)->data();
+        $view = RequestDataNormalizer::fromPanelData($data, $summary);
 
-        return RequestSectionRenderer::renderHero($view->hero)
-            . RequestSectionRenderer::renderTabs($view->tabs);
+        return RequestRenderer::render(
+            $view,
+            RequestRoutingViewFactory::fromRequestData($data, $this->routes),
+        );
     }
 
     /**

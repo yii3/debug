@@ -194,7 +194,7 @@ final class ToolbarDataActionTest extends TestCase
         );
     }
 
-    public function testInvokeReturnsTheCapturedRequestStatusPanel(): void
+    public function testInvokeReturnsTheCapturedRequestRouteAndStatusPanel(): void
     {
         $store = $this->store();
 
@@ -202,8 +202,12 @@ final class ToolbarDataActionTest extends TestCase
             new DebugSnapshot(
                 RequestSummary::create('request-1'),
                 [
-                    'request' => RequestSnapshot::capture(['statusCode' => 204])
-                        ->jsonSerialize(),
+                    'request' => RequestSnapshot::capture(
+                        [
+                            'route' => 'site/index',
+                            'statusCode' => 204,
+                        ],
+                    )->jsonSerialize(),
                 ],
                 [],
             ),
@@ -229,15 +233,22 @@ final class ToolbarDataActionTest extends TestCase
                     'icon' => 'request',
                     'items' => [
                         [
+                            'value' => 'site/index',
+                            'status' => 'default',
+                            'title' => 'Resolved route: site/index',
+                            'id' => 'route',
+                        ],
+                        [
                             'value' => '204',
                             'status' => 'status-2xx',
                             'title' => 'Status code: 204 No Content',
+                            'id' => 'status',
                         ],
                     ],
                 ],
             ],
             $payload['items'] ?? null,
-            'The endpoint must project the stored response status into the Request toolbar panel.',
+            'The endpoint must project the stored route and response status into the Request toolbar panel.',
         );
     }
 

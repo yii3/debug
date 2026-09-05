@@ -7,8 +7,11 @@ namespace Yii3\Debug\Collector;
 use LogicException;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
+use PHPForge\Debug\Panel\Request\Routing\RouteDefinition;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, UploadedFileInterface};
+use Yii3\Debug\Routing\RouteDefinitionExtractor;
 use Yiisoft\Router\{CurrentRoute, RouteCollectionInterface};
 
 use function count;
@@ -116,14 +119,20 @@ final class RequestCollector implements CollectorInterface
         }
 
         $route = $this->currentRoute?->getName() ?? '';
+        $routeDefinition = $route === '' ? null : RouteDefinitionExtractor::find($route, $this->routes);
+        $routeDefinition ??= $this->currentRoute === null
+            ? null
+            : RouteDefinitionExtractor::fromCurrentRoute($this->currentRoute);
 
         $this->response = $this->capturePolicy->redact([
-            'action' => RouteActionResolver::resolve($route, $this->routes),
+            'action' => $routeDefinition?->getAction(),
             'actionParams' => $this->currentRoute?->getArguments() ?? [],
             'responseHeaders' => $this->collapseHeaders($response->getHeaders()),
             'route' => $route,
+            'routeDefinition' => null,
             'statusCode' => $response->getStatusCode(),
         ]);
+        $this->response['routeDefinition'] = $this->redactRouteDefinition($routeDefinition);
     }
 
     public function id(): string
@@ -231,6 +240,45 @@ final class RequestCollector implements CollectorInterface
         }
 
         return $this->capturePolicy->redactText($value);
+    }
+
+    /**
+     * Redacts route fields while retaining the persisted definition's scalar schema.
+     *
+     * @return array{
+     *     name: string,
+     *     pattern: string,
+     *     methods: list<string>,
+     *     hosts: list<string>,
+     *     action: string|null,
+     *     middlewares: list<string>|null,
+     *     target?: string,
+     *     suffix?: string,
+     *     mode?: string,
+     *     type?: string
+     * }|null
+     */
+    private function redactRouteDefinition(RouteDefinition|null $definition): array|null
+    {
+        if (
+            $definition === null
+            || $this->capturePolicy->isSensitiveKey('route')
+            || $this->capturePolicy->isSensitiveKey('routeDefinition')
+        ) {
+            return null;
+        }
+
+        $data = $this->capturePolicy->redact($definition->toArray());
+
+        foreach (['methods' => 'method', 'hosts' => 'host', 'middlewares' => 'middleware'] as $key => $alias) {
+            if ($this->capturePolicy->isSensitiveKey($alias)) {
+                $data[$key] = [SensitiveDataRedactor::PLACEHOLDER];
+            } elseif (is_string($data[$key] ?? null)) {
+                $data[$key] = [$data[$key]];
+            }
+        }
+
+        return RouteDefinition::fromArray($data)->toArray();
     }
 
     /**

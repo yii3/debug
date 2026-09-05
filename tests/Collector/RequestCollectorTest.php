@@ -8,11 +8,14 @@ use LogicException;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
+use PHPForge\Debug\Panel\Request\Routing\RouteDefinition;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\StreamInterface;
+use ReflectionProperty;
 use Yii3\Debug\Collector\RequestCollector;
 use Yii3\Debug\Tests\Support\HelperFactory;
+use Yiisoft\Router\{CurrentRoute, Route, RouteCollection, RouteCollector};
 
 use function strlen;
 
@@ -26,6 +29,45 @@ use const UPLOAD_ERR_OK;
 #[Group('request')]
 final class RequestCollectorTest extends TestCase
 {
+    public function testCaptureFallsBackToPublicMatchedRouteMetadataWithoutACollection(): void
+    {
+        $route = Route::post('/articles/{id}')
+            ->name('article/update')
+            ->host('api.example.test')
+            ->action('App\Web\UpdateArticleAction');
+
+        $currentRoute = self::currentRoute($route, ['id' => '42']);
+
+        $collector = new RequestCollector($currentRoute);
+        $collector->startup();
+        $collector->collectRequest(HelperFactory::createRequest(uri: 'https://api.example.test/articles/42'));
+        $collector->collectResponse(HelperFactory::createResponse(202));
+
+        $data = $collector->capture()?->data() ?? [];
+
+        self::assertSame(
+            [
+                'name' => 'article/update',
+                'pattern' => '/articles/{id}',
+                'methods' => ['POST'],
+                'hosts' => ['api.example.test'],
+                'action' => null,
+                'middlewares' => null,
+            ],
+            $data['routeDefinition'] ?? null,
+            'A matched request must retain public route metadata even when its route collection is unavailable.',
+        );
+        self::assertArrayHasKey(
+            'action',
+            $data,
+            'The canonical action slot must remain present without a route collection.',
+        );
+        self::assertNull(
+            $data['action'],
+            'An unavailable action definition must not be inferred through private router state.',
+        );
+    }
+
     public function testCapturePreservesCanonicalRequestMetadata(): void
     {
         $collector = new RequestCollector();
@@ -126,6 +168,15 @@ final class RequestCollectorTest extends TestCase
             $data['actionParams'] ?? null,
             'Unavailable route arguments must remain empty.',
         );
+        self::assertArrayHasKey(
+            'routeDefinition',
+            $data,
+            'An unmatched request must retain the historical route-definition slot.',
+        );
+        self::assertNull(
+            $data['routeDefinition'],
+            'An unmatched request must not fabricate route metadata.',
+        );
         self::assertSame(
             [
                 'isAjax' => true,
@@ -219,6 +270,105 @@ final class RequestCollectorTest extends TestCase
             ['third', 'fourth'],
             $responseHeaders['X-Multi'] ?? null,
             'Multi-value response headers must remain lists.',
+        );
+    }
+
+    public function testCapturePreservesRouteDefinitionShapeWhenRouteFieldsAreRedacted(): void
+    {
+        $route = Route::get('/')
+            ->name('home')
+            ->host('private.example.test')
+            ->middleware('App\Middleware\Authentication')
+            ->action('App\Web\HomeAction');
+        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
+
+        $collector = new RequestCollector(
+            self::currentRoute($route, []),
+            $routes,
+            new CapturePolicy(sensitiveKeys: ['host', 'method', 'middleware']),
+        );
+        $collector->startup();
+        $collector->collectRequest(HelperFactory::createRequest());
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $definitionData = $collector->capture()?->data()['routeDefinition'] ?? null;
+
+        self::assertIsArray(
+            $definitionData,
+            'Redaction must retain the route-definition object shape.',
+        );
+        self::assertArrayNotHasKey(
+            'host',
+            $definitionData,
+            'The persisted definition must not duplicate host metadata under inconsistent keys.',
+        );
+        self::assertSame(
+            [SensitiveDataRedactor::PLACEHOLDER],
+            $definitionData['hosts'] ?? null,
+            'Sensitive route host metadata must remain redacted inside a valid string list.',
+        );
+        self::assertSame(
+            [SensitiveDataRedactor::PLACEHOLDER],
+            $definitionData['methods'] ?? null,
+            'Sensitive route method metadata must remain redacted inside a valid string list.',
+        );
+        self::assertSame(
+            [SensitiveDataRedactor::PLACEHOLDER],
+            $definitionData['middlewares'] ?? null,
+            'Sensitive middleware metadata must remain redacted inside a valid string list.',
+        );
+        self::assertSame(
+            $definitionData,
+            RouteDefinition::fromArray($definitionData)->toArray(),
+            'A redacted definition must remain hydratable by the Request panel.',
+        );
+    }
+
+    public function testCapturePreservesTheMatchedRouteDefinitionHistorically(): void
+    {
+        $route = Route::methods(['GET', 'HEAD'], '/articles/{id}')
+            ->name('article/view')
+            ->hosts('api.example.test', 'www.example.test')
+            ->middleware('App\Middleware\Authentication')
+            ->action(['App\Web\ArticleAction', 'run']);
+
+        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
+
+        $currentRoute = self::currentRoute($route, ['id' => '42']);
+
+        $collector = new RequestCollector($currentRoute, $routes);
+        $collector->startup();
+        $collector->collectRequest(HelperFactory::createRequest(uri: 'https://api.example.test/articles/42'));
+        $collector->collectResponse(HelperFactory::createResponse(200));
+
+        $data = $collector->capture()?->data() ?? [];
+
+        self::assertSame(
+            'article/view',
+            $data['route'] ?? null,
+            'The canonical route name must remain available to existing Request consumers.',
+        );
+        self::assertSame(
+            'App\Web\ArticleAction::run()',
+            $data['action'] ?? null,
+            'The canonical action must remain available to existing Request consumers.',
+        );
+        self::assertSame(
+            ['id' => '42'],
+            $data['actionParams'] ?? null,
+            'The canonical route arguments must remain available to existing Request consumers.',
+        );
+        self::assertSame(
+            [
+                'name' => 'article/view',
+                'pattern' => '/articles/{id}',
+                'methods' => ['GET', 'HEAD'],
+                'hosts' => ['api.example.test', 'www.example.test'],
+                'action' => 'App\Web\ArticleAction::run()',
+                'middlewares' => ['App\Middleware\Authentication'],
+            ],
+            $data['routeDefinition'] ?? null,
+            'Matched route configuration must be persisted with the request rather than reconstructed later.',
         );
     }
 
@@ -385,6 +535,40 @@ final class RequestCollectorTest extends TestCase
             'https://example.test/inertia?token=%5Bredacted%5D&view=full',
             $responseHeaders['X-Inertia-Location'] ?? null,
             'Extension location query secrets must be redacted without hiding safe URL context.',
+        );
+    }
+
+    public function testCaptureRedactsRouteDefinitionWhenTheCanonicalRouteIsSensitive(): void
+    {
+        $route = Route::get('/')
+            ->name('private/home')
+            ->action('App\Web\PrivateHomeAction');
+        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
+
+        $collector = new RequestCollector(
+            self::currentRoute($route, []),
+            $routes,
+            new CapturePolicy(sensitiveKeys: ['route']),
+        );
+        $collector->startup();
+        $collector->collectRequest(HelperFactory::createRequest());
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $data = $collector->capture()?->data() ?? [];
+
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
+            $data['route'] ?? null,
+            'The configured canonical route key must remain redacted.',
+        );
+        self::assertArrayHasKey(
+            'routeDefinition',
+            $data,
+            'Redaction must retain the persisted route-definition slot.',
+        );
+        self::assertNull(
+            $data['routeDefinition'],
+            'Route metadata must not bypass redaction through its duplicated definition.',
         );
     }
 
@@ -654,5 +838,20 @@ final class RequestCollectorTest extends TestCase
             $data['SERVER'] ?? null,
             'Repeated startup calls must preserve the active request and non-string server entries.',
         );
+    }
+
+    /**
+     * Creates the state normally populated by Yii's router middleware without calling its internal mutator.
+     *
+     * @param array<string, string> $arguments
+     */
+    private static function currentRoute(Route $route, array $arguments): CurrentRoute
+    {
+        $currentRoute = new CurrentRoute();
+
+        (new ReflectionProperty(CurrentRoute::class, 'route'))->setValue($currentRoute, $route);
+        (new ReflectionProperty(CurrentRoute::class, 'arguments'))->setValue($currentRoute, $arguments);
+
+        return $currentRoute;
     }
 }
