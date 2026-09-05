@@ -16,7 +16,7 @@ use Yii3\Debug\Comparison\{
     HistoryPanelDifferenceCounts,
     HistoryPanelStates,
 };
-use Yii3\Debug\Tests\Provider\HistoryComparisonProvider;
+use Yii3\Debug\Tests\Provider\{HistoryComparisonProvider, SummaryMetricComparisonProvider};
 
 /**
  * Unit tests for {@see HistoryComparison} metric deltas, panel ordering, and privacy-preserving fingerprints.
@@ -87,7 +87,10 @@ final class HistoryComparisonTest extends TestCase
         $baseline = new DebugSnapshot($this->summary('baseline', processingTime: 0.015), [], []);
         $target = new DebugSnapshot($this->summary('target', processingTime: 0.01), [], []);
 
-        $duration = self::metric(HistoryComparison::fromSnapshots($baseline, $target), 'Duration');
+        $duration = self::metric(
+            HistoryComparison::fromSnapshots($baseline, $target),
+            'Duration',
+        );
 
         self::assertSame(
             'down',
@@ -361,7 +364,12 @@ final class HistoryComparisonTest extends TestCase
         $counts = [];
 
         foreach ($comparison->panels as $panel) {
-            $counts[$panel->id] = [$panel->added(), $panel->removed(), $panel->changed(), $panel->unchanged()];
+            $counts[$panel->id] = [
+                $panel->added(),
+                $panel->removed(),
+                $panel->changed(),
+                $panel->unchanged(),
+            ];
         }
 
         self::assertSame(
@@ -673,6 +681,48 @@ final class HistoryComparisonTest extends TestCase
             ['request', 'db', 'alpha', 'zeta'],
             $ids,
             'Order: label order, then sorted extras.',
+        );
+    }
+
+    /**
+     * @param list<array{string, string, string, string, string, string|null}> $expected
+     */
+    #[DataProviderExternal(SummaryMetricComparisonProvider::class, 'summaries')]
+    public function testFromSnapshotsPreservesSummaryMetricContracts(
+        RequestSummary $baseline,
+        RequestSummary $target,
+        array $expected,
+    ): void {
+        $baselineSnapshot = new DebugSnapshot($baseline, [], []);
+        $targetSnapshot = new DebugSnapshot($target, [], []);
+        $comparison = HistoryComparison::fromSnapshots($baselineSnapshot, $targetSnapshot);
+        $actual = [];
+
+        foreach ($comparison->metrics as $metric) {
+            $actual[] = [
+                $metric->label,
+                $metric->baseline(),
+                $metric->target(),
+                $metric->delta(),
+                $metric->trend(),
+                $metric->panelId(),
+            ];
+        }
+
+        self::assertSame(
+            $expected,
+            $actual,
+            'All summary metric fields and their order must remain exact.',
+        );
+        self::assertSame(
+            $baselineSnapshot,
+            $comparison->baseline,
+            'The original baseline snapshot must be retained.',
+        );
+        self::assertSame(
+            $targetSnapshot,
+            $comparison->target,
+            'The original target snapshot must be retained.',
         );
     }
 

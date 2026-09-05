@@ -30,3 +30,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat(ui): add metadata-only PSR-14 Events capture with useful source labels, a non-redundant filterable grid, transparent dispatcher decoration, toolbar count, and primary navigation.
 - refactor(ui): consolidate Request, Server, Session, Flashes, routing, headers, and input diagnostics into searchable, compact views.
 - refactor(history): share typed comparison with Debug Core and add `HistoryMetricComparison::create()` for immutable panel-link configuration.
+- refactor: delegate history metric calculations and formatting to Debug Core while preserving adapter models, public contracts, and exact comparison output.
