@@ -24,6 +24,17 @@ final readonly class HistoryMetricComparison
         return $this->values->baseline;
     }
 
+    /**
+     * Creates a metric that can be fluently linked with {@see withPanelId()}.
+     */
+    public static function create(string $label, HistoryMetricValues $values): self
+    {
+        return new self(
+            $label,
+            $values,
+        );
+    }
+
     public function delta(): string
     {
         return $this->values->delta;
