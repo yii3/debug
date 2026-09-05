@@ -14,6 +14,7 @@ use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPForge\Vite\Vite;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
@@ -26,6 +27,7 @@ use Yii3\Debug\Panel\{
     RequestPanel,
     VitePanel,
 };
+use Yii3\Debug\Tests\Provider\UrlPathProvider;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -34,6 +36,7 @@ use Yiisoft\View\WebView;
 use function count;
 use function date;
 use function explode;
+use function html_entity_decode;
 use function implode;
 use function ini_get;
 use function php_uname;
@@ -49,6 +52,41 @@ use const PHP_VERSION;
  */
 final class DebugPageRendererTest extends TestCase
 {
+    #[DataProviderExternal(UrlPathProvider::class, 'paths')]
+    public function testCapturedUrlDisplayPreservesDiagnostics(string $url, string $expected): void
+    {
+        $summary = RequestSummary::create('url-case')->withRequest($url, 'GET', '', 1.0);
+
+        $original = $summary->jsonSerialize();
+
+        $html = $this->renderer()->config(
+            'url-case',
+            'light',
+            ['url-case' => $summary],
+        );
+
+        self::assertSame(
+            1,
+            preg_match('/<span class="yii-debug-snapshot-url"(?: title="([^"]*)")? data-snapshot-field="url">(.*?)<\/span>/s', $html, $matches),
+            'The sidebar must expose the captured URL as escaped diagnostic text.',
+        );
+        self::assertSame(
+            $url,
+            html_entity_decode($matches[1]),
+            'The full diagnostic URL must remain intact.',
+        );
+        self::assertSame(
+            $expected,
+            html_entity_decode($matches[2]),
+            'The displayed path must remain exact.',
+        );
+        self::assertSame(
+            $original,
+            $summary->jsonSerialize(),
+            'Presentation must not mutate the request summary.',
+        );
+    }
+
     public function testConfigOmitsExtensionsGroupForEmptyInertiaCapture(): void
     {
         $tab = "\t";

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use InvalidArgumentException;
-use PHPForge\Debug\Helper\{Format, Icon, Vocabulary};
+use PHPForge\Debug\Helper\{Format, Icon, Text, Vocabulary};
 use PHPForge\Debug\Panel\Config\ConfigCardRenderer;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
@@ -36,7 +36,6 @@ use function in_array;
 use function is_string;
 use function json_encode;
 use function memory_get_peak_usage;
-use function parse_url;
 use function rawurlencode;
 use function rtrim;
 use function trim;
@@ -210,7 +209,7 @@ final class DebugPageRenderer
                     JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
                 ),
                 'renderError' => $renderError,
-                'url' => self::path($snapshot->summary->url),
+                'url' => Text::urlToPath($snapshot->summary->url),
             ],
         );
         return $this->page(
@@ -460,23 +459,6 @@ final class DebugPageRenderer
         );
     }
 
-    private static function path(string $url): string
-    {
-        $parsed = parse_url($url);
-
-        if ($parsed === false) {
-            return $url;
-        }
-
-        $path = is_string($parsed['path'] ?? null) ? $parsed['path'] : '/';
-        $query = is_string($parsed['query'] ?? null) && $parsed['query'] !== '' ? '?' . $parsed['query'] : '';
-        $fragment = is_string($parsed['fragment'] ?? null) && $parsed['fragment'] !== ''
-            ? '#' . $parsed['fragment']
-            : '';
-
-        return $path . $query . $fragment;
-    }
-
     /**
      * Builds the built-in panel navigation displayed after History and before extension groups.
      *
@@ -541,7 +523,7 @@ final class DebugPageRenderer
         return SidebarSnapshot::create($title)
             ->withRequest(
                 $summary->method,
-                self::path($summary->url),
+                Text::urlToPath($summary->url),
                 $summary->url,
                 $summary->time > 0 ? date('H:i:s', (int) $summary->time) : '',
                 $summary->ajax,
