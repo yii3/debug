@@ -7,7 +7,11 @@ namespace Yii3\Debug\Tests\Panel;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Yii3\Debug\Panel\RequestPanel;
+use Yiisoft\Router\{Route, RouteCollection, RouteCollectionInterface, RouteCollector};
+
+use function strpos;
 
 /**
  * Unit tests for the built-in Request panel presentation and toolbar metric.
@@ -21,7 +25,8 @@ final class RequestPanelTest extends TestCase
             'Invalid debug snapshot',
         );
 
-        (new RequestPanel())->render(['statusCode' => '200']);
+        (new RequestPanel())
+            ->render(['statusCode' => '200']);
     }
 
     public function testMetadataAndVisibilityMatchTheBuiltInRequestPanel(): void
@@ -53,237 +58,606 @@ final class RequestPanelTest extends TestCase
         );
     }
 
-    public function testRenderEscapesCapturedValues(): void
+    public function testRenderEscapesCapturedInputAndRouteMetadata(): void
     {
-        $payload = $this->payload();
-
-        $data = RequestSnapshot::fromArray($payload, '$.panels.request')
-            ->data();
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
 
         $data['GET'] = ['query' => '<script>alert(1)</script>'];
+        $data['action'] = 'App\\Web\\<OrderAction>';
+        $data['routeDefinition'] = [
+            'name' => 'orders/view',
+            'pattern' => '/orders/<img src=x onerror=alert(1)>',
+            'methods' => ['GET'],
+            'hosts' => ['<api.example.test>'],
+            'action' => 'App\\Web\\<OrderAction>',
+            'middlewares' => ['App\\Middleware\\<Authentication>'],
+        ];
+
+        $html = (new RequestPanel())
+            ->render(RequestSnapshot::capture($data)->jsonSerialize());
+
+        self::assertStringContainsString(
+            '&lt;script&gt;alert(1)&lt;/script&gt;',
+            $html,
+            'Captured input values must be HTML escaped.',
+        );
+        self::assertStringContainsString(
+            '/orders/&lt;img src=x onerror=alert(1)&gt;',
+            $html,
+            'Captured route patterns must be HTML escaped.',
+        );
+        self::assertStringContainsString(
+            '&lt;api.example.test&gt;',
+            $html,
+            'Captured host restrictions must be HTML escaped.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\&lt;OrderAction&gt;',
+            $html,
+            'Captured action descriptors must be HTML escaped.',
+        );
+        self::assertStringContainsString(
+            'App\\Middleware\\&lt;Authentication&gt;',
+            $html,
+            'Captured middleware descriptors must be HTML escaped.',
+        );
+        self::assertStringNotContainsString(
+            '<script>',
+            $html,
+            'Captured values must not inject executable markup.',
+        );
+        self::assertStringNotContainsString(
+            '<img ',
+            $html,
+            'Route metadata must not inject executable markup.',
+        );
+    }
+
+    public function testRenderLegacySnapshotUsesCanonicalOverviewWithoutInventingAnInventory(): void
+    {
+        $html = (new RequestPanel())
+            ->render($this->payload());
+
+        self::assertStringContainsString(
+            'yii-debug-request-overview',
+            $html,
+            'Snapshots created before route definitions existed must use the shared request overview.',
+        );
+        self::assertStringContainsString(
+            'orders/view',
+            $html,
+            'The overview must fall back to the legacy resolved route field.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\OrderAction',
+            $html,
+            'The overview must fall back to the legacy action field.',
+        );
+        self::assertStringContainsString(
+            '>Input</a>',
+            $html,
+            'Legacy snapshots must use the canonical Input tab.',
+        );
+        self::assertStringNotContainsString(
+            "<h2>\nRouting\n</h2>",
+            $html,
+            'Legacy route fields must not reintroduce the duplicate Routing table.',
+        );
+        self::assertStringNotContainsString(
+            '>Routes (',
+            $html,
+            'A live inventory must not be fabricated when no collection is injected.',
+        );
+    }
+
+    public function testRenderListsFiltersAndMarksTheMatchedCurrentApplicationRoute(): void
+    {
+        $route = Route::methods(['GET', 'HEAD'], '/orders/<script>')
+            ->name('orders/view')
+            ->hosts('api.example.test', 'www.example.test')
+            ->middleware('App\\Middleware\\Authentication')
+            ->action('App\\Web\\<OrderAction>');
+        $secondRoute = Route::post('/health')
+            ->name('health')
+            ->action('App\\Web\\HealthAction');
+
+        $routes = new RouteCollection(
+            (new RouteCollector())
+                ->addRoute($route)
+                ->addRoute($secondRoute),
+        );
+
+        $html = (new RequestPanel($routes))
+            ->render($this->payload());
+
+        self::assertStringContainsString(
+            '>Routes (2)</a>',
+            $html,
+            'The tab must expose the inventory count.',
+        );
+        self::assertStringContainsString(
+            'class="yii-debug-route-inventory-provenance"',
+            $html,
+            'The route inventory must identify the source and lifetime of its data.',
+        );
+        self::assertStringContainsString(
+            'Source: Current application configuration. Live configuration may differ from this capture.',
+            $html,
+            'The route inventory must distinguish live configuration from captured request data.',
+        );
+        self::assertStringContainsString(
+            'aria-label="Filter routes" data-yii-debug-filter="true"',
+            $html,
+            'Registered routes must remain searchable through the shared filter contract.',
+        );
+        self::assertStringContainsString(
+            'class="yii-debug-route-ledger"',
+            $html,
+            'Registered routes must use the shared disclosure ledger.',
+        );
+        self::assertStringContainsString(
+            'data-yii-debug-filter-target="true"',
+            $html,
+            'The route table wrapper must expose a filter target.',
+        );
+        self::assertStringContainsString(
+            'class="yii-debug-row-success"',
+            $html,
+            'The route matching the selected request must be visually distinguished.',
+        );
+        self::assertStringContainsString(
+            'class="yii-debug-badge yii-debug-badge-success yii-debug-route-match">Matched</span>',
+            $html,
+            'The matched row must include a visible non-color-only marker.',
+        );
+        self::assertStringContainsString(
+            '/orders/&lt;script&gt;',
+            $html,
+            'Live route patterns must be HTML escaped.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\&lt;OrderAction&gt;',
+            $html,
+            'Live route action descriptors must be HTML escaped.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\HealthAction',
+            $html,
+            'Every route in the current collection must be rendered.',
+        );
+        self::assertStringNotContainsString(
+            '<script>',
+            $html,
+            'Live definitions must not inject executable markup.',
+        );
+
+        $input = strpos($html, '>Input</a>');
+        $headers = strpos($html, '>Headers</a>');
+        $session = strpos($html, '>Session</a>');
+        $inventory = strpos($html, '>Routes (2)</a>');
+        $server = strpos($html, '>Server</a>');
+
+        self::assertNotFalse(
+            $input,
+            'Input must be present.',
+        );
+        self::assertNotFalse(
+            $headers,
+            'Headers must be present.',
+        );
+        self::assertNotFalse(
+            $session,
+            'Session must be present for a captured session bucket.',
+        );
+        self::assertNotFalse(
+            $inventory,
+            'Routes must be present when the collection is available.',
+        );
+        self::assertNotFalse(
+            $server,
+            'Server must be present when server data was captured.',
+        );
+        self::assertTrue(
+            $input < $headers && $headers < $session && $session < $inventory && $inventory < $server,
+            'Canonical Request tabs must render as Input, Headers, Session, Routes, then Server.',
+        );
+    }
+
+    public function testRenderOmitsTheOptionalSessionTabWhenNoSessionWasCaptured(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        unset($data['SESSION'], $data['flashes']);
 
         $html = (new RequestPanel())
             ->render(RequestSnapshot::capture($data)
             ->jsonSerialize());
 
-        self::assertSame(
-            <<<'HTML'
-            <header class="yii-debug-request-hero">
-            <div class="yii-debug-request-hero-line">
-            <span class="yii-debug-request-hero-method yii-debug-verb-get">GET</span><span class="yii-debug-request-hero-url"></span><span class="yii-debug-snapshot-status yii-debug-status-2xx">200</span>
-            </div><div class="yii-debug-request-hero-meta">
-            <span class="yii-debug-snapshot-tag">HTTPS</span>
-            </div>
-            </header><ul class="yii-debug-tabs" role="tablist" aria-label="Request data">
-            <li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link is-active" id="request-tab-0" href="#request-panel-0" role="tab" tabindex="0" aria-controls="request-panel-0" aria-selected="true" data-yii-debug-toggle="tab">Parameters</a>
-            </li><li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link" id="request-tab-1" href="#request-panel-1" role="tab" tabindex="-1" aria-controls="request-panel-1" aria-selected="false" data-yii-debug-toggle="tab">Headers</a>
-            </li><li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link" id="request-tab-2" href="#request-panel-2" role="tab" tabindex="-1" aria-controls="request-panel-2" aria-selected="false" data-yii-debug-toggle="tab">Session</a>
-            </li><li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link" id="request-tab-3" href="#request-panel-3" role="tab" tabindex="-1" aria-controls="request-panel-3" aria-selected="false" data-yii-debug-toggle="tab">Server</a>
-            </li>
-            </ul><div class="yii-debug-tab-content">
-            <div class="yii-debug-tab-panel is-active" id="request-panel-0" role="tabpanel" aria-labelledby="request-tab-0">
-            <header class="yii-debug-section-header">
-            <h2>
-            Routing
-            </h2>
-            </header><div class="yii-debug-table-wrap">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            Route
-            </th><td>
-            &#039;orders/view&#039;
-            </td>
-            </tr><tr>
-            <th scope="row">
-            Action
-            </th><td>
-            &#039;App\\Web\\OrderAction&#039;
-            </td>
-            </tr><tr>
-            <th scope="row">
-            Parameters
-            </th><td>
-            [
-                &#039;id&#039; =&gt; &#039;7&#039;
-            ]
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><header class="yii-debug-section-header">
-            <h2>
-            Get
-            </h2>
-            </header><div class="yii-debug-table-wrap">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            query
-            </th><td>
-            &#039;&lt;script&gt;alert(1)&lt;/script&gt;&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Post</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Files</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Cookies</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Request Body</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details>
-            </div><div class="yii-debug-tab-panel" id="request-panel-1" role="tabpanel" aria-labelledby="request-tab-1" hidden>
-            <header class="yii-debug-section-header">
-            <h2>
-            Request Headers
-            </h2><input class="yii-debug-filter-input" type="search" aria-label="Filter Request Headers" data-yii-debug-filter="true" placeholder="Filter…">
-            </header><div class="yii-debug-table-wrap" data-yii-debug-filter-target="true">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            Accept
-            </th><td>
-            &#039;text/html&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><header class="yii-debug-section-header">
-            <h2>
-            Response Headers
-            </h2><input class="yii-debug-filter-input" type="search" aria-label="Filter Response Headers" data-yii-debug-filter="true" placeholder="Filter…">
-            </header><div class="yii-debug-table-wrap" data-yii-debug-filter-target="true">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            Content-Type
-            </th><td>
-            &#039;text/html; charset=UTF-8&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div>
-            </div><div class="yii-debug-tab-panel" id="request-panel-2" role="tabpanel" aria-labelledby="request-tab-2" hidden>
-            <details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Session</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Flashes</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details>
-            </div><div class="yii-debug-tab-panel" id="request-panel-3" role="tabpanel" aria-labelledby="request-tab-3" hidden>
-            <header class="yii-debug-section-header">
-            <h2>
-            Server
-            </h2><input class="yii-debug-filter-input" type="search" aria-label="Filter Server" data-yii-debug-filter="true" placeholder="Filter…">
-            </header><div class="yii-debug-table-wrap" data-yii-debug-filter-target="true">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            REMOTE_ADDR
-            </th><td>
-            &#039;127.0.0.1&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div>
-            </div>
-            </div>
-            HTML,
+        self::assertStringNotContainsString(
+            '>Session</a>',
             $html,
-            'Captured request values must be escaped throughout the complete panel markup.',
+            'Request must not claim that a session was active when no session buckets were captured.',
+        );
+        self::assertMatchesRegularExpression(
+            '~>Input</a>.*>Headers</a>.*>Server</a>~s',
+            $html,
+            'Removing Session must retain the remaining canonical tab order.',
         );
     }
 
-    public function testRenderWithSummaryMatchesTheSharedYiiRequestLayout(): void
+    public function testRenderPresentsCapturedRouteExecutionInThePersistentOverview(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['routeDefinition'] = [
+            'name' => 'orders/view',
+            'pattern' => '/orders/{id}',
+            'methods' => ['GET', 'HEAD'],
+            'hosts' => ['api.example.test'],
+            'action' => 'App\\Web\\OrderAction',
+            'middlewares' => ['App\\Middleware\\Authentication', 'Closure'],
+        ];
+
+        $html = (new RequestPanel())
+            ->render(RequestSnapshot::capture($data)
+            ->jsonSerialize());
+
+        self::assertStringContainsString(
+            'class="yii-debug-request-overview yii-debug-verb-get"',
+            $html,
+            'Request and routing identity must share the persistent execution overview.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-request-overview-metrics',
+            $html,
+            'Route and action metrics must remain visible independently of the selected tab.',
+        );
+        self::assertStringContainsString(
+            'orders/view',
+            $html,
+            'The overview must identify the resolved route.',
+        );
+        self::assertStringContainsString(
+            '/orders/{id}',
+            $html,
+            'The overview must retain the matched pattern.',
+        );
+        self::assertStringContainsString(
+            'GET',
+            $html,
+            'The overview must retain the accepted methods.',
+        );
+        self::assertStringContainsString(
+            'HEAD',
+            $html,
+            'Every accepted method must remain visible.',
+        );
+        self::assertStringContainsString(
+            'api.example.test',
+            $html,
+            'The overview must retain host restrictions.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\OrderAction',
+            $html,
+            'The overview must retain the dispatched action.',
+        );
+        self::assertStringContainsString(
+            'App\\Middleware\\Authentication',
+            $html,
+            'The overview must retain the effective middleware descriptors.',
+        );
+        self::assertStringContainsString(
+            'id',
+            $html,
+            'The overview must retain matched parameter names.',
+        );
+        self::assertStringContainsString(
+            '7',
+            $html,
+            'The overview must retain matched parameter values.',
+        );
+        self::assertStringContainsString(
+            '>Input</a>',
+            $html,
+            'Request input must remain the primary tab.',
+        );
+        self::assertStringNotContainsString(
+            '>Current Route</a>',
+            $html,
+            'The route execution summary must not be isolated in a competing tab.',
+        );
+        self::assertStringNotContainsString(
+            "<h2>\nRouting\n</h2>",
+            $html,
+            'Route and action data must not be repeated in a legacy Routing table.',
+        );
+        self::assertStringNotContainsString(
+            '>Routes (',
+            $html,
+            'A route inventory tab must not be fabricated when no collection is injected.',
+        );
+    }
+
+    public function testRenderRetainsAResolvedRouteWhenNoActionWasCaptured(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['action'] = null;
+        $data['route'] = 'health';
+        $data['routeDefinition'] = null;
+
+        $html = (new RequestPanel())
+            ->render(RequestSnapshot::capture($data)
+            ->jsonSerialize());
+
+        self::assertStringContainsString(
+            'health',
+            $html,
+            'A resolved route must remain useful when its action descriptor is unavailable.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-request-overview',
+            $html,
+            'An unavailable action must not remove the route execution overview.',
+        );
+    }
+
+    public function testRenderSurfacesCurrentRouteInventoryFailuresWithoutLosingCapturedData(): void
+    {
+        $routes = self::createStub(RouteCollectionInterface::class);
+
+        $routes
+            ->method('getRoutes')
+            ->willThrowException(new RuntimeException('Unable to load <routes>.'));
+
+        $html = (new RequestPanel($routes))
+            ->render($this->payload());
+
+        self::assertStringContainsString(
+            'yii-debug-route-inventory-error',
+            $html,
+            'A live route collection failure must use the explicit inventory error treatment.',
+        );
+        self::assertStringContainsString(
+            'Current route configuration could not be read: RuntimeException: Unable to load &lt;routes&gt;.',
+            $html,
+            'A live route collection failure must be escaped and surfaced.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-request-overview',
+            $html,
+            'A live inventory failure must not remove captured route execution data.',
+        );
+        self::assertStringContainsString(
+            '>Input</a>',
+            $html,
+            'A live inventory failure must not remove the shared Request input.',
+        );
+    }
+
+    public function testRenderSurfacesMalformedCapturedRouteMetadataWithoutLosingRequestData(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['routeDefinition'] = ['name' => 'orders/view'];
+
+        $html = (new RequestPanel())
+            ->render(RequestSnapshot::capture($data)
+            ->jsonSerialize());
+
+        self::assertStringContainsString(
+            'class="yii-debug-callout yii-debug-callout-danger yii-debug-request-routing-error"',
+            $html,
+            'Malformed captured route metadata must produce an explicit diagnostic callout.',
+        );
+        self::assertStringContainsString(
+            "Captured route metadata could not be read: Route definition key 'pattern' must be a string.",
+            $html,
+            'The route diagnostic must explain which captured field is malformed.',
+        );
+        self::assertStringContainsString(
+            'orders/view',
+            $html,
+            'Malformed metadata must retain the canonical route fallback.',
+        );
+        self::assertStringContainsString(
+            '>Headers</a>',
+            $html,
+            'Malformed route metadata must not prevent the rest of Request from rendering.',
+        );
+    }
+
+    public function testRenderSurfacesNonArrayCapturedRouteMetadata(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['action'] = null;
+        $data['route'] = '';
+        $data['routeDefinition'] = '<invalid>';
+
+        $html = (new RequestPanel())->render(RequestSnapshot::capture($data)->jsonSerialize());
+
+        self::assertStringContainsString(
+            'yii-debug-request-routing-error',
+            $html,
+            'A non-array route definition must produce an explicit diagnostic callout.',
+        );
+        self::assertStringContainsString(
+            'Captured route metadata must be an array or null.',
+            $html,
+            'The malformed definition must be diagnosed without exposing its value.',
+        );
+        self::assertStringNotContainsString(
+            '<invalid>',
+            $html,
+            'Malformed metadata values must not inject markup into the diagnostic.',
+        );
+    }
+
+    public function testRenderUsesCapturedDefinitionFallbacksForEmptyCanonicalRouteSlots(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['action'] = '';
+        $data['route'] = '';
+        $data['routeDefinition'] = [
+            'name' => 'orders/fallback',
+            'pattern' => '/orders/{id}',
+            'methods' => ['GET'],
+            'hosts' => [],
+            'action' => 'App\\Web\\FallbackAction',
+            'middlewares' => null,
+        ];
+
+        $html = (new RequestPanel())
+            ->render(RequestSnapshot::capture($data)
+            ->jsonSerialize());
+
+        self::assertStringContainsString(
+            'orders/fallback',
+            $html,
+            'The persisted route definition must restore an unavailable canonical route name.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\FallbackAction',
+            $html,
+            'The persisted route definition must restore an unavailable canonical action.',
+        );
+        self::assertStringContainsString(
+            'Unavailable',
+            $html,
+            'Missing collection metadata must not be misreported as an empty middleware stack.',
+        );
+    }
+
+    public function testRenderUsesDedicatedEmptyStatesForAnUnmatchedRouteAndEmptyCollection(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['action'] = null;
+        $data['actionParams'] = [];
+        $data['route'] = '';
+        $data['routeDefinition'] = null;
+
+        $html = (new RequestPanel(new RouteCollection(new RouteCollector())))
+            ->render(RequestSnapshot::capture($data)
+            ->jsonSerialize());
+
+        self::assertStringContainsString(
+            'yii-debug-request-overview',
+            $html,
+            'An unmatched request must retain the request execution overview.',
+        );
+        self::assertStringContainsString(
+            '>Routes (0)</a>',
+            $html,
+            'An empty available collection must retain a zero-count Routes tab.',
+        );
+        self::assertStringContainsString(
+            'No application routes registered',
+            $html,
+            'An empty current route collection must render a dedicated inventory state.',
+        );
+        self::assertStringNotContainsString(
+            'yii-debug-route-match',
+            $html,
+            'An unmatched request must not fabricate a matched-route marker.',
+        );
+        self::assertStringNotContainsString(
+            'Captured route metadata must be an array or null.',
+            $html,
+            'A deliberately absent matched route must not be reported as malformed metadata.',
+        );
+    }
+
+    public function testRenderUsesSharedHeaderExchangeAndGroupedServerEnvironment(): void
+    {
+        $data = RequestSnapshot::fromArray($this->payload(), '$.panels.request')->data();
+
+        $data['requestHeaders'] = [
+            'Accept' => 'text/html',
+            'X-Trace' => ['first', 'second'],
+        ];
+        $data['responseHeaders'] = [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Set-Cookie' => ['theme=dark', 'session=[redacted]'],
+        ];
+        $data['SERVER'] = [
+            'SERVER_PROTOCOL' => 'HTTP/1.1',
+            'SERVER_NAME' => 'localhost',
+            'SERVER_PORT' => 8081,
+            'SERVER_SOFTWARE' => 'PHP Development Server',
+            'SCRIPT_FILENAME' => '/app/public/index.php',
+            'REQUEST_METHOD' => 'GET',
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_ACCEPT' => 'text/html',
+            'APP_ENV' => 'debug',
+        ];
+
+        $html = (new RequestPanel())
+            ->render(RequestSnapshot::capture($data)
+            ->jsonSerialize());
+
+        self::assertStringContainsString(
+            'yii-debug-header-exchange',
+            $html,
+            'Yii3 must consume the shared directional Header exchange.',
+        );
+        self::assertMatchesRegularExpression(
+            '~Inbound.*Request headers.*Outbound.*Response headers~s',
+            $html,
+            'Request and response headers must retain their HTTP direction.',
+        );
+        self::assertMatchesRegularExpression(
+            '~X-Trace.*2 values.*first.*second~s',
+            $html,
+            'Repeated PSR header values must remain distinct and ordered.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-server-environment',
+            $html,
+            'Yii3 must consume the shared grouped Server environment.',
+        );
+        self::assertMatchesRegularExpression(
+            '~Server details.*Network &amp; transport.*Runtime &amp; paths.*Environment &amp; other.*Raw server variables~s',
+            $html,
+            'Yii3 must retain additional diagnostics and the complete raw view.',
+        );
+        self::assertStringNotContainsString(
+            'Execution context',
+            $html,
+            'The redundant server summary must be absent.',
+        );
+        self::assertStringNotContainsString(
+            'Additional header variables',
+            $html,
+            'An exact header duplicate must appear only in raw data.',
+        );
+        self::assertMatchesRegularExpression(
+            '~<details(?=[^>]*aria-label="Raw server variables")(?![^>]*\sopen(?:\s|=|>))[^>]*>~',
+            $html,
+            'Raw variables must start collapsed.',
+        );
+        self::assertSame(
+            4,
+            substr_count($html, 'class="yii-debug-server-group yii-debug-server-group-disclosure"'),
+            'Three additional groups and the raw view must remain available.',
+        );
+        self::assertStringContainsString(
+            'aria-label="Filter Raw server variables"',
+            $html,
+            'The raw view needs its own filter.',
+        );
+        self::assertMatchesRegularExpression(
+            '~<details class="yii-debug-disclosure" open>\s*<summary[^>]*>\s*'
+            . '<span class="yii-debug-disclosure-title">Get</span>~s',
+            $html,
+            'A populated Yii3 Input bucket must start open.',
+        );
+    }
+
+    public function testRenderWithSummaryKeepsRequestAndRouteIdentityAboveTheCanonicalTabs(): void
     {
         $summary = RequestSummary::create('request-1')
             ->withRequest(
@@ -298,220 +672,61 @@ final class RequestPanelTest extends TestCase
         $html = (new RequestPanel())
             ->renderWithSummary($this->payload(), $summary);
 
-        self::assertSame(
-            <<<'HTML'
-            <header class="yii-debug-request-hero">
-            <div class="yii-debug-request-hero-line">
-            <span class="yii-debug-request-hero-method yii-debug-verb-get">GET</span><span class="yii-debug-request-hero-url" title="https://example.test/orders?page=2">https://example.test/orders?page=2</span><span class="yii-debug-snapshot-status yii-debug-status-2xx">200</span>
-            </div><div class="yii-debug-request-hero-meta">
-            <span class="yii-debug-request-hero-meta-item"><span class="yii-debug-request-hero-meta-label">IP</span><span class="yii-debug-request-hero-meta-value">127.0.0.1</span></span><span class="yii-debug-request-hero-meta-item"><span class="yii-debug-request-hero-meta-label">Duration</span><span class="yii-debug-request-hero-meta-value">9.0 ms</span></span><span class="yii-debug-snapshot-tag">HTTPS</span>
-            </div>
-            </header><ul class="yii-debug-tabs" role="tablist" aria-label="Request data">
-            <li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link is-active" id="request-tab-0" href="#request-panel-0" role="tab" tabindex="0" aria-controls="request-panel-0" aria-selected="true" data-yii-debug-toggle="tab">Parameters</a>
-            </li><li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link" id="request-tab-1" href="#request-panel-1" role="tab" tabindex="-1" aria-controls="request-panel-1" aria-selected="false" data-yii-debug-toggle="tab">Headers</a>
-            </li><li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link" id="request-tab-2" href="#request-panel-2" role="tab" tabindex="-1" aria-controls="request-panel-2" aria-selected="false" data-yii-debug-toggle="tab">Session</a>
-            </li><li class="yii-debug-tab" role="presentation">
-            <a class="yii-debug-tab-link" id="request-tab-3" href="#request-panel-3" role="tab" tabindex="-1" aria-controls="request-panel-3" aria-selected="false" data-yii-debug-toggle="tab">Server</a>
-            </li>
-            </ul><div class="yii-debug-tab-content">
-            <div class="yii-debug-tab-panel is-active" id="request-panel-0" role="tabpanel" aria-labelledby="request-tab-0">
-            <header class="yii-debug-section-header">
-            <h2>
-            Routing
-            </h2>
-            </header><div class="yii-debug-table-wrap">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            Route
-            </th><td>
-            &#039;orders/view&#039;
-            </td>
-            </tr><tr>
-            <th scope="row">
-            Action
-            </th><td>
-            &#039;App\\Web\\OrderAction&#039;
-            </td>
-            </tr><tr>
-            <th scope="row">
-            Parameters
-            </th><td>
-            [
-                &#039;id&#039; =&gt; &#039;7&#039;
-            ]
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><header class="yii-debug-section-header">
-            <h2>
-            Get
-            </h2>
-            </header><div class="yii-debug-table-wrap">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            page
-            </th><td>
-            &#039;2&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Post</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Files</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Cookies</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Request Body</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details>
-            </div><div class="yii-debug-tab-panel" id="request-panel-1" role="tabpanel" aria-labelledby="request-tab-1" hidden>
-            <header class="yii-debug-section-header">
-            <h2>
-            Request Headers
-            </h2><input class="yii-debug-filter-input" type="search" aria-label="Filter Request Headers" data-yii-debug-filter="true" placeholder="Filter…">
-            </header><div class="yii-debug-table-wrap" data-yii-debug-filter-target="true">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            Accept
-            </th><td>
-            &#039;text/html&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div><header class="yii-debug-section-header">
-            <h2>
-            Response Headers
-            </h2><input class="yii-debug-filter-input" type="search" aria-label="Filter Response Headers" data-yii-debug-filter="true" placeholder="Filter…">
-            </header><div class="yii-debug-table-wrap" data-yii-debug-filter-target="true">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            Content-Type
-            </th><td>
-            &#039;text/html; charset=UTF-8&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div>
-            </div><div class="yii-debug-tab-panel" id="request-panel-2" role="tabpanel" aria-labelledby="request-tab-2" hidden>
-            <details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Session</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details><details class="yii-debug-disclosure">
-            <summary class="yii-debug-disclosure-summary">
-            <span class="yii-debug-disclosure-title">Flashes</span><span class="yii-debug-disclosure-hint" aria-hidden="true"><span data-yii-debug-hint="collapsed">click to expand</span><span data-yii-debug-hint="expanded">click to collapse</span></span>
-            </summary><div class="yii-debug-disclosure-body">
-            <p class="yii-debug-table-empty">
-            No data
-            </p>
-            </div>
-            </details>
-            </div><div class="yii-debug-tab-panel" id="request-panel-3" role="tabpanel" aria-labelledby="request-tab-3" hidden>
-            <header class="yii-debug-section-header">
-            <h2>
-            Server
-            </h2><input class="yii-debug-filter-input" type="search" aria-label="Filter Server" data-yii-debug-filter="true" placeholder="Filter…">
-            </header><div class="yii-debug-table-wrap" data-yii-debug-filter-target="true">
-            <table class="yii-debug-table yii-debug-table-mono" style='table-layout: fixed;'>
-            <thead>
-            <tr>
-            <th scope="col">
-            Name
-            </th><th scope="col">
-            Value
-            </th>
-            </tr>
-            </thead><tbody>
-            <tr>
-            <th scope="row">
-            REMOTE_ADDR
-            </th><td>
-            &#039;127.0.0.1&#039;
-            </td>
-            </tr>
-            </tbody>
-            </table>
-            </div>
-            </div>
-            </div>
-            HTML,
+        $overview = strpos($html, 'yii-debug-request-overview');
+        $tabs = strpos($html, 'yii-debug-request-tabs');
+
+        self::assertNotFalse(
+            $overview,
+            'The shared request execution overview must be rendered.'
+        );
+        self::assertNotFalse(
+            $tabs,
+            'The canonical Request tabs must be rendered.',
+        );
+        self::assertLessThan(
+            $tabs,
+            $overview,
+            'The execution overview must remain visible above every tab.',
+        );
+        self::assertStringContainsString(
+            'https://example.test/orders?page=2',
             $html,
-            'Request detail must match the complete shared Yii panel markup.',
+            'The overview must expose the selected request URL.',
+        );
+        self::assertStringContainsString(
+            '127.0.0.1',
+            $html,
+            'The overview must expose the captured client IP.',
+        );
+        self::assertStringContainsString(
+            '9.0 ms',
+            $html,
+            'The overview must expose request duration.',
+        );
+        self::assertStringContainsString(
+            'orders/view',
+            $html,
+            'The overview must expose the resolved route.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\OrderAction',
+            $html,
+            'The overview must expose the dispatched action.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-status-2xx',
+            $html,
+            'The overview must retain the semantic HTTP status treatment.',
+        );
+        self::assertMatchesRegularExpression(
+            '~>Input</a>.*>Headers</a>.*>Session</a>.*>Server</a>~s',
+            $html,
+            'The shared panel must retain the canonical Request tab order.',
+        );
+        self::assertStringNotContainsString(
+            "<h2>\nRouting\n</h2>",
+            $html,
+            'The overview must remain the sole route execution summary.',
         );
     }
 
@@ -555,6 +770,45 @@ final class RequestPanelTest extends TestCase
             'Status code: 599',
             $unknown[0]->title,
             'Unknown status tooltip must omit a reason phrase cleanly.',
+        );
+    }
+
+    public function testToolbarItemsExposeTheResolvedRouteBeforeTheStatusCode(): void
+    {
+        $items = (new RequestPanel())
+            ->toolbarItems(
+                RequestSnapshot::capture(
+                    [
+                        'route' => 'orders/view',
+                        'statusCode' => 200,
+                    ],
+                )->jsonSerialize(),
+            );
+
+        self::assertCount(
+            2,
+            $items,
+            'A resolved route and response status must share the Request toolbar panel.',
+        );
+        self::assertSame(
+            'orders/view',
+            $items[0]->value,
+            'The resolved route must be the first Request toolbar metric.',
+        );
+        self::assertSame(
+            'Resolved route: orders/view',
+            $items[0]->title,
+            'The route metric must expose an explanatory tooltip.',
+        );
+        self::assertSame(
+            '200',
+            $items[1]->value,
+            'The status code must remain the second Request toolbar metric.',
+        );
+        self::assertSame(
+            'status-2xx',
+            $items[1]->status,
+            'The combined status metric must retain its HTTP status token.',
         );
     }
 

@@ -10,7 +10,7 @@ use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
 use stdClass;
 use Yii3\Debug\Collector\RouteActionResolver;
-use Yiisoft\Router\{Route, RouteCollection, RouteCollector};
+use Yiisoft\Router\{Route, RouteCollection, RouteCollectionInterface, RouteCollector};
 
 /**
  * Unit tests for Request-panel route action resolution.
@@ -123,14 +123,19 @@ final class RouteActionResolverTest extends TestCase
 
     public function testResolveReturnsNullWithoutAResolvableAction(): void
     {
+        $unqueriedRoutes = self::createMock(RouteCollectionInterface::class);
+        $unqueriedRoutes
+            ->expects(self::never())
+            ->method('getRoute');
+
         $routes = new RouteCollection(
             (new RouteCollector())
                 ->addRoute(Route::get('/')->name('home')),
         );
 
         self::assertNull(
-            RouteActionResolver::resolve('', $routes),
-            'An empty route name must not resolve.',
+            RouteActionResolver::resolve('', $unqueriedRoutes),
+            'An empty route name must not query the collection or resolve.',
         );
         self::assertNull(
             RouteActionResolver::resolve('home', null),

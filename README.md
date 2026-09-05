@@ -11,8 +11,8 @@ The package provides:
 - the PHP version chip linked to the Debug Core phpinfo page;
 - the shared Yii-style page shell with the current-request card, primary History, Request, Logs, Events, and Profiling
   navigation, and the complete top brand bar;
-- the built-in Request toolbar status, hero, routing and parameter sections, request/response headers, session and
-  server tabs, using the same Debug Core presentation as Yii2;
+- the built-in Request toolbar with the resolved route followed by HTTP status, plus Debug Core's shared request-and-route
+  execution overview, canonical input and metadata tabs, and a filterable live route inventory;
 - the built-in Logs toolbar counters and filterable message grid, including severity shortcuts, removable active
   filters, IDE-linked source traces, and request-scoped memory samples;
 - the built-in Events counter and filterable PSR-14 dispatch metadata, without retaining event object payloads;
@@ -84,6 +84,34 @@ Application metadata is optional; neutral values are used when it is omitted.
 `historySize` limits retained request summaries. The default storage directory is resolved through Yii aliases.
 `viewPath` accepts any registered Yii alias. Override `@yii3DebugViews` through `yiisoft/aliases.aliases`, or point
 `viewPath` at an application-owned template directory, to customize the shared debugger views.
+
+### Request
+
+The Request collector and panel are enabled by default. When the request resolves to a named route, the Request toolbar
+chip shows that route first and the HTTP status second; requests without a resolved route show only the status.
+
+Debug Core renders the request and route as one persistent execution overview instead of splitting the same identity
+across Request and Router panels. The overview keeps the method, URL, status, resolved route, dispatched action, and
+duration visible while browsing diagnostics. When available, it also presents the matched pattern, HTTP methods, hosts,
+middleware descriptors, and route parameters captured with the selected request.
+
+The canonical tab order is **Input**, **Headers**, optional **Session**, **Routes (N)**, and **Server**. The Routes tab is
+added when the current application route collection is available; it includes source provenance, a filter, and an
+explicit marker for the route that handled the selected request. The inventory reflects the currently running
+application configuration and is not persisted with the capture, so it may differ from routes registered when a
+historical request was handled. The adapter does not synthesize Yii2 URL-rule traces or scan controller files for
+possible actions; it shows only matched and registered data exposed by Yii3's router.
+
+Server shows additional diagnostics without a second execution summary. Exact duplicates of the Request overview
+and inbound headers move to the collapsed **Raw server variables** disclosure, which preserves every captured key
+and value. Differences and unknown values remain visible; each group has an independent filter.
+
+Input and Session sections use the shared disclosure: populated sections open by default, empty sections stay
+collapsed, and each populated section has its own filter. Session data and Flashes can be searched independently.
+
+Routes use the same expandable ledger as the Yii2 adapter. Each row keeps methods, pattern, and route identity visible;
+its full-width details expose action, host, and middleware metadata. Filtering searches those details and restores
+their previous open state when cleared. Internal `yii3-debug/` routes are omitted regardless of their URL prefix.
 
 ### Logs
 
@@ -349,11 +377,13 @@ category, timestamp, source trace, and memory reading for each entry. Its built-
 dispatch timestamp, event FQCN, and resolved scalar source label for each entry, never the event object's payload. Its
 built-in Profiling snapshot stores the request metrics, completed spans, and their memory samples. The Timeline section
 derives its request origin from the existing request summary and can enrich the curve from captured Logs, so it does
-not persist a duplicate Timeline payload. Its built-in Request snapshot also records the matched route and action,
-route parameters, GET/POST/file buckets, request body, request/response headers, and redacted server data in the shared
-Yii2-compatible shape. Empty session and flash buckets retain the standard Session tab without mutating application
-session state. It also adds `X-Debug-Tag`, `X-Debug-Duration`, and `X-Debug-Link` response headers so the shared toolbar
-runtime can display AJAX activity and open the captured Request panel.
+not persist a duplicate Timeline payload. Its built-in Request snapshot also records the matched route, its
+persistence-safe definition and action, route parameters, GET/POST/file buckets, request body, request/response headers,
+and redacted server data for Debug Core's shared execution overview. The Routes inventory is read from the current
+application configuration instead of being persisted with each capture. Empty session and flash buckets retain the
+standard Session tab without mutating application session state. It also adds `X-Debug-Tag`, `X-Debug-Duration`, and
+`X-Debug-Link` response headers so the shared toolbar runtime can display AJAX activity and open the captured Request
+panel.
 
 With the Inertia extension explicitly registered, each snapshot also stores its Inertia context: the resolved page,
 shared prop keys, negotiation headers, response status, and reload location. Captures without Inertia activity remain
