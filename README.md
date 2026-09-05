@@ -35,15 +35,50 @@ composer require yii3/debug --dev
 ```
 
 With Yii Config Plugin enabled, the package contributes its parameters, DI definitions, protected history,
-comparison, and brand-page routes, toolbar-data route, and toolbar middleware. The base debugger and its empty
-built-in panels require no application-owned DI definitions. Capturing application logs and PSR-14 events additionally
-requires the development integrations described in [Logs](#logs) and [Events](#events).
+comparison, and brand-page routes, toolbar-data route, and toolbar middleware. Logs and PSR-14 event capture are also configured by the package; no copied DI factories are needed.
 
 The package contributes `ToolbarMiddleware` through the recursive `yiisoft/middleware-dispatcher.middlewares` parameter.
 The application should build its dispatcher from the merged middleware parameters once.
 
 Extensions are opt-in. The package does not inspect installed classes or interfaces and does not connect itself to
-optional packages at runtime. Applications explicitly compose the collectors, panels, and protocol bridges they use.
+optional packages at runtime. Applications enable the built-in integrations through parameters or explicitly compose custom extensions.
+
+## Automatic configuration
+
+Set the application's Yii Config `config-plugin-options.vendor-override-layer` to `yii3/debug`. This is the
+standard vendor override layer, allowing the debugger to replace Yii's dispatcher binding without duplicate vendor
+keys. The package contributes directly to `params`, `di`, `di-web`, and `routes`; no custom groups or manual
+`$config->get()` calls are needed. Reinstall/update the package and run `composer yii-config-rebuild` after changing
+configuration metadata.
+
+The package activates only when `APP_ENV` is `debug`, `dev`, or `test`. It reads the process environment first and then
+`$_SERVER`; missing, production, or unknown environments contribute no debugger configuration. Set `APP_ENV` at runtime,
+not only the runner's configuration environment. Production deployments must still use `composer install --no-dev`.
+
+The logger uses the merged `yiisoft/log.targets` parameters, including named `debug` and `stream` targets. If the
+application defines its own Yii logger, build its targets with `ReferencesArray::from($params['yiisoft/log']['targets'])`
+so package targets are preserved. Existing custom PSR loggers and dispatchers remain application-owned integrations.
+Yii applications normally supply the listener provider through `yiisoft/yii-event`; the debugger decorates the concrete
+Yii dispatcher without recursively requesting `EventDispatcherInterface`.
+
+For an Inertia/Vite application, enable the desired extensions in application parameters:
+
+```php
+'yii3/debug' => [
+    'extensions' => [
+        'inertia' => true,
+        'vite' => true,
+    ],
+],
+```
+
+Inertia requires `yii3/inertia ^0.1`. Vite uses the application's existing `php-forge/vite` configuration and entrypoints.
+The package registers collectors, panels, and the resolved-page observer automatically; neither extension is enabled
+by default, and no optional classes are discovered at runtime. A custom `ExtensionRegistry` definition can override
+the package's registry when additional extensions are needed.
+
+When developing this library, its generated merge plan belongs to `runtime/.merge-plan.php`, which is ignored by Git.
+Applications keep their own merge-plan location.
 
 ## Configuration
 
@@ -115,7 +150,8 @@ their previous open state when cleared. Internal `yii3-debug/` routes are omitte
 
 ### Logs
 
-The Logs collector and panel are enabled by default. Add the container-managed `DebugLogTarget` to the targets of the
+The Logs collector and panel are enabled by default, including the default Yii logger integration.
+For custom logger definitions, add the container-managed `DebugLogTarget` to the targets of the
 application logger in the development environment so the collector receives the same messages as the other log
 targets:
 
@@ -153,7 +189,7 @@ and **Clear all** removes only the Logs filter group while retaining the current
 
 ### Events
 
-The Events collector and panel are enabled by default, but PSR-14 has no global wildcard listener. Route the
+The Events collector, panel, and Yii dispatcher decorator are configured automatically. PSR-14 has no global wildcard listener. Route the
 application's `EventDispatcherInterface` through the debug decorator in development so it can observe every object
 sent through that interface. When the application uses Yii's concrete dispatcher, register the non-recursive binding
 like this:
@@ -245,67 +281,35 @@ as hover text. Filter results remain shareable through the canonical `Profile[..
 
 ### Inertia extension
 
-The Inertia collector and panel are framework-neutral services in this package. The application owns the small bridge
-to its Inertia adapter, so `yii3/debug` has no runtime dependency on that adapter. For an application using
-`yii3/inertia`, add an application-local observer:
+Enable `yii3/debug.extensions.inertia` in application parameters. The package registers the collector, panel, and
+`Yii3\Inertia\ResolvedPageObserver` automatically. This named adapter delegates payload/shared-key forwarding to
+`PHPForge\Inertia\ResolvedPageObserver`, while preserving Yii3's existing observer interface. Applications need no
+anonymous classes, protocol bridges, or copied DI definitions.
+
+Use the updated local/published `yii3/inertia` revision that provides the named observer and requires the core 0.3
+line. Older adapter revisions do not provide this class. The consuming application must update its lock before
+using this debugger integration.
+
+For a custom composition, the observer can be constructed directly:
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Debug;
-
-use PHPForge\Inertia\Page;
 use Yii3\Debug\Collector\InertiaCollector;
-use Yii3\Inertia\ResolvedPageObserverInterface;
+use Yii3\Inertia\ResolvedPageObserver;
 
-final readonly class InertiaPageObserver implements ResolvedPageObserverInterface
-{
-    public function __construct(private InertiaCollector $collector) {}
-
-    public function observe(Page $page): void
-    {
-        $this->collector->observe($page->toArray(), $page->sharedProps());
-    }
-}
+$collector = new InertiaCollector();
+$observer = new ResolvedPageObserver($collector->observe(...));
 ```
 
-Then register both sides in the application's development DI configuration:
+Register this same collector instance with the debugger's collector coordinator; if it is already managed by your
+container, reuse that instance instead of constructing a second collector.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Debug\InertiaPageObserver;
-use Yii3\Debug\Collector\InertiaCollector;
-use Yii3\Debug\ExtensionRegistry;
-use Yii3\Debug\Panel\InertiaPanel;
-use Yii3\Inertia\ResolvedPageObserverInterface;
-
-return [
-    ExtensionRegistry::class => static fn(
-        InertiaCollector $collector,
-        InertiaPanel $panel,
-    ): ExtensionRegistry => new ExtensionRegistry(
-        collectors: [$collector],
-        panels: [$panel],
-    ),
-    ResolvedPageObserverInterface::class => static fn(
-        InertiaCollector $collector,
-    ): InertiaPageObserver => new InertiaPageObserver($collector),
-];
-```
-
-Load these definitions only in the development environment that installs `yii3/debug`; production configuration must
-not reference a package removed by `composer install --no-dev`. No runtime symbol-discovery guard is needed. Requests
-without Inertia activity remain absent from the Extensions group, and the toolbar chip appears only when the capture
-contains a component, matching the Yii2 debugger behavior.
+Requests without Inertia activity remain absent from the Extensions group. The toolbar chip appears only when the
+capture contains a component. Existing captures are not rewritten.
 
 ### Vite extension
 
-The Vite collector consumes the same immutable configuration and entrypoints as the native
+Enable `yii3/debug.extensions.vite` to wire the Vite integration automatically from application parameters.
+For a custom composition, the Vite collector consumes the same immutable configuration and entrypoints as the native
 [`php-forge/vite`](https://github.com/php-forge/vite) service. Register both services from the application's development
 configuration so the collector can inspect the public Vite API without reflection or manual JSON parsing:
 

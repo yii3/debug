@@ -33,3 +33,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor: delegate history metric calculations and formatting to Debug Core while preserving adapter models, public contracts, and exact comparison output.
 - refactor: delegate panel comparison to Debug Core while preserving public history models, exact ordering, capture states, difference counts, and diagnostic values.
 - refactor: delegate captured URL-to-path display conversion to Debug Core while preserving original diagnostic URLs, public models, navigation, and rendered output.
+- feat: merge Yii Config integrations, retain empty Logs navigation, and use the named Yii3 Inertia observer.
