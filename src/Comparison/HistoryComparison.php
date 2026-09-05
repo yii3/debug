@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Comparison;
 
-use PHPForge\Debug\Comparison\PayloadDifference;
+use PHPForge\Debug\Comparison\{PayloadDifference, SummaryMetricComparison};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 
 use function array_diff;
@@ -12,7 +12,6 @@ use function array_key_exists;
 use function array_keys;
 use function array_unique;
 use function in_array;
-use function number_format;
 use function sort;
 
 /**
@@ -41,11 +40,8 @@ final readonly class HistoryComparison
      *
      * @param array<string, string> $panelLabels Display names indexed by stable panel ID.
      */
-    public static function fromSnapshots(
-        DebugSnapshot $baseline,
-        DebugSnapshot $target,
-        array $panelLabels = [],
-    ): self {
+    public static function fromSnapshots(DebugSnapshot $baseline, DebugSnapshot $target, array $panelLabels = []): self
+    {
         return new self(
             baseline: $baseline,
             target: $target,
@@ -79,57 +75,17 @@ final readonly class HistoryComparison
      */
     private static function buildMetrics(RequestSummary $baseline, RequestSummary $target): array
     {
-        return [
-            self::textMetric(
-                'Status',
-                self::status($baseline->statusCode),
-                self::status($target->statusCode),
-            ),
-            self::textMetric(
-                'Method',
-                $baseline->method,
-                $target->method,
-            ),
-            self::textMetric(
-                'AJAX',
-                self::yesNo($baseline->ajax),
-                self::yesNo($target->ajax),
-            ),
-            self::nullableFloatMetric(
-                'Duration',
-                $baseline->processingTime,
-                $target->processingTime,
-                1000,
-                'ms',
-                'profiling',
-            ),
-            self::nullableFloatMetric(
-                'Peak memory',
-                $baseline->peakMemory,
-                $target->peakMemory,
-                1 / 1_048_576,
-                'MB',
-                'profiling',
-            ),
-            self::integerMetric(
-                'SQL queries',
-                $baseline->sqlCount,
-                $target->sqlCount,
-                'db',
-            ),
-            self::integerMetric(
-                'Mail messages',
-                $baseline->mailCount,
-                $target->mailCount,
-                'mail',
-            ),
-            self::integerMetric(
-                'Excessive DB callers',
-                $baseline->excessiveCallersCount,
-                $target->excessiveCallersCount,
-                'db',
-            ),
-        ];
+        $metrics = [];
+
+        foreach (SummaryMetricComparison::between($baseline, $target) as $metric) {
+            $metrics[] = new HistoryMetricComparison(
+                $metric->label,
+                new HistoryMetricValues($metric->baseline, $metric->target, $metric->delta, $metric->trend),
+                $metric->panelId,
+            );
+        }
+
+        return $metrics;
     }
 
     /**
@@ -160,7 +116,11 @@ final readonly class HistoryComparison
 
         sort($extraIds);
 
-        $orderedIds = [...$orderedIds, ...$extraIds];
+        $orderedIds = [
+            ...$orderedIds,
+            ...$extraIds,
+        ];
+
         $comparisons = [];
 
         foreach ($orderedIds as $id) {
@@ -192,82 +152,6 @@ final readonly class HistoryComparison
         return $comparisons;
     }
 
-    private static function formatNumber(float|int $value, string $unit, int $precision): string
-    {
-        $formatted = number_format($value, $precision, '.', ',');
-
-        return $unit === '' ? $formatted : "{$formatted} {$unit}";
-    }
-
-    private static function integerMetric(
-        string $label,
-        int $baseline,
-        int $target,
-        string|null $panelId = null,
-    ): HistoryMetricComparison {
-        return self::numericMetric($label, $baseline, $target, 1, '', $panelId, 0);
-    }
-
-    private static function nullableFloatMetric(
-        string $label,
-        float|int|null $baseline,
-        float|int|null $target,
-        float $scale,
-        string $unit,
-        string|null $panelId = null,
-    ): HistoryMetricComparison {
-        if ($baseline === null || $target === null) {
-            $values = new HistoryMetricValues(
-                $baseline === null ? 'Not captured' : self::formatNumber($baseline * $scale, $unit, 2),
-                $target === null ? 'Not captured' : self::formatNumber($target * $scale, $unit, 2),
-                $baseline === $target ? 'No change' : 'Not comparable',
-                'neutral',
-            );
-
-            return HistoryMetricComparison::create($label, $values)
-                ->withPanelId($panelId);
-        }
-
-        return self::numericMetric($label, $baseline, $target, $scale, $unit, $panelId, 2);
-    }
-
-    private static function numericMetric(
-        string $label,
-        float|int $baseline,
-        float|int $target,
-        float $scale,
-        string $unit,
-        string|null $panelId,
-        int $precision,
-    ): HistoryMetricComparison {
-        $scaledBaseline = $baseline * $scale;
-        $scaledTarget = $target * $scale;
-        $scaledDelta = $scaledTarget - $scaledBaseline;
-        $trend = $scaledDelta > 0 ? 'up' : ($scaledDelta < 0 ? 'down' : 'neutral');
-
-        $delta = 'No change';
-
-        if ($scaledDelta !== 0.0) {
-            $sign = $trend === 'up' ? '+' : '';
-
-            $percentage = (float) $baseline !== 0.0
-                ? " ({$sign}" . number_format((($target - $baseline) / $baseline) * 100, 1) . '%)'
-                : '';
-
-            $delta = $sign . self::formatNumber($scaledDelta, $unit, $precision) . $percentage;
-        }
-
-        $values = new HistoryMetricValues(
-            self::formatNumber($scaledBaseline, $unit, $precision),
-            self::formatNumber($scaledTarget, $unit, $precision),
-            $delta,
-            $trend,
-        );
-
-        return HistoryMetricComparison::create($label, $values)
-            ->withPanelId($panelId);
-    }
-
     /**
      * Returns the captured payload or failure envelope, preserving the distinction between absent and empty.
      *
@@ -289,28 +173,5 @@ final readonly class HistoryComparison
         }
 
         return array_key_exists($id, $snapshot->panels) ? 'Captured' : 'Not captured';
-    }
-
-    private static function status(int $statusCode): string
-    {
-        return $statusCode === 0 ? 'Not captured' : (string) $statusCode;
-    }
-
-    private static function textMetric(string $label, string $baseline, string $target): HistoryMetricComparison
-    {
-        return new HistoryMetricComparison(
-            $label,
-            new HistoryMetricValues(
-                $baseline,
-                $target,
-                $baseline === $target ? 'No change' : 'Changed',
-                'neutral',
-            ),
-        );
-    }
-
-    private static function yesNo(bool $value): string
-    {
-        return $value ? 'Yes' : 'No';
     }
 }
