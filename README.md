@@ -394,3 +394,24 @@ deltas and privacy-preserving structural panel counts without exposing captured 
 With the Vite extension explicitly registered, each active capture stores its normalized entrypoints, runtime mode,
 public development or production settings, and the production manifest's chunk names, output files, CSS/import counts,
 and entrypoint flags. The collector retains no asset contents and does not execute inline-module providers.
+
+## History comparison architecture
+
+`HistoryComparison::fromSnapshots()` delegates typed structural payload comparison to Debug Core's
+`PHPForge\Debug\Comparison\PayloadDifference`. The adapter retains metric formatting, panel labels, ordering, capture
+states, and its existing public comparison models. No constructor, result type, captured value, or storage format changes.
+Missing panels remain distinct from captured empty arrays; failure envelopes take precedence over payloads, and
+state-only transitions still count as a change. Comparison does not apply capture-policy redaction to Logs.
+
+Use the additive metric factory when configuring a panel link fluently:
+
+```php
+use Yii3\Debug\Comparison\{HistoryMetricComparison, HistoryMetricValues};
+
+$metric = HistoryMetricComparison::create(
+    'Duration',
+    new HistoryMetricValues('10.00 ms', '15.00 ms', '+5.00 ms (+50.0%)', 'up'),
+)->withPanelId('profiling');
+```
+
+The constructor remains supported. `withPanelId()` returns a copy; `null` clears the link and `''` remains an empty ID.

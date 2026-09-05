@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Comparison;
 
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
-use PHPUnit\Framework\Attributes\{DataProviderExternal, Group, Test};
+use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Comparison\{
@@ -26,8 +26,7 @@ use Yii3\Debug\Tests\Provider\HistoryComparisonProvider;
 #[Group('history')]
 final class HistoryComparisonTest extends TestCase
 {
-    #[Test]
-    public function differenceCountSumsAddedRemovedAndChangedCounters(): void
+    public function testDifferenceCountSumsAddedRemovedAndChangedCounters(): void
     {
         $original = new HistoryPanelComparison(
             'request',
@@ -36,8 +35,10 @@ final class HistoryComparisonTest extends TestCase
             new HistoryPanelDifferenceCounts(0, 0, 0, 0),
         );
 
-        $panel = $original->withDifferenceCounts(new HistoryPanelDifferenceCounts(2, 1, 0, 5));
-        $withStates = $panel->withStates(new HistoryPanelStates('Failed', 'Captured'));
+        $panel = $original
+            ->withDifferenceCounts(new HistoryPanelDifferenceCounts(2, 1, 0, 5));
+        $withStates = $panel
+            ->withStates(new HistoryPanelStates('Failed', 'Captured'));
 
         self::assertSame(
             3,
@@ -81,8 +82,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsComputesDownwardTrendWithSignedPercentage(): void
+    public function testFromSnapshotsComputesDownwardTrendWithSignedPercentage(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline', processingTime: 0.015), [], []);
         $target = new DebugSnapshot($this->summary('target', processingTime: 0.01), [], []);
@@ -101,8 +101,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsComputesMetricAndPanelDifferencesWithoutExposingValues(): void
+    public function testFromSnapshotsComputesMetricAndPanelDifferencesWithoutExposingValues(): void
     {
         $baseline = new DebugSnapshot(
             $this->summary(
@@ -196,8 +195,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsCountsMultipleChangedLeaves(): void
+    public function testFromSnapshotsCountsMultipleChangedLeaves(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline'), ['p' => ['a' => 1, 'b' => 2]], []);
         $target = new DebugSnapshot($this->summary('target'), ['p' => ['a' => 9, 'b' => 8]], []);
@@ -211,8 +209,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsCountsRenamedAndChangedFailureLeavesWithoutForcingChanged(): void
+    public function testFromSnapshotsCountsRenamedAndChangedFailureLeavesWithoutForcingChanged(): void
     {
         $failure = PanelFailure::fromThrowable(PanelFailure::CAPTURE, new RuntimeException('boom'));
 
@@ -261,8 +258,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsCountsRenamedFailureKeyWithoutForcingChanged(): void
+    public function testFromSnapshotsCountsRenamedFailureKeyWithoutForcingChanged(): void
     {
         $failure = PanelFailure::fromThrowable(PanelFailure::CAPTURE, new RuntimeException('boom'));
 
@@ -310,8 +306,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsCountsSharedLeavesAfterBaselineOnlyPath(): void
+    public function testFromSnapshotsCountsSharedLeavesAfterBaselineOnlyPath(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline'), ['p' => ['only' => 1, 'shared' => 2]], []);
         $target = new DebugSnapshot($this->summary('target'), ['p' => ['shared' => 2]], []);
@@ -330,8 +325,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsDeduplicatesPanelSeenInPayloadAndFailure(): void
+    public function testFromSnapshotsDeduplicatesPanelSeenInPayloadAndFailure(): void
     {
         $failure = PanelFailure::fromThrowable(PanelFailure::CAPTURE, new RuntimeException('boom'));
 
@@ -347,8 +341,47 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsDistinguishesIntegerAndFloatLeaves(): void
+    public function testFromSnapshotsDistinguishesAbsentEmptyAndTypedPayloads(): void
+    {
+        $baseline = new DebugSnapshot(
+            RequestSummary::create('baseline'),
+            ['empty' => [], 'typed' => ['null' => null, 'false' => false, 'zero' => 0, 'list' => []]],
+            [],
+        );
+        $target = new DebugSnapshot(
+            RequestSummary::create('target'),
+            ['typed' => ['null' => false, 'false' => 0, 'zero' => 0.0, 'list' => null], 'added' => []],
+            [],
+        );
+        $beforeBaseline = $baseline->jsonSerialize();
+        $beforeTarget = $target->jsonSerialize();
+
+        $comparison = HistoryComparison::fromSnapshots($baseline, $target, ['typed' => 'Typed']);
+
+        $counts = [];
+
+        foreach ($comparison->panels as $panel) {
+            $counts[$panel->id] = [$panel->added(), $panel->removed(), $panel->changed(), $panel->unchanged()];
+        }
+
+        self::assertSame(
+            ['typed' => [0, 0, 4, 0], 'added' => [1, 0, 0, 0], 'empty' => [0, 1, 0, 0]],
+            $counts,
+            'Shared comparison must preserve type distinctions, empty captures, and adapter ordering.',
+        );
+        self::assertSame(
+            $beforeBaseline,
+            $baseline->jsonSerialize(),
+            'The baseline diagnostic values must remain intact.',
+        );
+        self::assertSame(
+            $beforeTarget,
+            $target->jsonSerialize(),
+            'The target diagnostic values must remain intact.',
+        );
+    }
+
+    public function testFromSnapshotsDistinguishesIntegerAndFloatLeaves(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline'), ['p' => ['value' => 1]], []);
         $target = new DebugSnapshot($this->summary('target'), ['p' => ['value' => 1.0]], []);
@@ -362,10 +395,10 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsFingerprintsFailureChangesWithoutRenderingFailureValues(): void
+    public function testFromSnapshotsFingerprintsFailureChangesWithoutRenderingFailureValues(): void
     {
         $summary = $this->summary('failure');
+
         $baseline = new DebugSnapshot(
             $summary,
             [],
@@ -401,8 +434,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsFormatsScaledMetricValues(): void
+    public function testFromSnapshotsFormatsScaledMetricValues(): void
     {
         $baseline = new DebugSnapshot(
             $this->summary('baseline', processingTime: 0.01, peakMemory: 10_485_760_000_000),
@@ -457,8 +489,7 @@ final class HistoryComparisonTest extends TestCase
      * @param array<string, mixed> $targetPayload
      */
     #[DataProviderExternal(HistoryComparisonProvider::class, 'distinctEscapedPaths')]
-    #[Test]
-    public function fromSnapshotsKeepsEscapedLeafPathsDistinct(array $baselinePayload, array $targetPayload): void
+    public function testFromSnapshotsKeepsEscapedLeafPathsDistinct(array $baselinePayload, array $targetPayload): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline'), ['p' => $baselinePayload], []);
         $target = new DebugSnapshot($this->summary('target'), ['p' => $targetPayload], []);
@@ -482,8 +513,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsMarksCapturedAndMissingPanelStates(): void
+    public function testFromSnapshotsMarksCapturedAndMissingPanelStates(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline'), ['db' => ['queries' => 2]], []);
         $target = new DebugSnapshot($this->summary('target'), [], []);
@@ -507,8 +537,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsMarksMissingDurationSidesAsNotComparable(): void
+    public function testFromSnapshotsMarksMissingDurationSidesAsNotComparable(): void
     {
         $captured = $this->summary('captured', processingTime: 2.5);
         $missing = $this->summary('missing');
@@ -562,8 +591,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsMarksStateOnlyTransitionAsChanged(): void
+    public function testFromSnapshotsMarksStateOnlyTransitionAsChanged(): void
     {
         $failure = PanelFailure::fromThrowable(PanelFailure::CAPTURE, new RuntimeException('boom'));
 
@@ -603,8 +631,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsOmitsPercentageForZeroBaseline(): void
+    public function testFromSnapshotsOmitsPercentageForZeroBaseline(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline', processingTime: 0.0), [], []);
         $target = new DebugSnapshot($this->summary('target', processingTime: 0.002, sqlCount: 3), [], []);
@@ -623,8 +650,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsOrdersLabeledPanelsFirstThenExtrasAlphabetically(): void
+    public function testFromSnapshotsOrdersLabeledPanelsFirstThenExtrasAlphabetically(): void
     {
         $payload = [
             'zeta' => ['v' => 1],
@@ -650,8 +676,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsReportsStatusAndAjaxMetrics(): void
+    public function testFromSnapshotsReportsStatusAndAjaxMetrics(): void
     {
         $baseline = new DebugSnapshot($this->summary('baseline', statusCode: 0, ajax: true), [], []);
         $target = new DebugSnapshot($this->summary('target', statusCode: 500), [], []);
@@ -688,8 +713,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function fromSnapshotsTreatsEqualPayloadsAsIdentical(): void
+    public function testFromSnapshotsTreatsEqualPayloadsAsIdentical(): void
     {
         $summary = $this->summary('same');
 
@@ -718,8 +742,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function hasDifferencesDetectsMetricOnlyChange(): void
+    public function testHasDifferencesDetectsMetricOnlyChange(): void
     {
         $payload = ['request' => ['a' => 1]];
 
@@ -734,8 +757,7 @@ final class HistoryComparisonTest extends TestCase
         );
     }
 
-    #[Test]
-    public function metricConfigurationMethodsReturnCopies(): void
+    public function testMetricConfigurationMethodsReturnCopies(): void
     {
         $original = new HistoryMetricComparison(
             'Duration',
@@ -777,6 +799,52 @@ final class HistoryComparisonTest extends TestCase
             'profiling',
             $metric->panelId(),
             'The configured panel ID must be retained.',
+        );
+    }
+
+    public function testMetricFactorySupportsImmutablePanelConfiguration(): void
+    {
+        $values = new HistoryMetricValues('0', '1', '+1', 'up');
+
+        $original = HistoryMetricComparison::create('SQL queries', $values);
+
+        $linked = $original->withPanelId('db');
+        $empty = $linked->withPanelId('');
+        $cleared = $linked->withPanelId(null);
+
+        self::assertEquals(
+            new HistoryMetricComparison('SQL queries', $values),
+            $original,
+            'Factory defaults must match.',
+        );
+        self::assertNotSame(
+            $original,
+            $linked,
+            'Linking must return a copy.',
+        );
+        self::assertNotSame(
+            $linked,
+            $cleared,
+            'Clearing must return a copy.',
+        );
+        self::assertNull(
+            $original->panelId(),
+            'The original must remain unlinked.',
+        );
+        self::assertSame(
+            'db',
+            $linked->panelId(),
+            'The linked metric must remain unchanged.',
+        );
+        self::assertSame(
+            '',
+            $empty->panelId(),
+            'An empty panel ID must not become null.',
+        );
+        self::assertEquals(
+            $original,
+            $cleared,
+            'Clearing must restore defaults without changing metric values.',
         );
     }
 
