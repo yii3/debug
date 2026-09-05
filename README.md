@@ -293,10 +293,15 @@ using this debugger integration.
 For a custom composition, the observer can be constructed directly:
 
 ```php
+use Yii3\Debug\Collector\InertiaCollector;
 use Yii3\Inertia\ResolvedPageObserver;
 
+$collector = new InertiaCollector();
 $observer = new ResolvedPageObserver($collector->observe(...));
 ```
+
+Register this same collector instance with the debugger's collector coordinator; if it is already managed by your
+container, reuse that instance instead of constructing a second collector.
 
 Requests without Inertia activity remain absent from the Extensions group. The toolbar chip appears only when the
 capture contains a component. Existing captures are not rewritten.
