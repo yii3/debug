@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use Closure;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{EmptyState, Format};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
@@ -22,13 +21,12 @@ use UIAwesome\Html\Phrasing\{Code, Label, Span, Strong};
 use UIAwesome\Html\Root\Header;
 use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\ProfileSearch;
-use Yii3\Debug\Web\{GridFooter, PageWindow};
+use Yii3\Debug\Web\{FilterRemoval, GridFooter, PageWindow};
 
 use function array_replace;
 use function array_slice;
 use function count;
 use function in_array;
-use function is_string;
 use function number_format;
 use function str_replace;
 use function str_starts_with;
@@ -121,33 +119,6 @@ final readonly class ProfilingPanel implements
         }
 
         return $params;
-    }
-
-    /**
-     * @return Closure(list<string>): string
-     */
-    private static function filterRemovalUrl(PanelRenderContext $context): Closure
-    {
-        return static function (array $without) use ($context): string {
-            $params = self::queryParams($context);
-            $filters = QueryInput::group($params, FilterPrefix::PROFILE);
-
-            foreach ($without as $attribute) {
-                if (is_string($attribute)) {
-                    unset($filters[$attribute]);
-                }
-            }
-
-            if ($filters === []) {
-                unset($params[FilterPrefix::PROFILE]);
-            } else {
-                $params[FilterPrefix::PROFILE] = $filters;
-            }
-
-            unset($params['page']);
-
-            return $context->panelUrl(queryParams: $params);
-        };
     }
 
     /**
@@ -456,7 +427,9 @@ final readonly class ProfilingPanel implements
 
         $filterBanner = ActiveFilterBanner::render(
             $search->activeFilters,
-            self::filterRemovalUrl($context),
+            static fn(array $without): string => $context->panelUrl(
+                queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::PROFILE, $without),
+            ),
         );
 
         if ($filteredRows === []) {
@@ -615,7 +588,9 @@ final readonly class ProfilingPanel implements
         $content .= self::renderFilterForm($context, $search)
             . ActiveFilterBanner::render(
                 $search->activeFilters,
-                self::filterRemovalUrl($context),
+                static fn(array $without): string => $context->panelUrl(
+                    queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::PROFILE, $without),
+                ),
             );
 
         if ($filteredRows === []) {

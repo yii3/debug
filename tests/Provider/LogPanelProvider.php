@@ -5,10 +5,52 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Provider;
 
 /**
- * Sorting and pagination cases for {@see \Yii3\Debug\Tests\Panel\LogPanelTest}.
+ * Filter navigation, sorting, and pagination cases for {@see \Yii3\Debug\Tests\Panel\LogPanelTest}.
  */
 final class LogPanelProvider
 {
+    /**
+     * @return iterable<string, array{array<array-key, mixed>, list<string>}>
+     */
+    public static function filterRemoval(): iterable
+    {
+        yield 'each removal starts from the complete normalized group' => [
+            [
+                'message' => 'slow query',
+                'category' => 'app.db',
+                'level' => 2,
+            ],
+            [
+                'Log%5Bcategory%5D=app.db&Log%5Bmessage%5D=slow%20query&',
+                'Log%5Blevel%5D=2&Log%5Bmessage%5D=slow%20query&',
+                'Log%5Blevel%5D=2&Log%5Bcategory%5D=app.db&',
+                '',
+            ],
+        ];
+        yield 'malformed and unknown filters do not return in removal links' => [
+            [
+                'message' => 'query',
+                'level' => ['invalid'],
+                'category' => 'app.db',
+                'unknown' => 'ignored',
+                0 => 'ignored',
+            ],
+            [
+                'Log%5Bmessage%5D=query&',
+                'Log%5Bcategory%5D=app.db&',
+                '',
+            ],
+        ];
+        yield 'numeric zero remains an active filter' => [
+            [
+                'level' => 0,
+                'category' => '',
+                'message' => false,
+            ],
+            ['', ''],
+        ];
+    }
+
     /**
      * @return iterable<string, array{array<string, mixed>, list<int>, string}>
      */

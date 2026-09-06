@@ -15,6 +15,7 @@ use Yii3\Debug\Tests\Provider\LogPanelProvider;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_map;
+use function html_entity_decode;
 use function intval;
 use function preg_match_all;
 use function substr_count;
@@ -83,6 +84,42 @@ final class LogPanelTest extends TestCase
             'name="Log[level]"',
             $html,
             'Context-free rendering must not emit query controls.',
+        );
+    }
+
+    /**
+     * @param array<array-key, mixed> $filters
+     * @param list<string> $remainingQueries
+     */
+    #[DataProviderExternal(LogPanelProvider::class, 'filterRemoval')]
+    public function testFilterRemovalPreservesNavigationFromNormalizedInput(array $filters, array $remainingQueries): void
+    {
+        $html = (new LogPanel())
+            ->renderWithContext(
+                self::payload(),
+                self::context(
+                    [
+                        'Log' => $filters,
+                        'sort' => '-time',
+                        'per-page' => 'all',
+                        'page' => '9',
+                        'yii_debug_theme' => 'dark',
+                        'return' => 'overview & details',
+                        'Other' => ['key' => 'value'],
+                    ],
+                ),
+            );
+
+        preg_match_all('/<a class="yii-debug-active-filter(?:-pill|s-clear)" href="([^"]+)"/', $html, $matches);
+
+        self::assertSame(
+            array_map(
+                static fn(string $query): string => '/debug/view?tag=request-1&panel=log&' . $query
+                    . 'sort=-time&per-page=all&yii_debug_theme=dark&return=overview%20%26%20details&Other%5Bkey%5D=value',
+                $remainingQueries,
+            ),
+            array_map(html_entity_decode(...), $matches[1]),
+            'Each pill and Clear all must remove only the targeted normalized filters and page, preserving navigation.',
         );
     }
 
