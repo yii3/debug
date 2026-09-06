@@ -157,7 +157,9 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
                 );
         }
 
-        $headerRows = [self::renderHeaderRow($context)];
+        $queryParams = $context === null ? [] : self::queryParams($context);
+
+        $headerRows = [self::renderHeaderRow($context, $queryParams)];
 
         if ($context !== null) {
             $headerRows[] = self::renderFilterRow($filters);
@@ -181,7 +183,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             $page,
             $pageCount,
             $context === null ? null : static fn(int $number): string => $context->panelUrl(
-                queryParams: array_replace(self::queryParams($context), ['page' => $number]),
+                queryParams: array_replace($queryParams, ['page' => $number]),
             ),
         );
 
@@ -191,8 +193,15 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             ->render();
     }
 
-    private static function renderHeaderRow(PanelRenderContext|null $context): Tr
+    /**
+     * @param array<array-key, mixed> $queryParams
+     */
+    private static function renderHeaderRow(PanelRenderContext|null $context, array $queryParams): Tr
     {
+        [$activeAttribute, $direction] = self::sortState(QueryInput::scalar($queryParams, 'sort'));
+
+        unset($queryParams['page']);
+
         $cells = [];
         $headers = [
             'time' => 'Time',
@@ -207,9 +216,20 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
                 $cell = $cell->class('sort-numerical');
             }
 
-            $cells[] = $context === null
-                ? $cell->content($label)
-                : $cell->html(self::renderSortLink($context, $attribute, $label));
+            if ($context === null) {
+                $cells[] = $cell->content($label);
+
+                continue;
+            }
+
+            $isActive = $activeAttribute === $attribute;
+            $queryParams['sort'] = $isActive && $direction === 'asc' ? "-{$attribute}" : $attribute;
+
+            $link = A::tag()
+                ->href($context->panelUrl(queryParams: $queryParams))
+                ->content($label);
+
+            $cells[] = $cell->html($isActive ? $link->class($direction) : $link);
         }
 
         return Tr::tag()->html(...$cells);
@@ -294,24 +314,6 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         }
 
         return $content . self::renderPaginatedGrid($filteredRows, $context, $search->activeFilters);
-    }
-
-    private static function renderSortLink(PanelRenderContext $context, string $attribute, string $label): A
-    {
-        $queryParams = self::queryParams($context);
-        [$activeAttribute, $direction] = self::sortState(QueryInput::scalar($queryParams, 'sort'));
-
-        $isActive = $activeAttribute === $attribute;
-        $params = $queryParams;
-        $params['sort'] = $isActive && $direction === 'asc' ? "-{$attribute}" : $attribute;
-
-        unset($params['page']);
-
-        $link = A::tag()
-            ->href($context->panelUrl(queryParams: $params))
-            ->content($label);
-
-        return $isActive ? $link->class($direction) : $link;
     }
 
     /**
