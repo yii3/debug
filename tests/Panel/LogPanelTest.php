@@ -8,11 +8,15 @@ use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Storage\HydrationException;
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\LogPanel;
+use Yii3\Debug\Tests\Provider\LogPanelProvider;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_map;
+use function intval;
+use function preg_match_all;
 use function substr_count;
 
 /**
@@ -118,6 +122,37 @@ final class LogPanelTest extends TestCase
         self::assertTrue(
             $panel->hasContent(['entries' => []]),
             'A valid empty capture must remain discoverable so its empty state can render.',
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param list<int> $expectedIds
+     */
+    #[DataProviderExternal(LogPanelProvider::class, 'pages')]
+    public function testPaginationUsesFilteredRowsAndPreservesNavigation(array $query, array $expectedIds, string $summary): void
+    {
+        $html = (new LogPanel())->renderWithContext(
+            self::payload(),
+            self::context($query + ['yii_debug_theme' => 'dark', 'return' => 'overview']),
+        );
+
+        preg_match_all('/id="log-(\d+)"/', $html, $matches);
+
+        self::assertSame(
+            $expectedIds,
+            array_map(intval(...), $matches[1]),
+            'Only the effective filtered page must render.',
+        );
+        self::assertStringContainsString(
+            $summary,
+            $html,
+            'The footer must report the effective filtered window.',
+        );
+        self::assertStringContainsString(
+            'yii_debug_theme=dark&amp;return=overview',
+            $html,
+            'Navigation must retain the theme and unrelated context.',
         );
     }
 
@@ -360,6 +395,33 @@ final class LogPanelTest extends TestCase
             'Log%5Bcategory%5D=app&amp;sort=-timeSincePrevious&amp;per-page=1&amp;yii_debug_theme=light',
             $html,
             'The elapsed-time sort link must initially select descending order like the Yii2 grid.',
+        );
+    }
+
+    /**
+     * @param list<int> $expectedIds
+     */
+    #[DataProviderExternal(LogPanelProvider::class, 'sorting')]
+    public function testSortingRetainsNumericComparisonsAndCaptureIdTies(string $sort, array $expectedIds): void
+    {
+        $payload = LogSnapshot::capture(
+            [
+                ['Same', 1, 'app', 2.0, []],
+                ['same', 4, 'app', 10.0, []],
+                ['Same', 8, 'app', 10.0, []],
+                ['same', 2, 'app', 100.0, []],
+            ],
+        )->jsonSerialize();
+
+        $html = (new LogPanel())
+            ->renderWithContext($payload, self::context(['sort' => $sort, 'per-page' => 'all']));
+
+        preg_match_all('/id="log-(\d+)"/', $html, $matches);
+
+        self::assertSame(
+            $expectedIds,
+            array_map(intval(...), $matches[1]),
+            'Sorting must compare numeric values numerically and retain ascending IDs for equal values.',
         );
     }
 

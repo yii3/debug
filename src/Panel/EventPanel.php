@@ -14,20 +14,18 @@ use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use UIAwesome\Html\Flow\{Div, P, Pre};
 use UIAwesome\Html\Form\InputText;
 use UIAwesome\Html\Heading\H1;
-use UIAwesome\Html\List\{Li, Ul};
 use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\{Span, Strong};
 use UIAwesome\Html\Root\Header;
 use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\EventSearch;
+use Yii3\Debug\Web\{GridFooter, PageWindow};
 
+use function array_replace;
 use function array_slice;
-use function ceil;
 use function count;
 use function in_array;
 use function is_string;
-use function max;
-use function min;
 use function str_starts_with;
 use function strcasecmp;
 use function substr;
@@ -206,18 +204,16 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
                     ),
             );
 
-        $begin = $totalRows === 0 ? 0 : $offset + 1;
-
-        $end = min($offset + count($rows), $totalRows);
-
-        $footer = Div::tag()
-            ->class('yii-debug-grid-footer')
-            ->html(
-                Span::tag()
-                    ->class('summary yii-debug-grid-count')
-                    ->content("Showing {$begin}-{$end} of {$totalRows} items."),
-                $context === null ? '' : self::renderPager($context, $page, $pageCount),
-            );
+        $footer = GridFooter::render(
+            $totalRows,
+            $offset,
+            count($rows),
+            $page,
+            $pageCount,
+            $context === null ? null : static fn(int $number): string => $context->panelUrl(
+                queryParams: array_replace(self::queryParams($context), ['page' => $number]),
+            ),
+        );
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-event')
@@ -249,34 +245,6 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         return Tr::tag()->html(...$cells);
     }
 
-    private static function renderPager(PanelRenderContext $context, int $page, int $pageCount): Ul|string
-    {
-        if ($pageCount <= 1) {
-            return '';
-        }
-
-        $items = [];
-
-        for ($number = 1; $number <= $pageCount; $number++) {
-            $params = self::queryParams($context);
-            $params['page'] = $number;
-
-            $link = A::tag()
-                ->class('yii-debug-pager-link')
-                ->href($context->panelUrl(queryParams: $params))
-                ->content((string) $number);
-            $item = Li::tag()
-                ->class('yii-debug-pager-item')
-                ->html($link);
-
-            $items[] = $number === $page ? $item->class('is-active') : $item;
-        }
-
-        return Ul::tag()
-            ->class('yii-debug-pager')
-            ->html(...$items);
-    }
-
     /**
      * @param list<EventRow> $filteredRows
      * @param array<string, string> $filters
@@ -289,31 +257,22 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         $queryParams = self::queryParams($context);
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
-        $pageSize = PageSize::resolve(QueryInput::scalar($queryParams, 'per-page'));
-
-        $effectivePageSize = $pageSize ?? max(1, count($sortedRows));
-
-        $pageCount = max(
-            1,
-            (int) ceil(count($sortedRows) / $effectivePageSize),
-        );
-        $page = min(
-            $pageCount,
-            max(1, (int) (QueryInput::scalar($queryParams, 'page') ?? '1')),
+        $window = new PageWindow(
+            count($sortedRows),
+            QueryInput::scalar($queryParams, 'per-page'),
+            QueryInput::scalar($queryParams, 'page'),
         );
 
-        $offset = ($page - 1) * $effectivePageSize;
-
-        $visibleRows = array_slice($sortedRows, $offset, $effectivePageSize);
+        $visibleRows = array_slice($sortedRows, $window->offset, $window->limit);
 
         return self::renderGrid(
             $visibleRows,
             count($filteredRows),
-            $offset,
+            $window->offset,
             $context,
             $filters,
-            $page,
-            $pageCount,
+            $window->page,
+            $window->pageCount,
         );
     }
 

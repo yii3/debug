@@ -12,8 +12,6 @@ use function substr;
 
 /**
  * Converts Yii router middleware definitions into safe, stable scalar labels.
- *
- * @internal
  */
 final class HandlerDefinitionNormalizer
 {

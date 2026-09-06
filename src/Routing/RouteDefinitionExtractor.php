@@ -13,8 +13,6 @@ use function array_values;
 
 /**
  * Extracts persistence-safe route definitions from Yii router state.
- *
- * @internal
  */
 final class RouteDefinitionExtractor
 {

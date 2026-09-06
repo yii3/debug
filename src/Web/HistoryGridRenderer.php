@@ -12,19 +12,13 @@ use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, 
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Form\{InputText, Option, Select};
 use UIAwesome\Html\Heading\H1;
-use UIAwesome\Html\List\{Li, Ul};
-use UIAwesome\Html\Palpable\A;
-use UIAwesome\Html\Phrasing\Span;
 use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\HistorySearch;
 
 use function array_slice;
-use function ceil;
 use function count;
 use function http_build_query;
 use function is_string;
-use function max;
-use function min;
 
 /**
  * Renders the filterable, paginated request history grid with Debug Core primitives.
@@ -47,15 +41,14 @@ final class HistoryGridRenderer
         $filteredRows = $search->filter($rows);
 
         $perPageRaw = QueryInput::scalar($queryParams, 'per-page');
-        $resolvedPageSize = PageSize::resolve($perPageRaw);
 
-        $pageSize = $resolvedPageSize ?? max(1, count($filteredRows));
-        $pageCount = max(1, (int) ceil(count($filteredRows) / $pageSize));
-        $page = min($pageCount, max(1, (int) (QueryInput::scalar($queryParams, 'page') ?? '1')));
+        $window = new PageWindow(
+            count($filteredRows),
+            $perPageRaw,
+            QueryInput::scalar($queryParams, 'page'),
+        );
 
-        $offset = ($page - 1) * $pageSize;
-
-        $visibleRows = array_slice($filteredRows, $offset, $pageSize);
+        $visibleRows = array_slice($filteredRows, $window->offset, $window->limit);
 
         $summary = HistorySummary::fromManifest($summaries);
         $scale = HistoryScale::fromModels($visibleRows);
@@ -66,7 +59,11 @@ final class HistoryGridRenderer
             $bucketUrls[$bucket->label] = self::url(
                 $routePrefix,
                 $queryParams,
-                ['Debug' => ['statusCode' => (string) $bucket->sampleCode], 'page' => null],
+                [
+                    'Debug' => [
+                        'statusCode' => (string) $bucket->sampleCode],
+                        'page' => null,
+                    ],
             );
         }
 
@@ -90,10 +87,10 @@ final class HistoryGridRenderer
                 $search->activeFilters,
                 $routePrefix,
                 $queryParams,
-                $offset,
+                $window->offset,
                 count($filteredRows),
-                $page,
-                $pageCount,
+                $window->page,
+                $window->pageCount,
             );
     }
 
@@ -201,18 +198,14 @@ final class HistoryGridRenderer
                     ),
             );
 
-        $begin = $totalRows === 0 ? 0 : $offset + 1;
-
-        $end = min($offset + count($rows), $totalRows);
-
-        $footer = Div::tag()
-            ->class('yii-debug-grid-footer')
-            ->html(
-                Span::tag()
-                    ->class('summary yii-debug-grid-count')
-                    ->content("Showing {$begin}-{$end} of {$totalRows} items."),
-                self::renderPager($routePrefix, $queryParams, $page, $pageCount),
-            );
+        $footer = GridFooter::render(
+            $totalRows,
+            $offset,
+            count($rows),
+            $page,
+            $pageCount,
+            static fn(int $number): string => self::url($routePrefix, $queryParams, ['page' => $number]),
+        );
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-history')
@@ -223,6 +216,7 @@ final class HistoryGridRenderer
     private static function renderHeaderRow(): Tr
     {
         $headers = ['#', 'ID', 'Time', 'Duration', 'Memory', 'IP', 'Method', 'Ajax', 'URL'];
+
         $cells = [];
 
         foreach ($headers as $header) {
@@ -239,30 +233,6 @@ final class HistoryGridRenderer
         }
 
         return Tr::tag()->html(...$cells);
-    }
-
-    /**
-     * @param array<array-key, mixed> $queryParams
-     */
-    private static function renderPager(string $routePrefix, array $queryParams, int $page, int $pageCount): Ul|string
-    {
-        if ($pageCount <= 1) {
-            return '';
-        }
-
-        $items = [];
-
-        for ($number = 1; $number <= $pageCount; $number++) {
-            $link = A::tag()
-                ->class('yii-debug-pager-link')
-                ->href(self::url($routePrefix, $queryParams, ['page' => $number]))
-                ->content((string) $number);
-            $item = Li::tag()->class('yii-debug-pager-item')->html($link);
-
-            $items[] = $number === $page ? $item->class('is-active') : $item;
-        }
-
-        return Ul::tag()->class('yii-debug-pager')->html(...$items);
     }
 
     /**
@@ -309,6 +279,8 @@ final class HistoryGridRenderer
             }
         }
 
-        return $queryParams === [] ? $routePrefix : "{$routePrefix}?" . http_build_query($queryParams);
+        return $queryParams === []
+            ? $routePrefix
+            : "{$routePrefix}?" . http_build_query($queryParams);
     }
 }
