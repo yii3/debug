@@ -22,8 +22,6 @@ use function str_starts_with;
 
 /**
  * Adapts captured Yii routing state and the live route collection to the framework-neutral Request view.
- *
- * @internal
  */
 final class RequestRoutingViewFactory
 {
