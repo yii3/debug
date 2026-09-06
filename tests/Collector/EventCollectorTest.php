@@ -465,4 +465,143 @@ final class EventCollectorTest extends TestCase
             'Shutdown and the next startup must prevent events from leaking between requests.',
         );
     }
+    public function testMiddlewareScopesCorrelateRepeatedInstancesAndResetBetweenRequests(): void
+    {
+        $collector = new EventCollector();
+
+        $collector->startup();
+
+        $middleware = new MiddlewareStub();
+
+        $before = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+        $after = 'Yiisoft\\Middleware\\Dispatcher\\Event\\AfterMiddleware';
+
+        $request = HelperFactory::createRequest();
+
+        $collector->record(new $before($middleware, $request));
+        $collector->record(new $before($middleware, $request));
+        $collector->record(new $after($middleware, null));
+        $collector->record(new $after($middleware, null));
+
+        $rows = $collector->capture()?->entries() ?? [];
+
+        self::assertSame(
+            [1, 2, 2, 1],
+            array_map(static fn(EventRow $row): int|null => $row->inspection()?->getPairId(), $rows),
+            'Nested reuse must pair by identity and stack, not by class name.',
+        );
+        self::assertSame(
+            [0, 1, 1, 0],
+            array_map(static fn(EventRow $row): int|null => $row->inspection()?->getDepth(), $rows),
+            'Scope nesting must survive repeated middleware instances.',
+        );
+        self::assertNotNull(
+            (new \PHPForge\Debug\Panel\Event\EventSequence($rows))
+                ->interval(($rows[0] ?? self::fail('Expected row 0.'))),
+                'Completed scopes must have a monotonic inclusive interval.',
+        );
+
+        $collector->shutdown();
+        $collector->startup();
+        $collector->record(new $after($middleware, null));
+
+        self::assertNull(
+            ($collector->capture()?->entries()[0] ?? self::fail('Expected row 0.'))->inspection()?->getPairId(),
+            'Reused workers must not correlate with a previous request.',
+        );
+
+        $collector->record(new $before($middleware, $request));
+
+        self::assertSame(
+            1,
+            ($collector->capture()?->entries()[1] ?? self::fail('Expected row 1.'))->inspection()?->getPairId(),
+            'Request-local identities must restart.',
+        );
+    }
+
+    public function testMiddlewareScopesDoNotMergeDifferentObjectsOfTheSameClass(): void
+    {
+        $collector = new EventCollector();
+
+        $collector->startup();
+
+        $first = new MiddlewareStub();
+        $second = new MiddlewareStub();
+
+        $before = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+        $after = 'Yiisoft\\Middleware\\Dispatcher\\Event\\AfterMiddleware';
+
+        $collector->record(new $before($first, HelperFactory::createRequest()));
+        $collector->record(new $after($second, null));
+
+        $rows = $collector->capture()?->entries() ?? [];
+
+        self::assertNull(
+            ($rows[1] ?? self::fail('Expected row 1.'))->inspection()?->getPairId(),
+            'Same-class middleware instances must not be treated as the same invocation.',
+        );
+        self::assertNull(
+            (new \PHPForge\Debug\Panel\Event\EventSequence($rows))->interval(($rows[0] ?? self::fail('Expected row 0.'))),
+            'An unrelated leave must not complete an observed interval.',
+        );
+    }
+
+    public function testOptInLifecycleContextExcludesBodiesQueriesAndEventProperties(): void
+    {
+        $collector = new EventCollector();
+
+        $collector->captureContext = true;
+        $collector->traceLimit = 8;
+
+        $collector->startup();
+
+        $middleware = new MiddlewareStub();
+
+        $before = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+        $after = 'Yiisoft\\Middleware\\Dispatcher\\Event\\AfterMiddleware';
+
+        $request = HelperFactory::createRequest();
+
+        $request = $request
+            ->withMethod('POST')
+            ->withUri($request->getUri()
+            ->withQuery('password=SENSITIVE_QUERY_VALUE'));
+
+        $collector->record(new $before($middleware, $request));
+        $collector->record(new $after($middleware, null));
+        $collector->record(new SensitiveEventStub());
+        $snapshot = $collector->capture();
+
+        self::assertNotNull(
+            $snapshot,
+            'Active capture must produce a snapshot.',
+        );
+
+        $rows = $snapshot->entries();
+
+        self::assertSame(
+            'POST',
+            ($rows[0] ?? self::fail('Expected row 0.'))->inspection()?->getContext()['Request method'] ?? null,
+            'Selected request metadata must be inspectable.',
+        );
+        self::assertSame(
+            'No response observed',
+            ($rows[1] ?? self::fail('Expected row 1.'))->inspection()?->getContext()['Response observed'] ?? null,
+            'A leave without response must not imply success.',
+        );
+        self::assertSame(
+            'unsupported',
+            ($rows[2] ?? self::fail('Expected row 2.'))->inspection()?->getContextStatus(),
+            'Unknown event types must not be inspected generically.',
+        );
+        self::assertNotEmpty(
+            ($rows[0] ?? self::fail('Expected row 0.'))->inspection()?->getTrace(),
+            'Opt-in traces must contain argument-free source locations.',
+        );
+        self::assertStringNotContainsString(
+            'SENSITIVE_QUERY_VALUE',
+            json_encode($snapshot->jsonSerialize(), JSON_THROW_ON_ERROR),
+            'Query values must never enter lifecycle context or traces.',
+        );
+    }
 }

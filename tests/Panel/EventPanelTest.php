@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Panel;
 
-use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
+use PHPForge\Debug\Panel\Event\{EventInspection, EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Storage\HydrationException;
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\EventPanel;
+use Yii3\Debug\Tests\Provider\EventPanelProvider;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_map;
 use function array_slice;
-use function preg_match;
 use function preg_match_all;
 use function sprintf;
 use function str_pad;
+use function strpos;
+use function substr;
 use function substr_count;
 use function trim;
 
@@ -49,7 +52,7 @@ final class EventPanelTest extends TestCase
         preg_match_all('~<th[^>]*>\s*([^<]+?)\s*</th>~s', $html, $headerMatches);
 
         self::assertSame(
-            ['Time', 'Event', 'Source'],
+            ['#', 'Time', 'Event', 'Source'],
             array_map(static fn(string $heading): string => trim($heading), $headerMatches[1]),
             'The Yii3 grid must omit the duplicate Name and invariant Sender and Static columns.',
         );
@@ -91,7 +94,8 @@ final class EventPanelTest extends TestCase
         );
     }
 
-    public function testEveryVisibleColumnSortsAndDefaultOrderIsTimeAscending(): void
+    #[DataProviderExternal(EventPanelProvider::class, 'columnSorts')]
+    public function testEveryVisibleColumnSortsAndDefaultOrderIsTimeAscending(string|null $sort, string $firstEvent): void
     {
         $payload = (
             new EventSnapshot(
@@ -103,32 +107,24 @@ final class EventPanelTest extends TestCase
             )
         )->jsonSerialize();
 
-        foreach (
-            [
-                [null, 'MClass'],
-                ['class', 'AClass'],
-                ['senderClass', 'ZClass'],
-            ] as [$sort, $firstEvent]
-        ) {
-            $query = ['per-page' => '1'];
+        $query = ['per-page' => '1'];
 
-            if ($sort !== null) {
-                $query['sort'] = $sort;
-            }
-
-            $body = self::tbody((new EventPanel())->renderWithContext($payload, self::context($query)));
-
-            self::assertStringContainsString(
-                $firstEvent,
-                $body,
-                sprintf('The %s ordering must select the expected first row.', $sort ?? 'default Time'),
-            );
-            self::assertSame(
-                1,
-                substr_count($body, '<tr>'),
-                'A one-row page must render exactly one sorted row.',
-            );
+        if ($sort !== null) {
+            $query['sort'] = $sort;
         }
+
+        $body = self::tbody((new EventPanel())->renderWithContext($payload, self::context($query)));
+
+        self::assertStringContainsString(
+            '<strong>' . $firstEvent . '</strong>',
+            $body,
+            sprintf('The %s ordering must select the expected first event name.', $sort ?? 'default Time'),
+        );
+        self::assertSame(
+            1,
+            substr_count($body, '<tr>'),
+            'A one-row page must render exactly one sorted row.',
+        );
 
         $html = (new EventPanel())->renderWithContext($payload, self::context([]));
 
@@ -517,6 +513,92 @@ final class EventPanelTest extends TestCase
             'A nonempty capture must expose exactly one stable Events counter.',
         );
     }
+    /**
+     * @param array<string, mixed> $query
+     */
+    #[DataProviderExternal(EventPanelProvider::class, 'queryControls')]
+    public function testUnifiedTablePreservesObservationIdentity(array $query, int $index, string $offset, string $gap): void
+    {
+        $inspection = (new EventInspection())
+            ->withContext(['Action' => '<diagnostic>'], 'captured');
+        $snapshot = new EventSnapshot(
+            [
+                new EventRow(10.0, 'first', 'Event', '0', 'Worker'),
+                (new EventRow(10.125, 'second', 'Event', '0', 'Worker'))
+                    ->withInspection($inspection),
+                (new EventRow(10.5, 'third', 'Event', '0', 'Worker'))
+                    ->withInspection($inspection),
+            ],
+        );
+        $html = (new EventPanel())
+            ->renderWithContext($snapshot->jsonSerialize(), self::context($query));
+
+        self::assertSame(
+            1,
+            substr_count($html, '<table'),
+            'Events must render exactly one table.',
+        );
+        self::assertSame(
+            1,
+            substr_count($html, 'class="yii-debug-event-item"'),
+            'Each visible event must appear once.',
+        );
+        self::assertSame(
+            1,
+            substr_count($html, "id=\"event-{$index}\""),
+            'Pagination and sorting must preserve the original observation identity.',
+        );
+        self::assertSame(
+            1,
+            substr_count($html, 'class="yii-debug-event-detail-row"'),
+            'Each visible event must have one companion diagnostic row.',
+        );
+        self::assertStringContainsString(
+            'colspan="4"',
+            $html,
+            'Diagnostics must span all event columns.',
+        );
+        self::assertStringContainsString(
+            "aria-controls=\"event-{$index}-detail\"",
+            $html,
+            'The disclosure must identify its companion diagnostics.',
+        );
+        self::assertSame(
+            1,
+            substr_count($html, '&lt;diagnostic&gt;'),
+            'Captured context must not be duplicated in the event summary.',
+        );
+        self::assertStringContainsString(
+            $offset,
+            $html,
+            'The visible offset must refer to the original capture.',
+        );
+        self::assertStringContainsString(
+            $gap,
+            $html,
+            'The visible gap must refer to the previous original observation.',
+        );
+        self::assertStringContainsString(
+            '&lt;diagnostic&gt;',
+            $html,
+            'Inline diagnostics must preserve escaped captured context.',
+        );
+        self::assertStringContainsString(
+            'name="Event[class]"',
+            $html,
+            'Column filters must remain available.',
+        );
+        self::assertStringNotContainsString(
+            'yii-debug-event-raw',
+            $html,
+            'The secondary event table must be removed.',
+        );
+        self::assertStringNotContainsString(
+            'Execution flow',
+            $html,
+            'Sorted results must not be labeled as chronological execution flow.',
+        );
+    }
 
     /**
      * @param array<array-key, mixed> $queryParams
@@ -560,8 +642,18 @@ final class EventPanelTest extends TestCase
 
     private static function tbody(string $html): string
     {
-        preg_match('/<tbody>(.*?)<\/tbody>/s', $html, $matches);
+        $start = strpos($html, '<tbody>');
+        $end = strpos($html, '</tbody>');
 
-        return $matches[1] ?? '';
+        self::assertNotFalse(
+            $start,
+            'The event table must contain a body.',
+        );
+        self::assertNotFalse(
+            $end,
+            'The event table body must be closed.',
+        );
+
+        return substr($html, $start + 7, $end - $start - 7);
     }
 }
