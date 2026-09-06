@@ -82,12 +82,13 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     }
 
     /**
+     * @param array<string, string> $filters
+     *
      * @return array<array-key, mixed>
      */
-    private static function queryParams(PanelRenderContext $context): array
+    private static function queryParams(PanelRenderContext $context, array $filters): array
     {
         $params = $context->queryParams;
-        $filters = EventSearch::fromQueryParams($params)->activeFilters;
 
         if ($filters === []) {
             unset($params[FilterPrefix::EVENT]);
@@ -157,7 +158,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
                 );
         }
 
-        $queryParams = $context === null ? [] : self::queryParams($context);
+        $queryParams = $context === null ? [] : self::queryParams($context, $filters);
 
         $headerRows = [self::renderHeaderRow($context, $queryParams)];
 
@@ -244,7 +245,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         PanelRenderContext $context,
         array $filters,
     ): string {
-        $queryParams = self::queryParams($context);
+        $queryParams = self::queryParams($context, $filters);
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
         $window = new PageWindow(
@@ -282,9 +283,9 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             return $title . self::renderEmptyCaptureState();
         }
 
-        $queryParams = $context === null ? [] : self::queryParams($context);
+        $search = EventSearch::fromQueryParams($context->queryParams ?? []);
 
-        $search = EventSearch::fromQueryParams($queryParams);
+        $queryParams = $context === null ? [] : self::queryParams($context, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 

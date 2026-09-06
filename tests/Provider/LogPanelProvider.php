@@ -95,4 +95,39 @@ final class LogPanelProvider
         yield 'numeric time ascending' => ['time', [1, 2, 3, 4]];
         yield 'numeric time descending with stable IDs' => ['-time', [4, 2, 3, 1]];
     }
+
+    /**
+     * @return iterable<string, array{array<array-key, mixed>, string}>
+     */
+    public static function summaryLinks(): iterable
+    {
+        $navigation = [
+            'sort' => '-time',
+            'per-page' => 'all',
+            'page' => '9',
+            'yii_debug_theme' => 'dark',
+            'return' => 'overview & details',
+            'Other' => ['key' => 'value'],
+        ];
+
+        $query = 'sort=-time&per-page=all&yii_debug_theme=dark&return=overview%20%26%20details&Other%5Bkey%5D=value';
+
+        yield 'replace all accepted filters and discard unknown values' => [
+            ['Log' => ['message' => 'missing', 'category' => 'app.db', 'level' => 2, 'unknown' => 'ignored']]
+            + $navigation,
+            "Log%5Blevel%5D={level}&{$query}",
+        ];
+        yield 'empty normalized group is appended after navigation' => [
+            ['Log' => ['level' => ['invalid'], 'category' => '', 'message' => false]] + $navigation,
+            "{$query}&Log%5Blevel%5D={level}",
+        ];
+        yield 'malformed group is appended after navigation' => [
+            ['Log' => 'invalid'] + $navigation,
+            "{$query}&Log%5Blevel%5D={level}",
+        ];
+        yield 'absent group is appended after navigation' => [
+            $navigation,
+            "{$query}&Log%5Blevel%5D={level}",
+        ];
+    }
 }
