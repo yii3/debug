@@ -498,7 +498,7 @@ final class EventCollectorTest extends TestCase
         self::assertNotNull(
             (new \PHPForge\Debug\Panel\Event\EventSequence($rows))
                 ->interval(($rows[0] ?? self::fail('Expected row 0.'))),
-                'Completed scopes must have a monotonic inclusive interval.',
+            'Completed scopes must have a monotonic inclusive interval.',
         );
 
         $collector->shutdown();

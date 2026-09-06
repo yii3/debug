@@ -133,7 +133,7 @@ final class EventCollector implements CollectorInterface
         $phase = '';
         $depth = 0;
 
-        $clock = hrtime(    true) / 1_000_000_000;
+        $clock = hrtime(true) / 1_000_000_000;
 
         if (
             in_array($event::class, self::MIDDLEWARE_EVENTS, true)
