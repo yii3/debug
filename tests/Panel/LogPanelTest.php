@@ -18,6 +18,7 @@ use function array_map;
 use function html_entity_decode;
 use function intval;
 use function preg_match_all;
+use function str_replace;
 use function substr_count;
 
 /**
@@ -459,6 +460,28 @@ final class LogPanelTest extends TestCase
             $expectedIds,
             array_map(intval(...), $matches[1]),
             'Sorting must compare numeric values numerically and retain ascending IDs for equal values.',
+        );
+    }
+
+    /**
+     * @param array<array-key, mixed> $query
+     */
+    #[DataProviderExternal(LogPanelProvider::class, 'summaryLinks')]
+    public function testSummaryLinksReplaceFiltersAndPreserveQueryOrder(array $query, string $expectedQuery): void
+    {
+        $html = (new LogPanel())
+            ->renderWithContext(self::payload(), self::context($query));
+
+        preg_match_all('/<a class="yii-debug-grid-summary-stat-[^"]+" href="([^"]+)"/', $html, $matches);
+
+        self::assertSame(
+            array_map(
+                static fn(string $level): string => '/debug/view?tag=request-1&panel=log&'
+                    . str_replace('{level}', $level, $expectedQuery),
+                ['1', '2', '4', '8'],
+            ),
+            array_map(html_entity_decode(...), $matches[1]),
+            'Every severity shortcut must replace the complete Log group, reset page, and preserve exact query order.',
         );
     }
 

@@ -137,12 +137,13 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     }
 
     /**
+     * @param array<string, string> $filters
+     *
      * @return array<array-key, mixed>
      */
-    private static function queryParams(PanelRenderContext $context): array
+    private static function queryParams(PanelRenderContext $context, array $filters): array
     {
         $params = $context->queryParams;
-        $filters = LogSearch::fromQueryParams($params)->activeFilters;
 
         if ($filters === []) {
             unset($params[FilterPrefix::LOG]);
@@ -213,7 +214,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
                 );
         }
 
-        $queryParams = $context === null ? [] : self::queryParams($context);
+        $queryParams = $context === null ? [] : self::queryParams($context, $filters);
 
         $headerRows = [self::renderHeaderRow($context, $queryParams)];
 
@@ -312,7 +313,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         PanelRenderContext $context,
         array $filters,
     ): string {
-        $queryParams = self::queryParams($context);
+        $queryParams = self::queryParams($context, $filters);
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
         $window = new PageWindow(
@@ -350,9 +351,9 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             return $title . self::renderEmptyState();
         }
 
-        $queryParams = $context === null ? [] : self::queryParams($context);
+        $search = LogSearch::fromQueryParams($context->queryParams ?? []);
 
-        $search = LogSearch::fromQueryParams($queryParams);
+        $queryParams = $context === null ? [] : self::queryParams($context, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
@@ -365,6 +366,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             LogCounts::fromRows($entries),
             $pageSizeSelector,
             $context,
+            $queryParams,
         );
 
         if ($context === null) {
@@ -388,11 +390,17 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         return $content . self::renderPaginatedGrid($filteredRows, $context, $search->activeFilters);
     }
 
+    /**
+     * @param array<array-key, mixed> $queryParams
+     */
     private static function renderSummary(
         LogCounts $counts,
         string|null $pageSizeSelector,
         PanelRenderContext|null $context,
+        array $queryParams,
     ): string {
+        unset($queryParams['page']);
+
         $items = [
             Span::tag()
                 ->html(
@@ -412,6 +420,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
                 LogLevel::ERROR,
                 'yii-debug-grid-summary-stat-danger',
                 $context,
+                $queryParams,
             );
         }
 
@@ -426,6 +435,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
                 LogLevel::WARNING,
                 'yii-debug-grid-summary-stat-warn',
                 $context,
+                $queryParams,
             );
         }
 
@@ -440,6 +450,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
                 LogLevel::INFO,
                 'yii-debug-grid-summary-stat-info',
                 $context,
+                $queryParams,
             );
         }
 
@@ -454,6 +465,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
                 LogLevel::TRACE,
                 'yii-debug-grid-summary-stat-trace',
                 $context,
+                $queryParams,
             );
         }
 
@@ -467,6 +479,9 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             ->render();
     }
 
+    /**
+     * @param array<array-key, mixed> $queryParams
+     */
     private static function renderSummaryLevel(
         int $count,
         string $label,
@@ -474,6 +489,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         int $level,
         string $class,
         PanelRenderContext|null $context,
+        array $queryParams,
     ): A|Span {
         $content = [
             Strong::tag()->content((string) $count),
@@ -486,17 +502,13 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             return $level === LogLevel::INFO ? $item : $item->class($class);
         }
 
-        $params = self::queryParams($context);
-
-        $params[FilterPrefix::LOG] = ['level' => (string) $level];
-
-        unset($params['page']);
+        $queryParams[FilterPrefix::LOG] = ['level' => (string) $level];
 
         return A::tag()
             ->addAriaAttribute('label', "{$count} {$label}; filter log messages by {$levelName} level")
             ->addAttribute('title', "Show only {$levelName} log messages")
             ->class($class)
-            ->href($context->panelUrl(queryParams: $params))
+            ->href($context->panelUrl(queryParams: $queryParams))
             ->html(...$content);
     }
 

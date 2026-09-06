@@ -111,7 +111,7 @@ final readonly class ProfilingPanel implements
         ];
 
         foreach (['sort', 'per-page', 'yii_debug_theme'] as $name) {
-            $value = QueryInput::scalar(self::queryParams($context), $name);
+            $value = QueryInput::scalar($context->queryParams, $name);
 
             if ($value !== null && $value !== '') {
                 $params[$name] = $value;
@@ -130,13 +130,13 @@ final readonly class ProfilingPanel implements
     }
 
     /**
+     * @param array<string, string> $filters
+     *
      * @return array<array-key, mixed>
      */
-    private static function queryParams(PanelRenderContext $context): array
+    private static function queryParams(PanelRenderContext $context, array $filters): array
     {
         $params = $context->queryParams;
-
-        $filters = ProfileSearch::fromQueryParams($params)->activeFilters;
 
         unset($params['view'], $params[FilterPrefix::TIMELINE]);
 
@@ -277,7 +277,7 @@ final readonly class ProfilingPanel implements
                 );
         }
 
-        $queryParams = $context === null ? [] : self::queryParams($context);
+        $queryParams = $context === null ? [] : self::queryParams($context, $filters);
 
         $headerRows = [
             self::renderHeaderRow($context, $queryParams),
@@ -367,7 +367,7 @@ final readonly class ProfilingPanel implements
         array $filters = [],
         bool $renderFilters = true,
     ): string {
-        $queryParams = self::queryParams($context);
+        $queryParams = self::queryParams($context, $filters);
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
         $window = new PageWindow(
@@ -418,9 +418,9 @@ final readonly class ProfilingPanel implements
     ): string {
         $entries = $snapshot->entries();
 
-        $queryParams = $context === null ? [] : self::queryParams($context);
+        $search = ProfileSearch::fromQueryParams($context->queryParams ?? []);
 
-        $search = ProfileSearch::fromQueryParams($queryParams);
+        $queryParams = $context === null ? [] : self::queryParams($context, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
@@ -570,9 +570,9 @@ final readonly class ProfilingPanel implements
     ): string {
         $entries = $profiling->entries();
 
-        $queryParams = self::queryParams($context);
+        $search = ProfileSearch::fromQueryParams($context->queryParams);
 
-        $search = ProfileSearch::fromQueryParams($queryParams);
+        $queryParams = self::queryParams($context, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
@@ -619,6 +619,7 @@ final readonly class ProfilingPanel implements
             $filteredRows,
             $entries,
             $context,
+            $search->activeFilters,
             renderFilters: false,
         );
     }
