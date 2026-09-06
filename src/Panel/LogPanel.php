@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use Closure;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{Dump, EmptyState, LogLevel};
 use PHPForge\Debug\Panel\Log\{LogCellRenderer, LogCounts, LogRow, LogSnapshot};
@@ -19,7 +18,7 @@ use UIAwesome\Html\Phrasing\{Span, Strong};
 use UIAwesome\Html\Root\Header;
 use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\LogSearch;
-use Yii3\Debug\Web\{GridFooter, PageWindow};
+use Yii3\Debug\Web\{FilterRemoval, GridFooter, PageWindow};
 
 use function array_replace;
 use function array_slice;
@@ -105,34 +104,6 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         }
 
         return $items;
-    }
-
-    /**
-     * @return Closure(list<string>): string
-     */
-    private static function filterRemovalUrl(PanelRenderContext $context): Closure
-    {
-        return static function (array $without) use ($context): string {
-            $params = self::queryParams($context);
-
-            $filters = QueryInput::group($params, FilterPrefix::LOG);
-
-            foreach ($without as $attribute) {
-                if (is_string($attribute)) {
-                    unset($filters[$attribute]);
-                }
-            }
-
-            if ($filters === []) {
-                unset($params[FilterPrefix::LOG]);
-            } else {
-                $params[FilterPrefix::LOG] = $filters;
-            }
-
-            unset($params['page']);
-
-            return $context->panelUrl(queryParams: $params);
-        };
     }
 
     /**
@@ -372,7 +343,9 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
 
         $content .= ActiveFilterBanner::render(
             $search->activeFilters,
-            self::filterRemovalUrl($context),
+            static fn(array $without): string => $context->panelUrl(
+                queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::LOG, $without),
+            ),
         );
 
         if ($filteredRows === []) {

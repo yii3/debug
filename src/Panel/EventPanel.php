@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use Closure;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\EmptyState;
 use PHPForge\Debug\Panel\Event\{EventCellRenderer, EventRow, EventSnapshot};
@@ -19,13 +18,12 @@ use UIAwesome\Html\Phrasing\{Span, Strong};
 use UIAwesome\Html\Root\Header;
 use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\EventSearch;
-use Yii3\Debug\Web\{GridFooter, PageWindow};
+use Yii3\Debug\Web\{FilterRemoval, GridFooter, PageWindow};
 
 use function array_replace;
 use function array_slice;
 use function count;
 use function in_array;
-use function is_string;
 use function str_starts_with;
 use function strcasecmp;
 use function substr;
@@ -81,34 +79,6 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         return $total === 0
             ? []
             : [new ToolbarItem(value: (string) $total, id: 'total')];
-    }
-
-    /**
-     * @return Closure(list<string>): string
-     */
-    private static function filterRemovalUrl(PanelRenderContext $context): Closure
-    {
-        return static function (array $without) use ($context): string {
-            $params = self::queryParams($context);
-
-            $filters = EventSearch::fromQueryParams($params)->activeFilters;
-
-            foreach ($without as $attribute) {
-                if (is_string($attribute)) {
-                    unset($filters[$attribute]);
-                }
-            }
-
-            if ($filters === []) {
-                unset($params[FilterPrefix::EVENT]);
-            } else {
-                $params[FilterPrefix::EVENT] = $filters;
-            }
-
-            unset($params['page']);
-
-            return $context->panelUrl(queryParams: $params);
-        };
     }
 
     /**
@@ -311,7 +281,9 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         $content .= ActiveFilterBanner::render(
             $search->activeFilters,
-            self::filterRemovalUrl($context),
+            static fn(array $without): string => $context->panelUrl(
+                queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::EVENT, $without),
+            ),
         );
 
         if ($filteredRows === []) {

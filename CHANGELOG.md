@@ -35,3 +35,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor: delegate captured URL-to-path display conversion to Debug Core while preserving original diagnostic URLs, public models, navigation, and rendered output.
 - feat: merge Yii Config integrations, retain empty Logs navigation, and use the named Yii3 Inertia observer.
 - refactor(ui): share pagination bounds and footer markup across the manual History, Logs, Events, and Profiling grids while preserving panel-specific HTML, filtering, sorting, and navigation.
+- refactor(ui): share filter removal and page reset across manual Logs, Events, and Profiling banners, reusing normalized queries while preserving panel-specific navigation.
