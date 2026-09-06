@@ -62,8 +62,8 @@ final class HistoryGridRenderer
                 [
                     'Debug' => [
                         'statusCode' => (string) $bucket->sampleCode],
-                        'page' => null,
-                    ],
+                    'page' => null,
+                ],
             );
         }
 
