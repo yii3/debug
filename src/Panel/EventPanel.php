@@ -6,7 +6,7 @@ namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\EmptyState;
-use PHPForge\Debug\Panel\Event\{EventCellRenderer, EventRow, EventSnapshot};
+use PHPForge\Debug\Panel\Event\{EventCellRenderer, EventInspectorRenderer, EventRow, EventSequence, EventSnapshot};
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
@@ -123,6 +123,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             ->class('filters')
             ->html(
                 Td::tag(),
+                Td::tag(),
                 Td::tag()->html(self::textFilter('class', 'Event', $filters)),
                 Td::tag()->html(self::textFilter('senderClass', 'Source', $filters)),
             );
@@ -130,10 +131,12 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
     /**
      * @param list<EventRow> $rows
+     * @param list<EventRow> $allRows
      * @param array<string, string> $filters
      */
     private static function renderGrid(
         array $rows,
+        array $allRows,
         int $totalRows,
         int $offset,
         PanelRenderContext|null $context = null,
@@ -141,26 +144,33 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         int $page = 1,
         int $pageCount = 1,
     ): string {
+        $sequence = new EventSequence($allRows);
         $bodyRows = [];
 
         foreach ($rows as $row) {
             $bodyRows[] = Tr::tag()
                 ->html(
                     Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-nowrap')
-                        ->content(EventCellRenderer::renderTimeCell($row)),
+                        ->class('yii-debug-col-num')
+                        ->content((string) $sequence->index($row)),
                     Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-fqcn')
-                        ->html(EventCellRenderer::renderClassCell($row)),
+                        ->class('yii-debug-event-time-cell')
+                        ->html(EventInspectorRenderer::renderTimeCell($row, $sequence)),
+                    Td::tag()
+                        ->class('yii-debug-event-cell')
+                        ->html(EventInspectorRenderer::renderEventCell($row, $sequence)),
                     Td::tag()
                         ->class('yii-debug-cell-mono yii-debug-cell-fqcn')
                         ->html(EventCellRenderer::renderSenderCell($row)),
                 );
+            $bodyRows[] = EventInspectorRenderer::renderDetailRow($row, $sequence, 4);
         }
 
         $queryParams = $context === null ? [] : self::queryParams($context, $filters);
 
-        $headerRows = [self::renderHeaderRow($context, $queryParams)];
+        $headerRows = [
+            self::renderHeaderRow($context, $queryParams),
+        ];
 
         if ($context !== null) {
             $headerRows[] = self::renderFilterRow($filters);
@@ -190,7 +200,29 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-event')
-            ->html($table, $footer)
+            ->html(
+                EventInspectorRenderer::renderControls(
+                    $allRows,
+                    $context === null
+                        ? null
+                        : static function (
+                            string $attribute,
+                            string $value,
+                        ) use ($context, $queryParams, $filters): string {
+                            $params = $queryParams;
+
+                            unset($params['page']);
+
+                            $params[FilterPrefix::EVENT] = [...$filters, $attribute => $value];
+
+                            return $context->panelUrl(queryParams: $params);
+                        },
+                    'class',
+                    'Observed through the decorated PSR-14 dispatcher. Direct calls to other dispatchers are not captured.',
+                ),
+                $table,
+                $footer,
+            )
             ->render();
     }
 
@@ -203,7 +235,13 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         unset($queryParams['page']);
 
-        $cells = [];
+        $cells = [
+            Th::tag()
+                ->scope('col')
+                ->class('yii-debug-col-num')
+                ->content('#'),
+        ];
+
         $headers = [
             'time' => 'Time',
             'class' => 'Event',
@@ -224,6 +262,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             }
 
             $isActive = $activeAttribute === $attribute;
+
             $queryParams['sort'] = $isActive && $direction === 'asc' ? "-{$attribute}" : $attribute;
 
             $link = A::tag()
@@ -238,10 +277,12 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
     /**
      * @param list<EventRow> $filteredRows
+     * @param list<EventRow> $allRows
      * @param array<string, string> $filters
      */
     private static function renderPaginatedGrid(
         array $filteredRows,
+        array $allRows,
         PanelRenderContext $context,
         array $filters,
     ): string {
@@ -258,6 +299,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         return self::renderGrid(
             $visibleRows,
+            $allRows,
             count($filteredRows),
             $window->offset,
             $context,
@@ -297,7 +339,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         $content = $title . self::renderSummary($filteredRows, $pageSizeSelector);
 
         if ($context === null) {
-            return $content . self::renderGrid($filteredRows, count($filteredRows), 0);
+            return $content . self::renderGrid($filteredRows, $entries, count($filteredRows), 0);
         }
 
         $content .= ActiveFilterBanner::render(
@@ -314,7 +356,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             );
         }
 
-        return $content . self::renderPaginatedGrid($filteredRows, $context, $search->activeFilters);
+        return $content . self::renderPaginatedGrid($filteredRows, $entries, $context, $search->activeFilters);
     }
 
     /**
