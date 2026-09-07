@@ -7,7 +7,7 @@ namespace Yii3\Debug\Panel;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{EmptyState, Format};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
-use PHPForge\Debug\Panel\{MemorySample, PanelRenderContext, PanelIcon, PanelTitle};
+use PHPForge\Debug\Panel\{MemorySample, PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Panel\Profile\{ProfileCellRenderer, ProfileRow, ProfilingSnapshot};
 use PHPForge\Debug\Panel\Timeline\{TimelineGeometry, TimelineMemoryRenderer, TimelineRenderer};
 use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
