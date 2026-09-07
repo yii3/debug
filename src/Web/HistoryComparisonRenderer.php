@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Web;
 
+use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Form\{Button, Form, Option, Select};
@@ -37,7 +38,7 @@ final class HistoryComparisonRenderer
 
         return H1::tag()
             ->class('yii-debug-hero-title')
-            ->content('Compare captures')
+            ->content(PanelTitle::COMPARE)
             ->render()
             . self::section(
                 'yii-debug-compare-selection',
@@ -109,7 +110,7 @@ final class HistoryComparisonRenderer
                     ->html(
                         Button::tag()
                             ->class('yii-debug-btn yii-debug-btn-primary')
-                            ->content('Compare captures')
+                            ->content(PanelTitle::COMPARE)
                             ->type('submit'),
                     ),
             )

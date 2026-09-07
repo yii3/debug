@@ -10,6 +10,7 @@ use PHPForge\Debug\Helper\LogLevel;
 use PHPForge\Debug\Storage\{DebugSnapshot, ExceptionSnapshot};
 use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
 use Throwable;
+use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Panel\{ExtensionPanelInterface, LogPanel, ToolbarPanelProviderInterface, ToolbarTitleProviderInterface};
 use Yii3\Debug\Web\DebugUrlGenerator;
 use Yiisoft\Assets\AssetManager;
@@ -74,13 +75,13 @@ final class ToolbarDataFactory
 
             if ($id === '') {
                 throw new InvalidArgumentException(
-                    'Debug toolbar extension panel ID must not be empty.',
+                    Message::TOOLBAR_PANEL_ID_EMPTY->getMessage(),
                 );
             }
 
             if (isset($panels[$id])) {
                 throw new InvalidArgumentException(
-                    "Duplicate debug toolbar extension panel ID: {$id}.",
+                    Message::TOOLBAR_PANEL_ID_DUPLICATE->getMessage($id),
                 );
             }
 
@@ -117,14 +118,14 @@ final class ToolbarDataFactory
     {
         if (!array_is_list($items)) {
             throw new InvalidArgumentException(
-                "Debug toolbar extension panel {$panelId} must return a list of items.",
+                Message::TOOLBAR_ITEMS_NOT_LIST->getMessage($panelId),
             );
         }
 
         foreach ($items as $item) {
             if (!$item instanceof ToolbarItem) {
                 throw new InvalidArgumentException(
-                    "Debug toolbar extension panel {$panelId} must return only ToolbarItem instances.",
+                    Message::TOOLBAR_ITEM_INVALID->getMessage($panelId),
                 );
             }
         }

@@ -6,6 +6,7 @@ namespace Yii3\Debug\Web;
 
 use Closure;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
+use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, HistorySummary};
@@ -69,7 +70,7 @@ final class HistoryGridRenderer
 
         return H1::tag()
             ->class('yii-debug-sr-only')
-            ->content('Request history')
+            ->content(PanelTitle::REQUEST_HISTORY)
             ->render()
             . HistoryCellRenderer::renderSummary(
                 $summary,

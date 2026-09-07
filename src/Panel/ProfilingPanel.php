@@ -7,7 +7,7 @@ namespace Yii3\Debug\Panel;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{EmptyState, Format};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
-use PHPForge\Debug\Panel\{MemorySample, PanelRenderContext};
+use PHPForge\Debug\Panel\{MemorySample, PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Panel\Profile\{ProfileCellRenderer, ProfileRow, ProfilingSnapshot};
 use PHPForge\Debug\Panel\Timeline\{TimelineGeometry, TimelineMemoryRenderer, TimelineRenderer};
 use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
@@ -54,7 +54,7 @@ final readonly class ProfilingPanel implements
 
     public function icon(): string
     {
-        return 'profiling';
+        return PanelIcon::PROFILING->value;
     }
 
     public function id(): string
@@ -64,7 +64,7 @@ final readonly class ProfilingPanel implements
 
     public function name(): string
     {
-        return 'Profiling';
+        return PanelTitle::PROFILING->value;
     }
 
     public function render(array $payload): string
@@ -403,7 +403,7 @@ final readonly class ProfilingPanel implements
 
         $title = H1::tag()
             ->class('yii-debug-sr-only')
-            ->content('Performance Profiling')
+            ->content(PanelTitle::PROFILING_DETAILS)
             ->render();
         if ($context === null || $summary === null) {
             return $title . $this->renderProfilingView($snapshot, $context);
@@ -603,7 +603,7 @@ final readonly class ProfilingPanel implements
             );
         }
 
-        $content .= H2::tag()->content('Timeline')->render()
+        $content .= H2::tag()->content(PanelTitle::TIMELINE)->render()
             . self::renderTimeline($profiling, $filteredRows, $context, $summary)
             . Header::tag()
                 ->class('yii-debug-section-header')

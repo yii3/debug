@@ -11,6 +11,7 @@ use ReflectionClass;
 use Throwable;
 use UnexpectedValueException;
 use WeakMap;
+use Yii3\Debug\Exception\Message;
 
 use function array_is_list;
 use function class_exists;
@@ -171,7 +172,7 @@ final class EventCollector implements CollectorInterface
 
                         if (!$request instanceof ServerRequestInterface) {
                             throw new UnexpectedValueException(
-                                'Expected an HTTP request.',
+                                Message::HTTP_REQUEST_EXPECTED->getMessage(),
                             );
                         }
 
@@ -186,7 +187,7 @@ final class EventCollector implements CollectorInterface
 
                         if ($response !== null && !$response instanceof ResponseInterface) {
                             throw new UnexpectedValueException(
-                                'Expected an HTTP response or null.',
+                                Message::HTTP_RESPONSE_EXPECTED->getMessage(),
                             );
                         }
 

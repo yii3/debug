@@ -7,7 +7,7 @@ namespace Yii3\Debug\Panel;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\EmptyState;
 use PHPForge\Debug\Panel\Event\{EventCellRenderer, EventInspectorRenderer, EventRow, EventSequence, EventSnapshot};
-use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use UIAwesome\Html\Flow\{Div, P, Pre};
@@ -49,7 +49,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
     public function icon(): string
     {
-        return 'events';
+        return PanelIcon::EVENTS->value;
     }
 
     public function id(): string
@@ -59,7 +59,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
     public function name(): string
     {
-        return 'Events';
+        return PanelTitle::EVENTS->value;
     }
 
     public function render(array $payload): string
@@ -318,7 +318,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         $title = H1::tag()
             ->class('yii-debug-sr-only')
-            ->content('Events')
+            ->content(PanelTitle::EVENTS)
             ->render();
 
         if ($entries === []) {

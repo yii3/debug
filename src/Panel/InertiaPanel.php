@@ -6,6 +6,7 @@ namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Helper\Coerce;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\{PanelIcon, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 
 use function is_array;
@@ -26,7 +27,7 @@ final class InertiaPanel implements ToolbarPanelProviderInterface
 
     public function icon(): string
     {
-        return 'inertia';
+        return PanelIcon::INERTIA->value;
     }
     public function id(): string
     {
@@ -35,7 +36,7 @@ final class InertiaPanel implements ToolbarPanelProviderInterface
 
     public function name(): string
     {
-        return 'Inertia';
+        return PanelTitle::INERTIA->value;
     }
 
     public function render(array $payload): string
