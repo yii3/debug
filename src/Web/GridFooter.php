@@ -14,7 +14,10 @@ use UIAwesome\Html\Sectioning\Nav;
 use Yiisoft\Data\Paginator\OffsetPaginator;
 
 use function array_replace;
+use function intdiv;
+use function max;
 use function min;
+use function range;
 
 /**
  * Renders the shared item count and numbered links without owning panel navigation.
@@ -22,6 +25,14 @@ use function min;
 final class GridFooter
 {
     /**
+     * Number of consecutive page links rendered around the current page.
+     */
+    private const int WINDOW = 10;
+
+    /**
+     * Renders the item count summary followed by a bounded window of page links around the current page, adding first
+     * and last page links, separated by an ellipsis, whenever the window leaves them out.
+     *
      * @param (Closure(int): string)|null $pageUrl Omit for context-free rendering without navigation.
      */
     public static function render(
@@ -29,6 +40,8 @@ final class GridFooter
         int $offset,
         int $visible,
         int $page = 1,
+        // Read only behind the `> 1` guard, so a default of `0` renders the same markup as `1`.
+        // @infection-ignore-all
         int $pageCount = 1,
         Closure|null $pageUrl = null,
     ): Div {
@@ -39,22 +52,28 @@ final class GridFooter
         $items = [];
 
         if ($pageUrl !== null && $pageCount > 1) {
-            for ($number = 1; $number <= $pageCount; $number++) {
-                $link = A::tag()
-                    ->class('yii-debug-pager-link')
-                    ->addAriaAttribute('label', 'Page ' . $number)
-                    ->href($pageUrl($number))
-                    ->content((string) $number);
+            $lastPage = min($pageCount, max(self::WINDOW, $page + intdiv(self::WINDOW, 2) - 1));
 
-                if ($number === $page) {
-                    $link = $link->addAriaAttribute('current', 'page');
+            $firstPage = $lastPage - min(self::WINDOW, $pageCount) + 1;
+
+            if ($firstPage > 1) {
+                $items[] = self::pageLink(1, $page, $pageUrl);
+
+                if ($firstPage > 2) {
+                    $items[] = self::ellipsis();
+                }
+            }
+
+            foreach (range($firstPage, $lastPage) as $number) {
+                $items[] = self::pageLink($number, $page, $pageUrl);
+            }
+
+            if ($lastPage < $pageCount) {
+                if ($lastPage < $pageCount - 1) {
+                    $items[] = self::ellipsis();
                 }
 
-                $item = Li::tag()
-                    ->class('yii-debug-pager-item')
-                    ->html($link);
-
-                $items[] = $number === $page ? $item->class('is-active') : $item;
+                $items[] = self::pageLink($pageCount, $page, $pageUrl);
             }
         }
 
@@ -99,5 +118,41 @@ final class GridFooter
                 queryParams: array_replace($queryParams, ['page' => $number]),
             ),
         );
+    }
+
+    /**
+     * Returns the hidden, inert item marking the pages the window leaves out.
+     */
+    private static function ellipsis(): Li
+    {
+        return Li::tag()
+            ->class('yii-debug-pager-item')
+            ->class('is-disabled')
+            ->addAriaAttribute('hidden', 'true')
+            ->html(Span::tag()->class('yii-debug-pager-link')->content('…'));
+    }
+
+    /**
+     * Returns the item linking to the given page, marked as current when it matches the active one.
+     *
+     * @param Closure(int): string $pageUrl Builds the target URL of the page.
+     */
+    private static function pageLink(int $number, int $page, Closure $pageUrl): Li
+    {
+        $link = A::tag()
+            ->class('yii-debug-pager-link')
+            ->addAriaAttribute('label', 'Page ' . $number)
+            ->href($pageUrl($number))
+            ->content((string) $number);
+
+        if ($number === $page) {
+            $link = $link->addAriaAttribute('current', 'page');
+        }
+
+        $item = Li::tag()
+            ->class('yii-debug-pager-item')
+            ->html($link);
+
+        return $number === $page ? $item->class('is-active') : $item;
     }
 }
