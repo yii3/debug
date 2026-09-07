@@ -9,6 +9,7 @@ use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\List\{Li, Ul};
 use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\Span;
+use UIAwesome\Html\Sectioning\Nav;
 
 use function min;
 
@@ -38,9 +39,17 @@ final class GridFooter
             for ($number = 1; $number <= $pageCount; $number++) {
                 $link = A::tag()
                     ->class('yii-debug-pager-link')
+                    ->addAriaAttribute('label', 'Page ' . $number)
                     ->href($pageUrl($number))
                     ->content((string) $number);
-                $item = Li::tag()->class('yii-debug-pager-item')->html($link);
+
+                if ($number === $page) {
+                    $link = $link->addAriaAttribute('current', 'page');
+                }
+
+                $item = Li::tag()
+                    ->class('yii-debug-pager-item')
+                    ->html($link);
 
                 $items[] = $number === $page ? $item->class('is-active') : $item;
             }
@@ -54,9 +63,9 @@ final class GridFooter
                     ->content("Showing {$begin}-{$end} of {$total} items."),
                 $items === []
                     ? ''
-                    : Ul::tag()
-                        ->class('yii-debug-pager')
-                        ->html(...$items),
+                    : Nav::tag()
+                        ->addAriaAttribute('label', 'Pagination')
+                        ->html(Ul::tag()->class('yii-debug-pager')->html(...$items)),
             );
     }
 }

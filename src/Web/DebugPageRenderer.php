@@ -37,7 +37,6 @@ use function dirname;
 use function in_array;
 use function is_string;
 use function json_encode;
-use function memory_get_peak_usage;
 use function rawurlencode;
 use function rtrim;
 use function trim;
@@ -86,12 +85,19 @@ final class DebugPageRenderer
     {
         $target = $comparison->target->summary;
 
+        $panelLabels = ['config' => PanelTitle::CONFIGURATION->value];
+
+        foreach ($this->extensionPanels as $id => $panel) {
+            $panelLabels[$id] = $panel->name();
+        }
+
         return $this->page(
             PanelTitle::COMPARE->value,
-            HistoryComparisonRenderer::render($comparison, $manifest, $this->routePrefix),
+            HistoryComparisonRenderer::renderWithPanels($comparison, $manifest, $this->routePrefix, $panelLabels),
             $theme,
             $this->viewUrl($target->tag),
             $this->viewSidebar($target, $manifest, $comparison->target),
+            $target,
         );
     }
 
@@ -133,7 +139,8 @@ final class DebugPageRenderer
             $content,
             $theme,
             $configUrl,
-            $this->viewSidebar($manifest[$tag] ?? null, $manifest, $snapshot),
+            $this->viewSidebar($snapshot->summary ?? $manifest[$tag] ?? null, $manifest, $snapshot),
+            $snapshot->summary ?? $manifest[$tag] ?? null,
         );
     }
 
@@ -225,6 +232,7 @@ final class DebugPageRenderer
                 $snapshot,
                 $panelId,
             ),
+            $snapshot->summary,
         );
     }
 
@@ -251,6 +259,7 @@ final class DebugPageRenderer
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
             $this->historySidebar($manifest, $queryParams, $snapshot),
+            $newestTag === null ? null : $manifest[$newestTag],
         );
     }
 
@@ -282,6 +291,7 @@ final class DebugPageRenderer
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
             $this->viewSidebar($summary, $manifest, $snapshot),
+            $summary,
         );
     }
 
@@ -425,6 +435,7 @@ final class DebugPageRenderer
         string $theme,
         string|null $configUrl,
         SidebarView $sidebar,
+        RequestSummary|null $summary,
     ): string {
         $view = $this->view->withClearedState();
         $shell = $view->render(
@@ -438,7 +449,7 @@ final class DebugPageRenderer
                 'debugTheme' => $theme,
                 'historyUrl' => $this->routePrefix,
                 'mode' => 'view',
-                'peakMemory' => Format::bytesToMb(memory_get_peak_usage(true)),
+                'peakMemory' => $summary?->peakMemory === null ? null : Format::bytesToMb($summary->peakMemory),
                 'phpIcon' => Icon::render('php-alt'),
                 'phpVersion' => PHP_VERSION,
                 'sidebar' => SidebarRenderer::render($sidebar),
