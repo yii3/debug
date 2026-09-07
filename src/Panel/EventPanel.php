@@ -6,28 +6,37 @@ namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\EmptyState;
-use PHPForge\Debug\Panel\Event\{EventCellRenderer, EventInspectorRenderer, EventRow, EventSequence, EventSnapshot};
+use PHPForge\Debug\Panel\Event\{
+    EventCellRenderer,
+    EventInspectorRenderer,
+    EventMessage,
+    EventRow,
+    EventSequence,
+    EventSnapshot,
+};
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
-use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use UIAwesome\Html\Flow\{Div, P, Pre};
-use UIAwesome\Html\Form\InputText;
-use UIAwesome\Html\Heading\H1;
 use UIAwesome\Html\Palpable\A;
-use UIAwesome\Html\Phrasing\{Span, Strong};
 use UIAwesome\Html\Root\Header;
-use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\EventSearch;
-use Yii3\Debug\Web\{FilterRemoval, GridFooter, PageWindow};
+use Yii3\Debug\Web\{
+    FilterInput,
+    FilterRemoval,
+    GridColumn,
+    GridFooter,
+    PageWindow,
+    PanelHeading,
+    SortState,
+    SummaryChip,
+};
+use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Html\Html;
+use Yiisoft\Html\Tag\Tr;
+use Yiisoft\Yii\DataView\GridView\GridView;
 
-use function array_replace;
-use function array_slice;
 use function count;
-use function in_array;
-use function str_starts_with;
 use function strcasecmp;
-use function substr;
-use function usort;
 
 /**
  * Presents dispatched PSR-14 events and contributes their total to the debug toolbar.
@@ -82,121 +91,132 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     }
 
     /**
+     * @param array<array-key, mixed> $queryParams
      * @param array<string, string> $filters
      *
-     * @return array<array-key, mixed>
+     * @return list<GridColumn<EventRow>>
      */
-    private static function queryParams(PanelRenderContext $context, array $filters): array
-    {
-        $params = $context->queryParams;
+    private static function columns(
+        EventSequence $sequence,
+        PanelRenderContext|null $context,
+        array $queryParams,
+        array $filters,
+    ): array {
+        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
 
-        if ($filters === []) {
-            unset($params[FilterPrefix::EVENT]);
-        } else {
-            $params[FilterPrefix::EVENT] = $filters;
-        }
+        unset($queryParams['page']);
 
-        return $params;
+        $header = static function (string $attribute, string $label) use (
+            $context,
+            $queryParams,
+            $state,
+        ): string {
+            if ($context === null) {
+                return $label;
+            }
+
+            $isActive = $state->isActive($attribute);
+
+            $queryParams['sort'] = $state->next($attribute);
+
+            $link = A::tag()
+                ->href($context->panelUrl(queryParams: $queryParams))
+                ->content($label);
+
+            return ($isActive ? $link->class($state->direction) : $link)->render();
+        };
+
+        return [
+            new GridColumn(
+                header: '#',
+                content: static fn(EventRow $row): string => (string) $sequence->index($row),
+                filter: $context === null ? null : '',
+                encodeContent: true,
+                class: 'yii-debug-col-num',
+            ),
+            new GridColumn(
+                header: $header('time', 'Time'),
+                content: static fn(EventRow $row): string => EventInspectorRenderer::renderTimeCell($row, $sequence),
+                filter: $context === null ? null : '',
+                headerClass: 'sort-numerical',
+                bodyClass: 'yii-debug-event-time-cell',
+            ),
+            new GridColumn(
+                header: $header('class', 'Event'),
+                content: static fn(EventRow $row): string => EventInspectorRenderer::renderEventCell($row, $sequence),
+                filter: $context === null
+                    ? null
+                    : FilterInput::text(FilterPrefix::EVENT, 'class', 'Event', $filters),
+                bodyClass: 'yii-debug-event-cell',
+            ),
+            new GridColumn(
+                header: $header('senderClass', 'Source'),
+                content: static fn(EventRow $row): string => EventCellRenderer::renderSenderCell($row),
+                filter: $context === null
+                    ? null
+                    : FilterInput::text(FilterPrefix::EVENT, 'senderClass', 'Source', $filters),
+                bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
+            ),
+        ];
     }
 
     private static function renderEmptyCaptureState(): string
     {
         return EmptyState::card(
-            'No events dispatched in this request',
-            P::tag()->content(
-                'The Events panel records PSR-14 objects sent through the configured debug dispatcher decorator, '
-                . 'so this request completed without dispatching any.',
-            ),
-            P::tag()->content('Dispatch an application event to populate this view:'),
+            EventMessage::EMPTY_HEADLINE->value,
+            P::tag()->content(EventMessage::EMPTY_EXPLANATION),
+            P::tag()->content(EventMessage::EMPTY_CALL_TO_ACTION),
             Pre::tag()
                 ->class('yii-debug-empty-state-code')
-                ->content('$dispatcher->dispatch(new MyEvent());'),
+                ->content(EventMessage::EMPTY_EXAMPLE),
         );
     }
 
     /**
-     * @param array<string, string> $filters
-     */
-    private static function renderFilterRow(array $filters): Tr
-    {
-        return Tr::tag()
-            ->class('filters')
-            ->html(
-                Td::tag(),
-                Td::tag(),
-                Td::tag()->html(self::textFilter('class', 'Event', $filters)),
-                Td::tag()->html(self::textFilter('senderClass', 'Source', $filters)),
-            );
-    }
-
-    /**
-     * @param list<EventRow> $rows
+     * @param OffsetPaginator<int, EventRow> $paginator
      * @param list<EventRow> $allRows
      * @param array<string, string> $filters
      */
     private static function renderGrid(
-        array $rows,
+        OffsetPaginator $paginator,
         array $allRows,
-        int $totalRows,
-        int $offset,
         PanelRenderContext|null $context = null,
         array $filters = [],
-        int $page = 1,
-        int $pageCount = 1,
     ): string {
         $sequence = new EventSequence($allRows);
-        $bodyRows = [];
+        $queryParams = $context === null
+            ? []
+            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
 
-        foreach ($rows as $row) {
-            $bodyRows[] = Tr::tag()
-                ->html(
-                    Td::tag()
-                        ->class('yii-debug-col-num')
-                        ->content((string) $sequence->index($row)),
-                    Td::tag()
-                        ->class('yii-debug-event-time-cell')
-                        ->html(EventInspectorRenderer::renderTimeCell($row, $sequence)),
-                    Td::tag()
-                        ->class('yii-debug-event-cell')
-                        ->html(EventInspectorRenderer::renderEventCell($row, $sequence)),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-fqcn')
-                        ->html(EventCellRenderer::renderSenderCell($row)),
-                );
-            $bodyRows[] = EventInspectorRenderer::renderDetailRow($row, $sequence, 4);
-        }
+        /** @var GridView<EventRow> $grid */
+        $grid = GridView::widget();
 
-        $queryParams = $context === null ? [] : self::queryParams($context, $filters);
-
-        $headerRows = [
-            self::renderHeaderRow($context, $queryParams),
-        ];
+        $grid = $grid
+            ->afterRow(
+                static fn(EventRow $row): Tr => Html::tr(['class' => 'yii-debug-event-detail-row'])
+                    ->cells(
+                        Html::td(
+                            EventInspectorRenderer::renderDetailCell($row, $sequence),
+                            ['colspan' => 4],
+                        )->encode(false),
+                    ),
+            )
+            ->dataReader($paginator)
+            ->layout('{items}')
+            ->containerClass('yii-debug-table-wrap')
+            ->tableClass('yii-debug-table')
+            ->headerCellAttributes(['scope' => 'col'])
+            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
+            ->filterFormId('yii-debug-event-filters')
+            ->columns(...self::columns($sequence, $context, $queryParams, $filters));
 
         if ($context !== null) {
-            $headerRows[] = self::renderFilterRow($filters);
+            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
         }
 
-        $table = Div::tag()
-            ->class('yii-debug-table-wrap')
-            ->html(
-                Table::tag()
-                    ->class('yii-debug-table')
-                    ->html(
-                        Thead::tag()->html(...$headerRows),
-                        Tbody::tag()->html(...$bodyRows),
-                    ),
-            );
+        $table = $grid->render();
 
-        $footer = GridFooter::render(
-            $totalRows,
-            $offset,
-            count($rows),
-            $page,
-            $pageCount,
-            $context === null ? null : static fn(int $number): string => $context->panelUrl(
-                queryParams: array_replace($queryParams, ['page' => $number]),
-            ),
-        );
+        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-event')
@@ -227,55 +247,6 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
-     */
-    private static function renderHeaderRow(PanelRenderContext|null $context, array $queryParams): Tr
-    {
-        [$activeAttribute, $direction] = self::sortState(QueryInput::scalar($queryParams, 'sort'));
-
-        unset($queryParams['page']);
-
-        $cells = [
-            Th::tag()
-                ->scope('col')
-                ->class('yii-debug-col-num')
-                ->content('#'),
-        ];
-
-        $headers = [
-            'time' => 'Time',
-            'class' => 'Event',
-            'senderClass' => 'Source',
-        ];
-
-        foreach ($headers as $attribute => $label) {
-            $cell = Th::tag()->scope('col');
-
-            if ($attribute === 'time') {
-                $cell = $cell->class('sort-numerical');
-            }
-
-            if ($context === null) {
-                $cells[] = $cell->content($label);
-
-                continue;
-            }
-
-            $isActive = $activeAttribute === $attribute;
-
-            $queryParams['sort'] = $isActive && $direction === 'asc' ? "-{$attribute}" : $attribute;
-
-            $link = A::tag()
-                ->href($context->panelUrl(queryParams: $queryParams))
-                ->content($label);
-
-            $cells[] = $cell->html($isActive ? $link->class($direction) : $link);
-        }
-
-        return Tr::tag()->html(...$cells);
-    }
-
-    /**
      * @param list<EventRow> $filteredRows
      * @param list<EventRow> $allRows
      * @param array<string, string> $filters
@@ -286,27 +257,17 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         PanelRenderContext $context,
         array $filters,
     ): string {
-        $queryParams = self::queryParams($context, $filters);
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
+
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
-        $window = new PageWindow(
-            count($sortedRows),
+        $paginator = PageWindow::paginate(
+            $sortedRows,
             QueryInput::scalar($queryParams, 'per-page'),
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        $visibleRows = array_slice($sortedRows, $window->offset, $window->limit);
-
-        return self::renderGrid(
-            $visibleRows,
-            $allRows,
-            count($filteredRows),
-            $window->offset,
-            $context,
-            $filters,
-            $window->page,
-            $window->pageCount,
-        );
+        return self::renderGrid($paginator, $allRows, $context, $filters);
     }
 
     /**
@@ -316,10 +277,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     {
         $entries = self::snapshot($payload)->entries();
 
-        $title = H1::tag()
-            ->class('yii-debug-sr-only')
-            ->content(PanelTitle::EVENTS)
-            ->render();
+        $title = PanelHeading::render(PanelTitle::EVENTS);
 
         if ($entries === []) {
             return $title . self::renderEmptyCaptureState();
@@ -327,32 +285,26 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         $search = EventSearch::fromQueryParams($context->queryParams ?? []);
 
-        $queryParams = $context === null ? [] : self::queryParams($context, $search->activeFilters);
+        $queryParams = $context === null
+            ? []
+            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
-        $pageSizeSelector = $context === null
-            ? null
-            : PageSize::selectorHtml(
-                PageSize::current(QueryInput::scalar($queryParams, 'per-page')),
-            );
+        $pageSizeSelector = $context === null ? null : PageSize::selectorFor($queryParams);
+
         $content = $title . self::renderSummary($filteredRows, $pageSizeSelector);
 
         if ($context === null) {
-            return $content . self::renderGrid($filteredRows, $entries, count($filteredRows), 0);
+            return $content . self::renderGrid(PageWindow::single($filteredRows), $entries);
         }
 
-        $content .= ActiveFilterBanner::render(
-            $search->activeFilters,
-            static fn(array $without): string => $context->panelUrl(
-                queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::EVENT, $without),
-            ),
-        );
+        $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::EVENT);
 
         if ($filteredRows === []) {
             return $content . EmptyState::card(
-                'No events match the active filters',
-                P::tag()->content('Adjust or clear the filters to show the dispatched events.'),
+                EventMessage::NO_MATCH_HEADLINE->value,
+                P::tag()->content(EventMessage::NO_MATCH_EXPLANATION),
             );
         }
 
@@ -365,32 +317,16 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     private static function renderSummary(array $rows, string|null $pageSizeSelector): string
     {
         $items = [
-            Span::tag()
-                ->html(
-                    Strong::tag()->content((string) count($rows)),
-                    ' events',
-                ),
-            Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·'),
-            Span::tag()
-                ->html(
-                    Strong::tag()->content((string) EventRow::distinctClassCount($rows)),
-                    ' classes',
-                ),
+            SummaryChip::render((string) count($rows), ' events'),
+            SummaryChip::separator(),
+            SummaryChip::render((string) EventRow::distinctClassCount($rows), ' classes'),
         ];
 
         $staticCount = EventRow::staticCount($rows);
 
         if ($staticCount > 0) {
-            $items[] = Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·');
-            $items[] = Span::tag()
-                ->html(
-                    Strong::tag()->content((string) $staticCount),
-                    ' static',
-                );
+            $items[] = SummaryChip::separator();
+            $items[] = SummaryChip::render((string) $staticCount, ' static');
         }
 
         if ($pageSizeSelector !== null) {
@@ -418,51 +354,15 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        [$attribute, $direction] = self::sortState($sort);
+        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'time');
 
-        usort(
+        return $state->apply(
             $rows,
-            static function (EventRow $left, EventRow $right) use ($attribute, $direction): int {
-                $result = match ($attribute) {
-                    'time' => $left->time <=> $right->time,
-                    'class' => strcasecmp($left->class, $right->class),
-                    default => strcasecmp($left->senderClass, $right->senderClass),
-                };
-
-                return $direction === 'desc' ? -$result : $result;
+            static fn(EventRow $left, EventRow $right): int => match ($state->attribute) {
+                'time' => $left->time <=> $right->time,
+                'class' => strcasecmp($left->class, $right->class),
+                default => strcasecmp($left->senderClass, $right->senderClass),
             },
         );
-
-        return $rows;
-    }
-
-    /**
-     * @return array{string, 'asc'|'desc'}
-     */
-    private static function sortState(string|null $sort): array
-    {
-        if ($sort === null || $sort === '') {
-            return ['time', 'asc'];
-        }
-
-        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
-
-        $attribute = $direction === 'desc' ? substr($sort, 1) : $sort;
-
-        return in_array($attribute, self::SORT_ATTRIBUTES, true)
-            ? [$attribute, $direction]
-            : ['time', 'asc'];
-    }
-
-    /**
-     * @param array<string, string> $filters
-     */
-    private static function textFilter(string $attribute, string $label, array $filters): InputText
-    {
-        return InputText::tag()
-            ->addAriaAttribute('label', 'Filter by ' . $label)
-            ->class('yii-debug-input')
-            ->name(FilterPrefix::EVENT . "[{$attribute}]")
-            ->value($filters[$attribute] ?? '');
     }
 }

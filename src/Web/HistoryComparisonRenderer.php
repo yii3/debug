@@ -13,8 +13,11 @@ use UIAwesome\Html\Heading\{H1, H2};
 use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\{Label, Span};
 use UIAwesome\Html\Sectioning\{Article, Section};
-use UIAwesome\Html\Table\{Caption, Table, Tbody, Td, Th, Thead, Tr};
-use Yii3\Debug\Comparison\{HistoryComparison, HistoryPanelComparison};
+use Yii3\Debug\Comparison\{HistoryComparison, HistoryMetricComparison, HistoryPanelComparison};
+use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Data\Reader\Iterable\IterableDataReader;
+use Yiisoft\Html\Html;
+use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
 use function in_array;
@@ -212,6 +215,30 @@ final class HistoryComparisonRenderer
         return rtrim($routePrefix, '/') . '/view?tag=' . rawurlencode($tag) . '&panel=config';
     }
 
+    /**
+     * Renders a comparison table as a GridView with a visually hidden caption.
+     *
+     * @template TRow of object
+     *
+     * @param non-empty-list<TRow> $rows
+     * @param list<GridColumn<TRow>> $columns
+     */
+    private static function grid(string $caption, array $rows, array $columns): string
+    {
+        /** @var GridView<TRow> $grid */
+        $grid = GridView::widget();
+
+        return $grid
+            ->dataReader((new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(count($rows)))
+            ->layout('{items}')
+            ->containerClass('yii-debug-table-wrap')
+            ->tableClass('yii-debug-table', 'yii-debug-compare-grid')
+            ->headerCellAttributes(['scope' => 'col'])
+            ->caption(Html::span($caption, ['class' => 'yii-debug-sr-only']))
+            ->columns(...$columns)
+            ->render();
+    }
+
     private static function panelSection(HistoryComparison $comparison, P|string ...$content): string
     {
         return Section::tag()
@@ -266,33 +293,41 @@ final class HistoryComparisonRenderer
 
     private static function renderMetrics(HistoryComparison $comparison): string
     {
-        $rows = [];
+        $metrics = $comparison->metrics;
 
-        foreach ($comparison->metrics as $metric) {
-            $rows[] = Tr::tag()
-                ->html(
-                    Th::tag()
-                        ->scope('row')
-                        ->content($metric->label),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono')
-                        ->content($metric->baseline()),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono')
-                        ->content($metric->target()),
-                    Td::tag()
-                        ->html(
-                            Span::tag()
-                                ->class('yii-debug-delta-' . self::trend($metric->trend()))
-                                ->content($metric->delta()),
-                        ),
-                );
+        if ($metrics === []) {
+            return '';
         }
 
-        return self::table(
+        return self::grid(
             'Request summary comparison',
-            ['Metric', 'Baseline', 'Target', 'Delta'],
-            $rows,
+            $metrics,
+            [
+                new GridColumn(
+                    header: 'Metric',
+                    content: static fn(HistoryMetricComparison $metric): string => $metric->label,
+                    encodeContent: true,
+                ),
+                new GridColumn(
+                    header: 'Baseline',
+                    content: static fn(HistoryMetricComparison $metric): string => $metric->baseline(),
+                    encodeContent: true,
+                    bodyClass: 'yii-debug-cell-mono',
+                ),
+                new GridColumn(
+                    header: 'Target',
+                    content: static fn(HistoryMetricComparison $metric): string => $metric->target(),
+                    encodeContent: true,
+                    bodyClass: 'yii-debug-cell-mono',
+                ),
+                new GridColumn(
+                    header: 'Delta',
+                    content: static fn(HistoryMetricComparison $metric): string => Span::tag()
+                        ->class('yii-debug-delta-' . self::trend($metric->trend()))
+                        ->content($metric->delta())
+                        ->render(),
+                ),
+            ],
         );
     }
 
@@ -334,60 +369,68 @@ final class HistoryComparisonRenderer
             );
         }
 
-        $rows = [];
         $baseline = $comparison->baseline->summary->tag;
         $target = $comparison->target->summary->tag;
-
-        foreach ($comparison->panels as $panel) {
-            $rows[] = Tr::tag()
-                ->html(
-                    Th::tag()
-                        ->scope('row')
-                        ->content($panel->label),
-                    Td::tag()
-                        ->html(
-                            self::renderPanelState(
-                                $panel,
-                                $baseline,
-                                $panel->baselineState(),
-                                $routePrefix,
-                                isset($panelLabels[$panel->id]),
-                            )
-                        ),
-                    Td::tag()
-                        ->html(
-                            self::renderPanelState(
-                                $panel,
-                                $target,
-                                $panel->targetState(),
-                                $routePrefix,
-                                isset($panelLabels[$panel->id])
-                            )
-                        ),
-                    Td::tag()
-                        ->class('yii-debug-cell-numeric')
-                        ->content((string) $panel->added()),
-                    Td::tag()
-                        ->class('yii-debug-cell-numeric')
-                        ->content((string) $panel->removed()),
-                    Td::tag()
-                        ->class('yii-debug-cell-numeric')
-                        ->content((string) $panel->changed()),
-                    Td::tag()
-                        ->class('yii-debug-cell-numeric')
-                        ->content((string) $panel->unchanged()),
-                );
-        }
 
         return self::panelSection(
             $comparison,
             P::tag()
                 ->class('yii-debug-muted')
                 ->content('Counts compare typed JSON leaf paths without rendering captured values.'),
-            self::table(
+            self::grid(
                 'Panel structure comparison',
-                ['Panel', 'Baseline', 'Target', 'Added', 'Removed', 'Changed', 'Unchanged'],
-                $rows,
+                $comparison->panels,
+                [
+                    new GridColumn(
+                        header: 'Panel',
+                        content: static fn(HistoryPanelComparison $panel): string => $panel->label,
+                        encodeContent: true,
+                    ),
+                    new GridColumn(
+                        header: 'Baseline',
+                        content: static fn(HistoryPanelComparison $panel): string => self::renderPanelState(
+                            $panel,
+                            $baseline,
+                            $panel->baselineState(),
+                            $routePrefix,
+                            isset($panelLabels[$panel->id]),
+                        ),
+                    ),
+                    new GridColumn(
+                        header: 'Target',
+                        content: static fn(HistoryPanelComparison $panel): string => self::renderPanelState(
+                            $panel,
+                            $target,
+                            $panel->targetState(),
+                            $routePrefix,
+                            isset($panelLabels[$panel->id]),
+                        ),
+                    ),
+                    new GridColumn(
+                        header: 'Added',
+                        content: static fn(HistoryPanelComparison $panel): string => (string) $panel->added(),
+                        encodeContent: true,
+                        bodyClass: 'yii-debug-cell-numeric',
+                    ),
+                    new GridColumn(
+                        header: 'Removed',
+                        content: static fn(HistoryPanelComparison $panel): string => (string) $panel->removed(),
+                        encodeContent: true,
+                        bodyClass: 'yii-debug-cell-numeric',
+                    ),
+                    new GridColumn(
+                        header: 'Changed',
+                        content: static fn(HistoryPanelComparison $panel): string => (string) $panel->changed(),
+                        encodeContent: true,
+                        bodyClass: 'yii-debug-cell-numeric',
+                    ),
+                    new GridColumn(
+                        header: 'Unchanged',
+                        content: static fn(HistoryPanelComparison $panel): string => (string) $panel->unchanged(),
+                        encodeContent: true,
+                        bodyClass: 'yii-debug-cell-numeric',
+                    ),
+                ],
             ),
         );
     }
@@ -443,36 +486,6 @@ final class HistoryComparisonRenderer
                         $title,
                     ),
                 $content,
-            )
-            ->render();
-    }
-
-    /**
-     * @param list<string> $headers
-     * @param list<Tr> $rows
-     */
-    private static function table(string $caption, array $headers, array $rows): string
-    {
-        $headerCells = [];
-
-        foreach ($headers as $header) {
-            $headerCells[] = Th::tag()
-                ->scope('col')
-                ->content($header);
-        }
-
-        return Div::tag()
-            ->class('yii-debug-table-wrap')
-            ->html(
-                Table::tag()
-                    ->class('yii-debug-table yii-debug-compare-grid')
-                    ->html(
-                        Caption::tag()
-                            ->class('yii-debug-sr-only')
-                            ->content($caption),
-                        Thead::tag()->html(Tr::tag()->html(...$headerCells)),
-                        Tbody::tag()->html(...$rows),
-                    ),
             )
             ->render();
     }

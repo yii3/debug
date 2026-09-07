@@ -57,7 +57,7 @@ final class LogPanelTest extends TestCase
             'The summary must report the unfiltered captured total.',
         );
         self::assertStringContainsString(
-            'class="yii-debug-row-info" id="log-1"',
+            'id="log-1" class="yii-debug-row-info"',
             $html,
             'Rows must retain the shared severity class and stable anchor.',
         );

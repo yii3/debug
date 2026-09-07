@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(events): replace the duplicate execution-flow list with full-width diagnostics without repeating row fields in the primary table, retaining column filters, sorting, pagination, and original observation identities.
 - refactor: centralize panel icons, titles, and exception messages; document enum cases, literal formats, and formatting examples.
 - fix: improve capture UI, accessible history filters, and local Debug Core Composer linking.
+- feat(ui): render every panel grid with Yii DataView through shared column, sort, filter, and paging helpers; label Profiling filters.
 
 ### Added
 

@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use Closure;
+use PHPForge\Debug\Panel\PanelRenderContext;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\List\{Li, Ul};
 use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\Span;
 use UIAwesome\Html\Sectioning\Nav;
+use Yiisoft\Data\Paginator\OffsetPaginator;
 
+use function array_replace;
 use function min;
 
 /**
@@ -67,5 +70,34 @@ final class GridFooter
                         ->addAriaAttribute('label', 'Pagination')
                         ->html(Ul::tag()->class('yii-debug-pager')->html(...$items)),
             );
+    }
+
+    /**
+     * Renders the footer of a panel grid, deriving the counters and page links from the paginator.
+     *
+     * @template TKey of array-key
+     * @template TValue of array|object
+     *
+     * @param OffsetPaginator<TKey, TValue> $paginator Paginator backing the grid.
+     * @param int $visible Number of rows rendered on the current page.
+     * @param PanelRenderContext|null $context Omit for context-free rendering without navigation.
+     * @param array<array-key, mixed> $queryParams Query parameters the page links are built from.
+     */
+    public static function renderForPanel(
+        OffsetPaginator $paginator,
+        int $visible,
+        PanelRenderContext|null $context,
+        array $queryParams,
+    ): Div {
+        return self::render(
+            $paginator->getTotalItems(),
+            $paginator->getOffset(),
+            $visible,
+            $paginator->getCurrentPage(),
+            $paginator->getTotalPages(),
+            $context === null ? null : static fn(int $number): string => $context->panelUrl(
+                queryParams: array_replace($queryParams, ['page' => $number]),
+            ),
+        );
     }
 }
