@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
+use PHPForge\Debug\Panel\{PanelIcon, PanelTitle};
 use PHPForge\Debug\Panel\Vite\{ViteSectionRenderer, ViteSnapshot, ViteSummary};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 
@@ -19,7 +20,7 @@ final class VitePanel implements ToolbarPanelProviderInterface
 
     public function icon(): string
     {
-        return 'brand-javascript';
+        return PanelIcon::VITE->value;
     }
 
     public function id(): string
@@ -29,7 +30,7 @@ final class VitePanel implements ToolbarPanelProviderInterface
 
     public function name(): string
     {
-        return 'Vite';
+        return PanelTitle::VITE->value;
     }
 
     public function render(array $payload): string

@@ -7,7 +7,7 @@ namespace Yii3\Debug\Panel;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{Dump, EmptyState, LogLevel};
 use PHPForge\Debug\Panel\Log\{LogCellRenderer, LogCounts, LogRow, LogSnapshot};
-use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use UIAwesome\Html\Flow\{Div, P};
@@ -56,7 +56,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
 
     public function icon(): string
     {
-        return 'logs';
+        return PanelIcon::LOGS->value;
     }
 
     public function id(): string
@@ -66,7 +66,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
 
     public function name(): string
     {
-        return 'Logs';
+        return PanelTitle::LOGS->value;
     }
 
     public function render(array $payload): string
@@ -344,7 +344,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
 
         $title = H1::tag()
             ->class('yii-debug-sr-only')
-            ->content('Log Messages')
+            ->content(PanelTitle::LOG_MESSAGES)
             ->render();
 
         if ($entries === []) {

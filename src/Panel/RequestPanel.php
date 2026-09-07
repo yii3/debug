@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
+use PHPForge\Debug\Panel\{PanelIcon, PanelTitle};
 use PHPForge\Debug\Panel\Request\{
     RequestDataNormalizer,
     RequestRenderer,
@@ -31,7 +32,7 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
 
     public function icon(): string
     {
-        return 'request';
+        return PanelIcon::REQUEST->value;
     }
 
     public function id(): string
@@ -41,7 +42,7 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
 
     public function name(): string
     {
-        return 'Request';
+        return PanelTitle::REQUEST->value;
     }
 
     public function render(array $payload): string

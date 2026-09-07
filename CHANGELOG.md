@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(ui): reuse normalized grid queries for header and pager links in Logs, Events, and Profiling, keeping sort links local to each header and resolving their active direction once per header row.
 - refactor(ui): reuse active search filters in manual Logs, Events, and Profiling grids and the normalized Logs query in severity shortcuts, preserving filter replacement, page reset, and query ordering.
 - refactor(events): replace the duplicate execution-flow list with full-width diagnostics without repeating row fields in the primary table, retaining column filters, sorting, pagination, and original observation identities.
+- refactor: centralize panel icons, titles, and exception messages; document enum cases, literal formats, and formatting examples.
 
 ### Added
 

@@ -11,6 +11,7 @@ use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Request\Routing\RouteDefinition;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, UploadedFileInterface};
+use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Routing\RouteDefinitionExtractor;
 use Yiisoft\Router\{CurrentRoute, RouteCollectionInterface};
 
@@ -75,7 +76,9 @@ final class RequestCollector implements CollectorInterface
     public function collectRequest(ServerRequestInterface $request): void
     {
         if ($this->started === false) {
-            throw new LogicException('The request collector must be started before collecting a request.');
+            throw new LogicException(
+                Message::REQUEST_COLLECTOR_NOT_STARTED->getMessage(),
+            );
         }
 
         $parsedBody = $request->getParsedBody();
@@ -115,7 +118,9 @@ final class RequestCollector implements CollectorInterface
     public function collectResponse(ResponseInterface $response): void
     {
         if ($this->started === false) {
-            throw new LogicException('The request collector must be started before collecting a response.');
+            throw new LogicException(
+                Message::RESPONSE_COLLECTOR_NOT_STARTED->getMessage(),
+            );
         }
 
         $route = $this->currentRoute?->getName() ?? '';

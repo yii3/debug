@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use PHPForge\Debug\Helper\{Format, Icon, Text, Vocabulary};
 use PHPForge\Debug\Panel\Config\ConfigCardRenderer;
 use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
@@ -16,6 +17,7 @@ use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
+use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Panel\{
     ContextAndSummaryAwarePanelInterface,
     ContextAwarePanelInterface,
@@ -85,7 +87,7 @@ final class DebugPageRenderer
         $target = $comparison->target->summary;
 
         return $this->page(
-            'Compare captures',
+            PanelTitle::COMPARE->value,
             HistoryComparisonRenderer::render($comparison, $manifest, $this->routePrefix),
             $theme,
             $this->viewUrl($target->tag),
@@ -109,7 +111,7 @@ final class DebugPageRenderer
             ->html(
                 H1::tag()
                     ->class('yii-debug-sr-only')
-                    ->content('Configuration'),
+                    ->content(PanelTitle::CONFIGURATION),
                 ConfigCardRenderer::renderReadoutGrid($summary),
                 ConfigCardRenderer::renderPhpExtensionsSection($summary->php),
                 ConfigCardRenderer::renderApplicationDetailsSection($summary->application),
@@ -127,7 +129,7 @@ final class DebugPageRenderer
         $configUrl = $this->viewUrl($tag);
 
         return $this->page(
-            'Configuration',
+            PanelTitle::CONFIGURATION->value,
             $content,
             $theme,
             $configUrl,
@@ -152,7 +154,7 @@ final class DebugPageRenderer
 
         if ($panel === null) {
             throw new InvalidArgumentException(
-                "Unknown debug extension panel: {$panelId}.",
+                Message::EXTENSION_PANEL_UNKNOWN->getMessage($panelId),
             );
         }
 
@@ -244,7 +246,7 @@ final class DebugPageRenderer
         $newestTag = array_key_first($manifest);
 
         return $this->page(
-            'Request history',
+            PanelTitle::REQUEST_HISTORY->value,
             HistoryGridRenderer::render($manifest, $queryParams, $this->routePrefix),
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
@@ -265,7 +267,7 @@ final class DebugPageRenderer
             ->html(
                 H1::tag()
                     ->class('yii-debug-hero-title')
-                    ->content('phpinfo'),
+                    ->content(PanelTitle::PHPINFO),
                 PhpInfoRenderer::render(PhpInfoDataNormalizer::capture()),
             )
             ->render();
@@ -275,7 +277,7 @@ final class DebugPageRenderer
         $summary = $newestTag === null ? null : $manifest[$newestTag];
 
         return $this->page(
-            'PHP Info',
+            PanelTitle::PHP_INFO->value,
             $content,
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
@@ -295,13 +297,13 @@ final class DebugPageRenderer
 
             if ($id === '') {
                 throw new InvalidArgumentException(
-                    'Debug extension panel ID must not be empty.',
+                    Message::EXTENSION_PANEL_ID_EMPTY->getMessage(),
                 );
             }
 
             if (isset($panels[$id])) {
                 throw new InvalidArgumentException(
-                    "Duplicate debug extension panel ID: {$id}.",
+                    Message::EXTENSION_PANEL_ID_DUPLICATE->getMessage($id),
                 );
             }
 
@@ -380,7 +382,7 @@ final class DebugPageRenderer
         }
 
         return new SidebarNavItem(
-            label: 'History',
+            label: PanelTitle::HISTORY->value,
             iconSvg: Icon::render('history'),
             url: $url,
             tooltip: 'View request history',

@@ -6,6 +6,7 @@ namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Helper\{CellMore, Coerce, Disclosure, EmptyState};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Panel\PanelTitle;
 use UIAwesome\Html\Flow\{Div, P, Pre};
 use UIAwesome\Html\Heading\{H1, H2};
 use UIAwesome\Html\Phrasing\{Code, Span, Strong};
@@ -101,7 +102,7 @@ final class InertiaPanelRenderer
 
         return H1::tag()
             ->class('yii-debug-sr-only')
-            ->content('Inertia')
+            ->content(PanelTitle::INERTIA)
             ->render()
             . Header::tag()
                 ->class('yii-debug-grid-summary')
