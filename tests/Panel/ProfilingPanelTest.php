@@ -405,15 +405,17 @@ final class ProfilingPanelTest extends TestCase
             </tbody>
             </table>
             </div><div class="yii-debug-grid-footer">
-            <span class="summary yii-debug-grid-count">Showing 2-2 of 3 items.</span><ul class="yii-debug-pager">
+            <span class="summary yii-debug-grid-count">Showing 2-2 of 3 items.</span><nav aria-label="Pagination">
+            <ul class="yii-debug-pager">
             <li class="yii-debug-pager-item">
-            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=1">1</a>
+            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=1" aria-label="Page 1">1</a>
             </li><li class="yii-debug-pager-item is-active">
-            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=2">2</a>
+            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=2" aria-label="Page 2" aria-current="page">2</a>
             </li><li class="yii-debug-pager-item">
-            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=3">3</a>
+            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=3" aria-label="Page 3">3</a>
             </li>
             </ul>
+            </nav>
             </div>
             </div>
             HTML,

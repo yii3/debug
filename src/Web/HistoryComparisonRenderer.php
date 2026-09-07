@@ -6,6 +6,7 @@ namespace Yii3\Debug\Web;
 
 use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
+use PHPForge\Debug\View\History\CaptureLabel;
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Form\{Button, Form, Option, Select};
 use UIAwesome\Html\Heading\{H1, H2};
@@ -16,12 +17,9 @@ use UIAwesome\Html\Table\{Caption, Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Comparison\{HistoryComparison, HistoryPanelComparison};
 
 use function count;
-use function date;
 use function in_array;
-use function preg_match;
 use function rawurlencode;
 use function rtrim;
-use function substr;
 
 /**
  * Renders capture-comparison selection and results with the shared Debug Core primitives.
@@ -33,32 +31,15 @@ final class HistoryComparisonRenderer
      */
     public static function render(HistoryComparison $comparison, array $manifest, string $routePrefix): string
     {
-        $baseline = $comparison->baseline->summary;
-        $target = $comparison->target->summary;
+        $panelLabels = [];
 
-        return H1::tag()
-            ->class('yii-debug-hero-title')
-            ->content(PanelTitle::COMPARE)
-            ->render()
-            . self::section(
-                'yii-debug-compare-selection',
-                '01',
-                'Selection',
-                self::renderForm($manifest, $baseline->tag, $target->tag, $routePrefix),
-            )
-            . self::section(
-                'yii-debug-compare-overview-title',
-                '02',
-                'Capture overview',
-                self::renderOverview($comparison, $routePrefix),
-            )
-            . self::section(
-                'yii-debug-compare-metrics-title',
-                '03',
-                'Request metrics',
-                self::renderMetrics($comparison),
-            )
-            . self::renderPanelSection($comparison, $routePrefix);
+        foreach ($comparison->panels as $panel) {
+            if (in_array($panel->id, ['config', 'request'], true)) {
+                $panelLabels[$panel->id] = $panel->label;
+            }
+        }
+
+        return self::renderWithPanels($comparison, $manifest, $routePrefix, $panelLabels);
     }
 
     /**
@@ -152,6 +133,54 @@ final class HistoryComparisonRenderer
     }
 
     /**
+     * Renders links only for panels registered by the current adapter.
+     *
+     * @param array<string, RequestSummary> $manifest
+     * @param array<string, string> $panelLabels Registered display names indexed by panel ID.
+     */
+    public static function renderWithPanels(
+        HistoryComparison $comparison,
+        array $manifest,
+        string $routePrefix,
+        array $panelLabels,
+    ): string {
+        $labels = [];
+
+        foreach ($comparison->panels as $panel) {
+            $labels[$panel->id] = $panelLabels[$panel->id] ?? $panel->label;
+        }
+
+        $comparison = HistoryComparison::fromSnapshots($comparison->baseline, $comparison->target, $labels);
+
+        $baseline = $comparison->baseline->summary;
+        $target = $comparison->target->summary;
+
+        return H1::tag()
+            ->class('yii-debug-hero-title')
+            ->content(PanelTitle::COMPARE)
+            ->render()
+            . self::section(
+                'yii-debug-compare-selection',
+                '01',
+                'Selection',
+                self::renderForm($manifest, $baseline->tag, $target->tag, $routePrefix),
+            )
+            . self::section(
+                'yii-debug-compare-overview-title',
+                '02',
+                'Capture overview',
+                self::renderOverview($comparison, $routePrefix),
+            )
+            . self::section(
+                'yii-debug-compare-metrics-title',
+                '03',
+                'Request metrics',
+                self::renderMetrics($comparison),
+            )
+            . self::renderPanelSection($comparison, $routePrefix, $panelLabels);
+    }
+
+    /**
      * @param array<string, RequestSummary> $manifest
      */
     private static function captureSelect(
@@ -168,14 +197,9 @@ final class HistoryComparisonRenderer
             ->value($selected);
 
         foreach ($manifest as $tag => $summary) {
-            $time = $summary->time > 0 ? date('H:i:s', (int) $summary->time) : 'time unavailable';
-            $method = $summary->method !== '' ? $summary->method : 'UNKNOWN';
-            $url = self::truncateUrl($summary->url);
-            $shortTag = substr($tag, 0, 8);
-
             $select = $select->option(
                 Option::tag()
-                    ->content("{$time} · {$method} · {$url} · {$shortTag}")
+                    ->content(CaptureLabel::fromSummary($summary))
                     ->value($tag),
             );
         }
@@ -296,7 +320,10 @@ final class HistoryComparisonRenderer
             ->render();
     }
 
-    private static function renderPanelSection(HistoryComparison $comparison, string $routePrefix): string
+    /**
+     * @param array<string, string> $panelLabels
+     */
+    private static function renderPanelSection(HistoryComparison $comparison, string $routePrefix, array $panelLabels): string
     {
         if ($comparison->panels === []) {
             return self::panelSection(
@@ -317,12 +344,38 @@ final class HistoryComparisonRenderer
                     Th::tag()
                         ->scope('row')
                         ->content($panel->label),
-                    Td::tag()->html(self::renderPanelState($panel, $baseline, $panel->baselineState(), $routePrefix)),
-                    Td::tag()->html(self::renderPanelState($panel, $target, $panel->targetState(), $routePrefix)),
-                    Td::tag()->class('yii-debug-cell-numeric')->content((string) $panel->added()),
-                    Td::tag()->class('yii-debug-cell-numeric')->content((string) $panel->removed()),
-                    Td::tag()->class('yii-debug-cell-numeric')->content((string) $panel->changed()),
-                    Td::tag()->class('yii-debug-cell-numeric')->content((string) $panel->unchanged()),
+                    Td::tag()
+                        ->html(
+                            self::renderPanelState(
+                                $panel,
+                                $baseline,
+                                $panel->baselineState(),
+                                $routePrefix,
+                                isset($panelLabels[$panel->id]),
+                            )
+                        ),
+                    Td::tag()
+                        ->html(
+                            self::renderPanelState(
+                                $panel,
+                                $target,
+                                $panel->targetState(),
+                                $routePrefix,
+                                isset($panelLabels[$panel->id])
+                            )
+                        ),
+                    Td::tag()
+                        ->class('yii-debug-cell-numeric')
+                        ->content((string) $panel->added()),
+                    Td::tag()
+                        ->class('yii-debug-cell-numeric')
+                        ->content((string) $panel->removed()),
+                    Td::tag()
+                        ->class('yii-debug-cell-numeric')
+                        ->content((string) $panel->changed()),
+                    Td::tag()
+                        ->class('yii-debug-cell-numeric')
+                        ->content((string) $panel->unchanged()),
                 );
         }
 
@@ -344,6 +397,7 @@ final class HistoryComparisonRenderer
         string $tag,
         string $state,
         string $routePrefix,
+        bool $available,
     ): string {
         $variant = match ($state) {
             'Captured' => 'success',
@@ -362,7 +416,7 @@ final class HistoryComparisonRenderer
                 ->render();
         }
 
-        if (!in_array($panel->id, ['config', 'request'], true)) {
+        if (!$available) {
             return $badge;
         }
 
@@ -426,14 +480,5 @@ final class HistoryComparisonRenderer
     private static function trend(string $trend): string
     {
         return in_array($trend, ['up', 'down', 'neutral'], true) ? $trend : 'neutral';
-    }
-
-    private static function truncateUrl(string $url): string
-    {
-        if (preg_match('/\A(.{69}).{4}/us', $url, $matches) === 1) {
-            return "{$matches[1]}...";
-        }
-
-        return $url;
     }
 }

@@ -130,6 +130,53 @@ final class HistoryComparisonRendererTest extends TestCase
             'The pager must render a link for the current page.',
         );
     }
+    public function testRegisteredPanelsUseCustomLabelsAndOnlyAvailableCaptureLinks(): void
+    {
+        $baseline = new DebugSnapshot(
+            RequestSummary::create('baseline'),
+            [
+                'log' => [],
+                'custom' => [],
+                'unknown' => [],
+            ],
+            [],
+        );
+        $target = new DebugSnapshot(
+            RequestSummary::create('target'),
+            ['log' => []],
+            [
+                'custom' => PanelFailure::fromThrowable(PanelFailure::CAPTURE, new RuntimeException('Failed')),
+            ],
+        );
+
+        $html = HistoryComparisonRenderer::renderWithPanels(
+            HistoryComparison::fromSnapshots($baseline, $target),
+            ['baseline' => $baseline->summary, 'target' => $target->summary],
+            '/developer/debug',
+            ['log' => 'Logs', 'custom' => '<Custom & panel>'],
+        );
+
+        self::assertStringContainsString(
+            '&lt;Custom &amp; panel&gt;',
+            $html,
+            'Registered panel names must be escaped.',
+        );
+        self::assertStringContainsString(
+            'tag=baseline&amp;panel=log',
+            $html,
+            'Captured Logs must be navigable.',
+        );
+        self::assertStringContainsString(
+            'tag=target&amp;panel=custom',
+            $html,
+            'Registered failed captures must expose their diagnostic page.',
+        );
+        self::assertStringNotContainsString(
+            'panel=unknown',
+            $html,
+            'Historical unregistered panels must not produce broken links.',
+        );
+    }
 
     public function testResultsEscapeCaptureDataAndLinkOnlySupportedPanels(): void
     {
@@ -275,6 +322,34 @@ final class HistoryComparisonRendererTest extends TestCase
             'panel=failed',
             $html,
             'Failed custom panels must render their state without a deep link.',
+        );
+    }
+
+    public function testSameSecondSelectionOptionsRemainDistinctAndEscaped(): void
+    {
+        $first = RequestSummary::create('6a9ec2295ddcd414251546')
+            ->withRequest('/<script>', 'GET', '', 1000.1);
+        $second = RequestSummary::create('6a9ec22932a3c954772352')
+            ->withRequest('/<script>', 'GET', '', 1000.2);
+        $html = HistoryComparisonRenderer::renderForm(
+            [
+                $first->tag => $first,
+                $second->tag => $second,
+            ],
+            $first->tag,
+            $second->tag,
+            '/debug',
+        );
+
+        self::assertStringContainsString(
+            "/&lt;script&gt; · {$first->tag}",
+            $html,
+            'The first option must show the full unique tag and escaped URL.',
+        );
+        self::assertStringContainsString(
+            "/&lt;script&gt; · {$second->tag}",
+            $html,
+            'The second option must remain distinguishable.',
         );
     }
 

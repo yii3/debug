@@ -1405,19 +1405,19 @@ final class DebugPageRendererTest extends TestCase
             <div class="yii-debug-field">
             <label class="yii-debug-label" for="yii-debug-compare-baseline">Baseline capture</label><select class="yii-debug-select" id="yii-debug-compare-baseline" name="baseline" required>
             <option value="request-1">
-            {$requestOneTime} · GET · https://example.test/?page=2 · request-
+            {$requestOneTime} · GET · https://example.test/?page=2 · request-1
             </option>
             <option value="request-2" selected>
-            {$requestTwoTime} · POST · https://example.test/missing · request-
+            {$requestTwoTime} · POST · https://example.test/missing · request-2
             </option>
             </select>
             </div><div class="yii-debug-field">
             <label class="yii-debug-label" for="yii-debug-compare-target">Target capture</label><select class="yii-debug-select" id="yii-debug-compare-target" name="target" required>
             <option value="request-1" selected>
-            {$requestOneTime} · GET · https://example.test/?page=2 · request-
+            {$requestOneTime} · GET · https://example.test/?page=2 · request-1
             </option>
             <option value="request-2">
-            {$requestTwoTime} · POST · https://example.test/missing · request-
+            {$requestTwoTime} · POST · https://example.test/missing · request-2
             </option>
             </select>
             </div><div class="yii-debug-field">
@@ -1434,33 +1434,33 @@ final class DebugPageRendererTest extends TestCase
             <th class="yii-debug-col-num" scope="col">
             #
             </th><th class="yii-debug-col-id" scope="col">
-            ID
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=tag">ID</a>
+            </th><th scope="col" aria-sort="descending">
+            <a class="desc" href="/debug?Debug%5Bmethod%5D=POST&amp;sort=time">Time</a>
             </th><th scope="col">
-            Time
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=processingTime">Duration</a>
             </th><th scope="col">
-            Duration
-            </th><th scope="col">
-            Memory
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=peakMemory">Memory</a>
             </th><th class="yii-debug-col-ip" scope="col">
-            IP
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ip">IP</a>
             </th><th scope="col">
-            Method
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=method">Method</a>
             </th><th scope="col">
-            Ajax
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ajax">Ajax</a>
             </th><th scope="col">
-            URL
+            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=url">URL</a>
             </th>
             </tr><tr class="filters">
             <td class="yii-debug-col-num">
             </td><td class="yii-debug-col-id">
-            <input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text">
+            <input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text" aria-label="Filter by ID">
             </td><td>
             </td><td>
             </td><td>
             </td><td class="yii-debug-col-ip">
-            <input class="yii-debug-input" name="Debug[ip]" type="text">
+            <input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP">
             </td><td>
-            <select class="yii-debug-select" name="Debug[method]">
+            <select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
             <option>
             </option>
             <option value="GET">
@@ -1478,9 +1478,18 @@ final class DebugPageRendererTest extends TestCase
             <option value="DELETE">
             DELETE
             </option>
+            <option value="HEAD">
+            HEAD
+            </option>
+            <option value="OPTIONS">
+            OPTIONS
+            </option>
+            <option value="COMMAND">
+            COMMAND
+            </option>
             </select>
             </td><td>
-            <select class="yii-debug-select" name="Debug[ajax]">
+            <select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
             <option selected>
             </option>
             <option value="0">
@@ -1491,11 +1500,11 @@ final class DebugPageRendererTest extends TestCase
             </option>
             </select>
             </td><td>
-            <input class="yii-debug-input" name="Debug[url]" type="text">
+            <input class="yii-debug-input" name="Debug[url]" type="text" aria-label="Filter by URL">
             </td>
             </tr>
             </thead><tbody>
-            <tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1">
+            <tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1" data-yii-debug-memory="2.00 MB">
             <td class="yii-debug-col-num">
             1
             </td><td class="yii-debug-col-id">
@@ -1641,19 +1650,19 @@ final class DebugPageRendererTest extends TestCase
             <div class="yii-debug-field">
             <label class="yii-debug-label" for="yii-debug-compare-baseline">Baseline capture</label><select class="yii-debug-select" id="yii-debug-compare-baseline" name="baseline" required>
             <option value="request-1">
-            {$requestOneTime} · GET · https://example.test/?page=2 · request-
+            {$requestOneTime} · GET · https://example.test/?page=2 · request-1
             </option>
             <option value="request-2" selected>
-            {$requestTwoTime} · POST · https://example.test/missing · request-
+            {$requestTwoTime} · POST · https://example.test/missing · request-2
             </option>
             </select>
             </div><div class="yii-debug-field">
             <label class="yii-debug-label" for="yii-debug-compare-target">Target capture</label><select class="yii-debug-select" id="yii-debug-compare-target" name="target" required>
             <option value="request-1" selected>
-            {$requestOneTime} · GET · https://example.test/?page=2 · request-
+            {$requestOneTime} · GET · https://example.test/?page=2 · request-1
             </option>
             <option value="request-2">
-            {$requestTwoTime} · POST · https://example.test/missing · request-
+            {$requestTwoTime} · POST · https://example.test/missing · request-2
             </option>
             </select>
             </div><div class="yii-debug-field">
@@ -1668,33 +1677,33 @@ final class DebugPageRendererTest extends TestCase
             <th class="yii-debug-col-num" scope="col">
             #
             </th><th class="yii-debug-col-id" scope="col">
-            ID
+            <a href="/debug?sort=tag">ID</a>
+            </th><th scope="col" aria-sort="descending">
+            <a class="desc" href="/debug?sort=time">Time</a>
             </th><th scope="col">
-            Time
+            <a href="/debug?sort=processingTime">Duration</a>
             </th><th scope="col">
-            Duration
-            </th><th scope="col">
-            Memory
+            <a href="/debug?sort=peakMemory">Memory</a>
             </th><th class="yii-debug-col-ip" scope="col">
-            IP
+            <a href="/debug?sort=ip">IP</a>
             </th><th scope="col">
-            Method
+            <a href="/debug?sort=method">Method</a>
             </th><th scope="col">
-            Ajax
+            <a href="/debug?sort=ajax">Ajax</a>
             </th><th scope="col">
-            URL
+            <a href="/debug?sort=url">URL</a>
             </th>
             </tr><tr class="filters">
             <td class="yii-debug-col-num">
             </td><td class="yii-debug-col-id">
-            <input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text">
+            <input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text" aria-label="Filter by ID">
             </td><td>
             </td><td>
             </td><td>
             </td><td class="yii-debug-col-ip">
-            <input class="yii-debug-input" name="Debug[ip]" type="text">
+            <input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP">
             </td><td>
-            <select class="yii-debug-select" name="Debug[method]">
+            <select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
             <option selected>
             </option>
             <option value="GET">
@@ -1712,9 +1721,18 @@ final class DebugPageRendererTest extends TestCase
             <option value="DELETE">
             DELETE
             </option>
+            <option value="HEAD">
+            HEAD
+            </option>
+            <option value="OPTIONS">
+            OPTIONS
+            </option>
+            <option value="COMMAND">
+            COMMAND
+            </option>
             </select>
             </td><td>
-            <select class="yii-debug-select" name="Debug[ajax]">
+            <select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
             <option selected>
             </option>
             <option value="0">
@@ -1725,11 +1743,11 @@ final class DebugPageRendererTest extends TestCase
             </option>
             </select>
             </td><td>
-            <input class="yii-debug-input" name="Debug[url]" type="text">
+            <input class="yii-debug-input" name="Debug[url]" type="text" aria-label="Filter by URL">
             </td>
             </tr>
             </thead><tbody>
-            <tr data-yii-debug-tag="request-1" data-yii-debug-method="GET" data-yii-debug-url="https://example.test/?page=2" data-yii-debug-status="200" data-yii-debug-time="{$requestOneTime}">
+            <tr data-yii-debug-tag="request-1" data-yii-debug-method="GET" data-yii-debug-url="https://example.test/?page=2" data-yii-debug-status="200" data-yii-debug-time="{$requestOneTime}" data-yii-debug-memory="1.09 MB">
             <td class="yii-debug-col-num">
             1
             </td><td class="yii-debug-col-id">
@@ -1749,7 +1767,7 @@ final class DebugPageRendererTest extends TestCase
             </td><td>
             <span class="yii-debug-url-cell" title="https://example.test/?page=2">https://example.test/?page=2</span>
             </td>
-            </tr><tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1">
+            </tr><tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1" data-yii-debug-memory="2.00 MB">
             <td class="yii-debug-col-num">
             2
             </td><td class="yii-debug-col-id">
@@ -2442,6 +2460,39 @@ final class DebugPageRendererTest extends TestCase
             $renderer->withRoutePrefix('/developer/debug'),
             'Should return a new instance when setting the route prefix, ensuring immutability.',
         );
+    }
+    public function testShellMemoryUsesTheSelectedCaptureAndOmitsMissingValues(): void
+    {
+        $selected = RequestSummary::create('selected')->withProfiling(0.1, 7 * 1024 * 1024);
+        $other = RequestSummary::create('other')->withProfiling(0.2, 3 * 1024 * 1024);
+        $manifest = ['other' => $other, 'selected' => $selected];
+        $renderer = $this->renderer()->withExtensionPanels([new EventPanel()]);
+        $snapshot = new DebugSnapshot($selected, ['event' => []], []);
+
+        foreach ([
+            $renderer->config('selected', 'dark', $manifest, $snapshot),
+            $renderer->extension($snapshot, 'event', 'dark', $manifest),
+            $renderer->compare(\Yii3\Debug\Comparison\HistoryComparison::fromSnapshots(
+                new DebugSnapshot($other, [], []),
+                $snapshot,
+            ), $manifest, 'dark'),
+        ] as $html) {
+            self::assertStringContainsString('class="yii-debug-brand-value">7.00 MB</span>', $html, 'The shell must use the selected or target capture, not renderer memory or the newest capture.');
+        }
+
+        self::assertStringContainsString('class="yii-debug-brand-value">3.00 MB</span>', $renderer->history($manifest, [], 'light'), 'History must show its newest capture memory.');
+        self::assertStringContainsString('class="yii-debug-brand-value">3.00 MB</span>', $renderer->phpInfo('light', $manifest), 'The PHP information shell must retain the represented capture memory.');
+
+        $missing = RequestSummary::create('missing');
+        $missingSnapshot = new DebugSnapshot($missing, ['event' => []], []);
+        foreach ([
+            $renderer->config('missing', 'light'),
+            $renderer->extension($missingSnapshot, 'event', 'light'),
+            $renderer->history([], [], 'light'),
+            $renderer->phpInfo('light'),
+        ] as $html) {
+            self::assertStringNotContainsString('yii-debug-brand-chip-mem', $html, 'Missing capture memory must not be replaced by current-process memory.');
+        }
     }
 
     public function testSnapshotSidebarPreservesFragmentsAndMalformedUrls(): void

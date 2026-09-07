@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - refactor(ui): reuse active search filters in manual Logs, Events, and Profiling grids and the normalized Logs query in severity shortcuts, preserving filter replacement, page reset, and query ordering.
 - refactor(events): replace the duplicate execution-flow list with full-width diagnostics without repeating row fields in the primary table, retaining column filters, sorting, pagination, and original observation identities.
 - refactor: centralize panel icons, titles, and exception messages; document enum cases, literal formats, and formatting examples.
+- fix: improve capture UI, accessible history filters, and local Debug Core Composer linking.
 
 ### Added
 
