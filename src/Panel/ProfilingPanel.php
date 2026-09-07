@@ -33,7 +33,6 @@ use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
-use function iterator_to_array;
 use function number_format;
 use function str_replace;
 use function strcasecmp;
@@ -315,8 +314,6 @@ final readonly class ProfilingPanel implements
                 ['view', FilterPrefix::TIMELINE],
             );
 
-        $rows = iterator_to_array($paginator->read(), false);
-
         /** @var GridView<ProfileRow> $grid */
         $grid = GridView::widget();
 
@@ -334,7 +331,7 @@ final readonly class ProfilingPanel implements
             $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
         }
 
-        $footer = GridFooter::renderForPanel($paginator, count($rows), $context, $queryParams);
+        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-profile')

@@ -27,11 +27,9 @@ use Yii3\Debug\Web\{
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
-use function count;
 use function htmlspecialchars;
 use function is_int;
 use function is_string;
-use function iterator_to_array;
 use function strcasecmp;
 
 use const ENT_QUOTES;
@@ -224,8 +222,6 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         PanelRenderContext|null $context = null,
         array $filters = [],
     ): string {
-        $rows = iterator_to_array($paginator->read(), false);
-
         $queryParams = $context === null
             ? []
             : FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
@@ -248,7 +244,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
         }
 
-        $footer = GridFooter::renderForPanel($paginator, count($rows), $context, $queryParams);
+        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-log')

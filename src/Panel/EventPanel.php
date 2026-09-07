@@ -36,7 +36,6 @@ use Yiisoft\Html\Tag\Tr;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
-use function iterator_to_array;
 use function strcasecmp;
 
 /**
@@ -185,7 +184,6 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         array $filters = [],
     ): string {
         $sequence = new EventSequence($allRows);
-        $rows = iterator_to_array($paginator->read(), false);
         $queryParams = $context === null
             ? []
             : FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
@@ -218,7 +216,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         $table = $grid->render();
 
-        $footer = GridFooter::renderForPanel($paginator, count($rows), $context, $queryParams);
+        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-event')
