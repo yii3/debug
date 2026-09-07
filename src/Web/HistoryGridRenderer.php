@@ -269,8 +269,8 @@ final class HistoryGridRenderer
                                 self::renderHeaderRow($routePrefix, $queryParams),
                                 self::renderFilterRow($filters),
                             ),
-                            Tbody::tag()->html(...$bodyRows),
-                        ),
+                        Tbody::tag()->html(...$bodyRows),
+                    ),
             );
 
         $footer = GridFooter::render(
