@@ -4,27 +4,26 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use PHPForge\Debug\Helper\{CellMore, Coerce, Disclosure, EmptyState};
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
+use PHPForge\Debug\Helper\{CellMore, Coerce, Disclosure, EmptyState, Format};
+use PHPForge\Debug\Panel\Inertia\{InertiaMessage, InertiaSnapshot};
 use PHPForge\Debug\Panel\PanelTitle;
 use UIAwesome\Html\Flow\{Div, P, Pre};
-use UIAwesome\Html\Heading\{H1, H2};
+use UIAwesome\Html\Heading\H2;
 use UIAwesome\Html\Phrasing\{Code, Span, Strong};
 use UIAwesome\Html\Root\Header;
-use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
+use Yii3\Debug\Web\{PanelHeading, SummaryChip};
+use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Data\Reader\Iterable\IterableDataReader;
+use Yiisoft\Yii\DataView\DetailView\{DataField, DetailView};
+use Yiisoft\Yii\DataView\GridView\Column\{DataColumn, SerialColumn};
+use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
-use function gettype;
 use function htmlspecialchars;
 use function in_array;
 use function is_array;
-use function is_bool;
-use function is_float;
-use function is_int;
-use function is_scalar;
 use function is_string;
 use function json_encode;
-use function strlen;
 
 use const ENT_HTML5;
 use const ENT_SUBSTITUTE;
@@ -83,27 +82,19 @@ final class InertiaPanelRenderer
         $items = [
             Span::tag()
                 ->html(Strong::tag()->content($component !== '' ? $component : '—')),
-            Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·'),
+            SummaryChip::separator(),
             Span::tag()->content($visit),
         ];
 
         if ($page !== null) {
-            $items[] = Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·');
-            $items[] = Span::tag()
-                ->html(
-                    Strong::tag()->content((string) count($props)),
-                    count($props) === 1 ? ' prop' : ' props',
-                );
+            $items[] = SummaryChip::separator();
+            $items[] = SummaryChip::render(
+                (string) count($props),
+                count($props) === 1 ? ' prop' : ' props',
+            );
         }
 
-        return H1::tag()
-            ->class('yii-debug-sr-only')
-            ->content(PanelTitle::INERTIA)
-            ->render()
+        return PanelHeading::render(PanelTitle::INERTIA)
             . Header::tag()
                 ->class('yii-debug-grid-summary')
                 ->html(...$items)
@@ -123,14 +114,14 @@ final class InertiaPanelRenderer
     ): string {
         $url = Coerce::string($page['url'] ?? null);
 
-        $version = is_scalar($page['version'] ?? null) ? (string) $page['version'] : '';
+        $version = Coerce::stringOrNull($page['version'] ?? null) ?? '';
 
-        $rows = [
-            self::renderInformationRow('Component', $component !== '' ? $component : '—'),
-            self::renderInformationRow('URL', $url !== '' ? $url : '—'),
-            self::renderInformationRow('Version', $version !== '' ? $version : '—'),
-            self::renderInformationRow('Visit', $visit),
-            self::renderInformationRow('Status', (string) $statusCode),
+        $fields = [
+            new DataField(label: 'Component', value: $component !== '' ? $component : '—'),
+            new DataField(label: 'URL', value: $url !== '' ? $url : '—'),
+            new DataField(label: 'Version', value: $version !== '' ? $version : '—'),
+            new DataField(label: 'Visit', value: $visit),
+            new DataField(label: 'Status', value: (string) $statusCode),
         ];
 
         foreach ($requestHeaders as $name => $value) {
@@ -138,41 +129,40 @@ final class InertiaPanelRenderer
                 continue;
             }
 
-            $rows[] = self::renderInformationRow($name, $value);
+            $fields[] = new DataField(label: $name, value: $value);
         }
 
         return Div::tag()
             ->class('yii-debug-table-wrap')
             ->html(
-                Table::tag()
-                    ->class('yii-debug-table yii-debug-table-mono')
-                    ->html(Tbody::tag()->html(...$rows)),
+                DetailView::widget()
+                    ->containerTag('table')
+                    ->containerAttributes(['class' => 'yii-debug-table yii-debug-table-mono'])
+                    ->listTag('tbody')
+                    ->fieldTag('tr')
+                    ->labelTag('th')
+                    ->labelAttributes(
+                        [
+                            'scope' => 'row',
+                            'style' => [
+                                'max-width' => 'none',
+                                'overflow-wrap' => 'normal',
+                                'white-space' => 'nowrap',
+                            ],
+                        ],
+                    )
+                    ->valueTag('td')
+                    ->fields(...$fields)
+                    ->render(),
             )
             ->render();
-    }
-
-    private static function renderInformationRow(string $name, string $value): Tr
-    {
-        return Tr::tag()->html(
-            Th::tag()
-                ->scope('row')
-                ->style(
-                    [
-                        'max-width' => 'none',
-                        'overflow-wrap' => 'normal',
-                        'white-space' => 'nowrap',
-                    ],
-                )
-                ->content($name),
-            Td::tag()->content($value),
-        );
     }
 
     private static function renderMissingPage(InertiaSnapshot $snapshot): string
     {
         if ($snapshot->statusCode === 409) {
             return EmptyState::card(
-                'Version conflict interrupted this visit',
+                InertiaMessage::VERSION_CONFLICT_HEADLINE->value,
                 P::tag()
                     ->html(
                         'The client asset version sent in ',
@@ -190,18 +180,14 @@ final class InertiaPanelRenderer
         }
 
         return EmptyState::card(
-            'No Inertia page in this request',
+            InertiaMessage::EMPTY_HEADLINE->value,
             P::tag()
                 ->html(
                     'This response was not produced by ',
                     Code::tag()->content('Inertia::render()'),
                     ', so there is no page object to inspect.',
                 ),
-            P::tag()
-                ->content(
-                    'Both full page loads and Inertia XHR visits populate this view; plain JSON endpoints, '
-                    . 'redirects, and asset requests do not.',
-                ),
+            P::tag()->content(InertiaMessage::EMPTY_COVERAGE),
         );
     }
 
@@ -212,51 +198,63 @@ final class InertiaPanelRenderer
     private static function renderProps(array $props, array $sharedKeys): string
     {
         if ($props === []) {
-            return P::tag()->content('The page rendered without props.')->render();
+            return P::tag()
+                ->content('The page rendered without props.')
+                ->render();
         }
 
         $rows = [];
 
         foreach ($props as $key => $value) {
             $origin = in_array((string) $key, $sharedKeys, true)
-                ? Span::tag()->class('yii-debug-badge yii-debug-badge-info')->content('shared')
-                : Span::tag()->class('yii-debug-badge yii-debug-badge-muted')->content('page');
+                ? Span::tag()
+                    ->class('yii-debug-badge yii-debug-badge-info')
+                    ->content('shared')
+                : Span::tag()
+                    ->class('yii-debug-badge yii-debug-badge-muted')
+                    ->content('page');
 
-            $rows[] = Tr::tag()
-                ->html(
-                    Td::tag()->content((string) (count($rows) + 1)),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-nowrap')
-                        ->html(Strong::tag()->content((string) $key)),
-                    Td::tag()
-                        ->class('yii-debug-cell-pill')
-                        ->html($origin),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-nowrap')
-                        ->content(self::typeOf($value)),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-payload')
-                        ->html(self::previewOf($value)),
-                );
+            $rows[] = [
+                'prop' => Strong::tag()
+                    ->content((string) $key)
+                    ->render(),
+                'origin' => $origin->render(),
+                'type' => Format::typeOf($value),
+                'value' => self::previewOf($value),
+            ];
         }
 
-        $table = Div::tag()
-            ->class('yii-debug-table-wrap')
-            ->html(
-                Table::tag()
-                    ->class('yii-debug-table')
-                    ->html(
-                        Thead::tag()->html(
-                            Tr::tag()->html(
-                                Th::tag()->scope('col')->content('#'),
-                                Th::tag()->scope('col')->content('Prop'),
-                                Th::tag()->scope('col')->content('Origin'),
-                                Th::tag()->scope('col')->content('Type'),
-                                Th::tag()->scope('col')->content('Value'),
-                            ),
-                        ),
-                        Tbody::tag()->html(...$rows),
-                    ),
+        $table = GridView::widget()
+            ->dataReader((new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(count($rows)))
+            ->layout('{items}')
+            ->containerClass('yii-debug-table-wrap')
+            ->tableClass('yii-debug-table')
+            ->headerCellAttributes(['scope' => 'col'])
+            ->columns(
+                new SerialColumn(header: '#'),
+                new DataColumn(
+                    property: 'prop',
+                    withSorting: false,
+                    encodeContent: false,
+                    bodyClass: 'yii-debug-cell-mono yii-debug-cell-nowrap',
+                ),
+                new DataColumn(
+                    property: 'origin',
+                    withSorting: false,
+                    encodeContent: false,
+                    bodyClass: 'yii-debug-cell-pill',
+                ),
+                new DataColumn(
+                    property: 'type',
+                    withSorting: false,
+                    bodyClass: 'yii-debug-cell-mono yii-debug-cell-nowrap',
+                ),
+                new DataColumn(
+                    property: 'value',
+                    withSorting: false,
+                    encodeContent: false,
+                    bodyClass: 'yii-debug-cell-mono yii-debug-cell-payload',
+                ),
             )
             ->render();
 
@@ -274,19 +272,6 @@ final class InertiaPanelRenderer
         );
 
         return Disclosure::render('Raw payload', Pre::tag()->content($json)->render());
-    }
-
-    private static function typeOf(mixed $value): string
-    {
-        return match (true) {
-            is_array($value) => 'array(' . count($value) . ')',
-            is_string($value) => 'string(' . strlen($value) . ')',
-            is_int($value) => 'int',
-            is_float($value) => 'float',
-            is_bool($value) => 'bool',
-            $value === null => 'null',
-            default => gettype($value),
-        };
     }
 
     /**

@@ -1428,39 +1428,27 @@ final class DebugPageRendererTest extends TestCase
             <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug" title="Remove this filter" aria-label="Remove method: POST filter"><span class="yii-debug-active-filter-attr">method</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">POST</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
             </div><div class="yii-debug-grid yii-debug-grid-history">
             <div class="yii-debug-table-wrap">
-            <table class="yii-debug-table">
+            <form id="yii-debug-history-filters" style="display:none" action="/debug" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
             <thead>
             <tr>
-            <th class="yii-debug-col-num" scope="col">
-            #
-            </th><th class="yii-debug-col-id" scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=tag">ID</a>
-            </th><th scope="col" aria-sort="descending">
-            <a class="desc" href="/debug?Debug%5Bmethod%5D=POST&amp;sort=time">Time</a>
-            </th><th scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=processingTime">Duration</a>
-            </th><th scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=peakMemory">Memory</a>
-            </th><th class="yii-debug-col-ip" scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ip">IP</a>
-            </th><th scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=method">Method</a>
-            </th><th scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ajax">Ajax</a>
-            </th><th scope="col">
-            <a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=url">URL</a>
-            </th>
-            </tr><tr class="filters">
-            <td class="yii-debug-col-num">
-            </td><td class="yii-debug-col-id">
-            <input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text" aria-label="Filter by ID">
-            </td><td>
-            </td><td>
-            </td><td>
-            </td><td class="yii-debug-col-ip">
-            <input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP">
-            </td><td>
-            <select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
+            <th scope="col" class="yii-debug-col-num">#</th>
+            <th scope="col" class="yii-debug-col-id"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=tag">ID</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug?Debug%5Bmethod%5D=POST&amp;sort=time">Time</a></th>
+            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=processingTime">Duration</a></th>
+            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=peakMemory">Memory</a></th>
+            <th scope="col" class="yii-debug-col-ip"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ip">IP</a></th>
+            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=method">Method</a></th>
+            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ajax">Ajax</a></th>
+            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=url">URL</a></th>
+            </tr>
+            <tr>
+            <td class="yii-debug-filter-cell yii-debug-col-num"></td>
+            <td class="yii-debug-filter-cell yii-debug-col-id"><input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text" aria-label="Filter by ID"></td>
+            <td class="yii-debug-filter-cell"></td>
+            <td class="yii-debug-filter-cell"></td>
+            <td class="yii-debug-filter-cell"></td>
+            <td class="yii-debug-filter-cell yii-debug-col-ip"><input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP"></td>
+            <td class="yii-debug-filter-cell"><select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
             <option>
             </option>
             <option value="GET">
@@ -1487,9 +1475,8 @@ final class DebugPageRendererTest extends TestCase
             <option value="COMMAND">
             COMMAND
             </option>
-            </select>
-            </td><td>
-            <select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
+            </select></td>
+            <td class="yii-debug-filter-cell"><select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
             <option selected>
             </option>
             <option value="0">
@@ -1498,30 +1485,37 @@ final class DebugPageRendererTest extends TestCase
             <option value="1">
             Yes
             </option>
-            </select>
-            </td><td>
-            <input class="yii-debug-input" name="Debug[url]" type="text" aria-label="Filter by URL">
-            </td>
+            </select></td>
+            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Debug[url]" type="text" aria-label="Filter by URL"></td>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1" data-yii-debug-memory="2.00 MB">
             <td class="yii-debug-col-num">
             1
-            </td><td class="yii-debug-col-id">
+            </td>
+            <td class="yii-debug-col-id">
             <a class="yii-debug-tag-link" href="/debug/view?tag=request-2&amp;panel=auto">request-2</a>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-nowrap" title="{$requestTwoDateTime}">{$requestTwoTime}</span>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">15 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">2.000 MB</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td class="yii-debug-col-ip">
+            </td>
+            <td class="yii-debug-col-ip">
             127.0.0.1
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-method yii-debug-verb-post">POST</span>
-            </td><td>
+            </td>
+            <td>
             Yes
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-url-cell" title="https://example.test/missing">https://example.test/missing</span>
             </td>
             </tr>
@@ -1671,39 +1665,27 @@ final class DebugPageRendererTest extends TestCase
             </form>
             </section><div class="yii-debug-grid yii-debug-grid-history">
             <div class="yii-debug-table-wrap">
-            <table class="yii-debug-table">
+            <form id="yii-debug-history-filters" style="display:none" action="/debug" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
             <thead>
             <tr>
-            <th class="yii-debug-col-num" scope="col">
-            #
-            </th><th class="yii-debug-col-id" scope="col">
-            <a href="/debug?sort=tag">ID</a>
-            </th><th scope="col" aria-sort="descending">
-            <a class="desc" href="/debug?sort=time">Time</a>
-            </th><th scope="col">
-            <a href="/debug?sort=processingTime">Duration</a>
-            </th><th scope="col">
-            <a href="/debug?sort=peakMemory">Memory</a>
-            </th><th class="yii-debug-col-ip" scope="col">
-            <a href="/debug?sort=ip">IP</a>
-            </th><th scope="col">
-            <a href="/debug?sort=method">Method</a>
-            </th><th scope="col">
-            <a href="/debug?sort=ajax">Ajax</a>
-            </th><th scope="col">
-            <a href="/debug?sort=url">URL</a>
-            </th>
-            </tr><tr class="filters">
-            <td class="yii-debug-col-num">
-            </td><td class="yii-debug-col-id">
-            <input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text" aria-label="Filter by ID">
-            </td><td>
-            </td><td>
-            </td><td>
-            </td><td class="yii-debug-col-ip">
-            <input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP">
-            </td><td>
-            <select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
+            <th scope="col" class="yii-debug-col-num">#</th>
+            <th scope="col" class="yii-debug-col-id"><a href="/debug?sort=tag">ID</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug?sort=time">Time</a></th>
+            <th scope="col"><a href="/debug?sort=processingTime">Duration</a></th>
+            <th scope="col"><a href="/debug?sort=peakMemory">Memory</a></th>
+            <th scope="col" class="yii-debug-col-ip"><a href="/debug?sort=ip">IP</a></th>
+            <th scope="col"><a href="/debug?sort=method">Method</a></th>
+            <th scope="col"><a href="/debug?sort=ajax">Ajax</a></th>
+            <th scope="col"><a href="/debug?sort=url">URL</a></th>
+            </tr>
+            <tr>
+            <td class="yii-debug-filter-cell yii-debug-col-num"></td>
+            <td class="yii-debug-filter-cell yii-debug-col-id"><input class="yii-debug-input yii-debug-col-id-input" name="Debug[tag]" type="text" aria-label="Filter by ID"></td>
+            <td class="yii-debug-filter-cell"></td>
+            <td class="yii-debug-filter-cell"></td>
+            <td class="yii-debug-filter-cell"></td>
+            <td class="yii-debug-filter-cell yii-debug-col-ip"><input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP"></td>
+            <td class="yii-debug-filter-cell"><select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
             <option selected>
             </option>
             <option value="GET">
@@ -1730,9 +1712,8 @@ final class DebugPageRendererTest extends TestCase
             <option value="COMMAND">
             COMMAND
             </option>
-            </select>
-            </td><td>
-            <select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
+            </select></td>
+            <td class="yii-debug-filter-cell"><select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
             <option selected>
             </option>
             <option value="0">
@@ -1741,50 +1722,66 @@ final class DebugPageRendererTest extends TestCase
             <option value="1">
             Yes
             </option>
-            </select>
-            </td><td>
-            <input class="yii-debug-input" name="Debug[url]" type="text" aria-label="Filter by URL">
-            </td>
+            </select></td>
+            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Debug[url]" type="text" aria-label="Filter by URL"></td>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr data-yii-debug-tag="request-1" data-yii-debug-method="GET" data-yii-debug-url="https://example.test/?page=2" data-yii-debug-status="200" data-yii-debug-time="{$requestOneTime}" data-yii-debug-memory="1.09 MB">
             <td class="yii-debug-col-num">
             1
-            </td><td class="yii-debug-col-id">
+            </td>
+            <td class="yii-debug-col-id">
             <a class="yii-debug-tag-link" href="/debug/view?tag=request-1&amp;panel=auto">request-1</a>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-nowrap" title="{$requestOneDateTime}">{$requestOneTime}</span>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-gauge" style='--yii-debug-gauge: 60%;'><span class="yii-debug-gauge-value">9 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-gauge" style='--yii-debug-gauge: 54.613%;'><span class="yii-debug-gauge-value">1.092 MB</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td class="yii-debug-col-ip">
+            </td>
+            <td class="yii-debug-col-ip">
             127.0.0.1
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-method yii-debug-verb-get">GET</span>
-            </td><td>
+            </td>
+            <td>
             No
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-url-cell" title="https://example.test/?page=2">https://example.test/?page=2</span>
             </td>
-            </tr><tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1" data-yii-debug-memory="2.00 MB">
+            </tr>
+            <tr class="yii-debug-row-danger" data-yii-debug-tag="request-2" data-yii-debug-method="POST" data-yii-debug-url="https://example.test/missing" data-yii-debug-status="404" data-yii-debug-time="{$requestTwoTime}" data-yii-debug-ajax="1" data-yii-debug-memory="2.00 MB">
             <td class="yii-debug-col-num">
             2
-            </td><td class="yii-debug-col-id">
+            </td>
+            <td class="yii-debug-col-id">
             <a class="yii-debug-tag-link" href="/debug/view?tag=request-2&amp;panel=auto">request-2</a>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-nowrap" title="{$requestTwoDateTime}">{$requestTwoTime}</span>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">15 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">2.000 MB</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td><td class="yii-debug-col-ip">
+            </td>
+            <td class="yii-debug-col-ip">
             127.0.0.1
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-method yii-debug-verb-post">POST</span>
-            </td><td>
+            </td>
+            <td>
             Yes
-            </td><td>
+            </td>
+            <td>
             <span class="yii-debug-url-cell" title="https://example.test/missing">https://example.test/missing</span>
             </td>
             </tr>
@@ -1917,35 +1914,24 @@ final class DebugPageRendererTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Component
-            </th><td>
-            Site/Index
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            URL
-            </th><td>
-            /
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Version
-            </th><td>
-            version-1
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Visit
-            </th><td>
-            Inertia visit
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Status
-            </th><td>
-            200
-            </td>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
+            <td>Site/Index</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
+            <td>/</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
+            <td>version-1</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
+            <td>Inertia visit</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
+            <td>200</td>
             </tr>
             </tbody>
             </table>
@@ -1955,31 +1941,20 @@ final class DebugPageRendererTest extends TestCase
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">
-            #
-            </th><th scope="col">
-            Prop
-            </th><th scope="col">
-            Origin
-            </th><th scope="col">
-            Type
-            </th><th scope="col">
-            Value
-            </th>
+            <th scope="col">#</th>
+            <th scope="col">Prop</th>
+            <th scope="col">Origin</th>
+            <th scope="col">Type</th>
+            <th scope="col">Value</th>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr>
-            <td>
-            1
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>appName</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-info">shared</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            string(16)
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            "Test application"
-            </td>
+            <td>1</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>appName</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-info">shared</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">string(16)</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">"Test application"</td>
             </tr>
             </tbody>
             </table>

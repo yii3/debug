@@ -6,32 +6,33 @@ namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{Dump, EmptyState, LogLevel};
-use PHPForge\Debug\Panel\Log\{LogCellRenderer, LogCounts, LogRow, LogSnapshot};
+use PHPForge\Debug\Panel\Log\{LogCellRenderer, LogCounts, LogMessage, LogRow, LogSnapshot};
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
-use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use UIAwesome\Html\Flow\{Div, P};
-use UIAwesome\Html\Form\{InputText, Option, Select};
-use UIAwesome\Html\Heading\H1;
 use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\{Span, Strong};
 use UIAwesome\Html\Root\Header;
-use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\LogSearch;
-use Yii3\Debug\Web\{FilterRemoval, GridFooter, PageWindow};
+use Yii3\Debug\Web\{
+    FilterInput,
+    FilterRemoval,
+    GridColumn,
+    GridFooter,
+    PageWindow,
+    PanelHeading,
+    SortState,
+    SummaryChip,
+};
+use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Yii\DataView\GridView\GridView;
 
-use function array_replace;
-use function array_slice;
 use function count;
 use function htmlspecialchars;
-use function in_array;
 use function is_int;
 use function is_string;
-use function str_starts_with;
+use function iterator_to_array;
 use function strcasecmp;
-use function substr;
-use function ucfirst;
-use function usort;
 
 use const ENT_QUOTES;
 use const ENT_SUBSTITUTE;
@@ -107,201 +108,152 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     }
 
     /**
-     * @param array<string, string> $filters
-     */
-    private static function levelFilter(array $filters): Select
-    {
-        $select = Select::tag()
-            ->addAriaAttribute('label', 'Filter by Level')
-            ->class('yii-debug-select')
-            ->name(FilterPrefix::LOG . '[level]')
-            ->value($filters['level'] ?? '')
-            ->option(Option::tag()->value('')->content(''));
-
-        foreach (
-            [
-                LogLevel::TRACE => 'Trace',
-                LogLevel::INFO => 'Info',
-                LogLevel::WARNING => 'Warning',
-                LogLevel::ERROR => 'Error',
-            ] as $value => $label
-        ) {
-            $select = $select->option(
-                Option::tag()
-                    ->value((string) $value)
-                    ->content($label),
-            );
-        }
-
-        return $select;
-    }
-
-    /**
+     * @param array<array-key, mixed> $queryParams
      * @param array<string, string> $filters
      *
-     * @return array<array-key, mixed>
+     * @return list<GridColumn<LogRow>>
      */
-    private static function queryParams(PanelRenderContext $context, array $filters): array
-    {
-        $params = $context->queryParams;
-
-        if ($filters === []) {
-            unset($params[FilterPrefix::LOG]);
-        } else {
-            $params[FilterPrefix::LOG] = $filters;
-        }
-
-        return $params;
-    }
-
-    private static function renderEmptyState(): string
-    {
-        return EmptyState::card(
-            'No log messages captured',
-            P::tag()->content('This request did not emit log messages through the debug log target.'),
-        );
-    }
-
-    /**
-     * @param array<string, string> $filters
-     */
-    private static function renderFilterRow(array $filters): Tr
-    {
-        return Tr::tag()
-            ->class('filters')
-            ->html(
-                Td::tag(),
-                Td::tag(),
-                Td::tag(),
-                Td::tag()->html(self::levelFilter($filters)),
-                Td::tag()->html(self::textFilter('category', $filters)),
-                Td::tag()->html(self::textFilter('message', $filters)),
-            );
-    }
-
-    /**
-     * @param list<LogRow> $rows
-     * @param array<string, string> $filters
-     */
-    private static function renderGrid(
-        array $rows,
-        int $totalRows,
-        int $offset,
-        PanelRenderContext|null $context = null,
-        array $filters = [],
-        int $page = 1,
-        int $pageCount = 1,
-    ): string {
-        $bodyRows = [];
-        $traceLine = self::renderTraceLine(...);
-
-        foreach ($rows as $row) {
-            $bodyRows[] = Tr::tag()
-                ->attributes(LogCellRenderer::buildRowOptions($row))
-                ->html(
-                    Td::tag()
-                        ->class('yii-debug-nowrap')
-                        ->content((string) $row->id),
-                    Td::tag()
-                        ->class('yii-debug-nowrap')
-                        ->content(LogCellRenderer::renderTimeCell($row)),
-                    Td::tag()->html(LogCellRenderer::renderTimeSincePreviousCell($row)),
-                    Td::tag()->html(LogCellRenderer::renderLevelCell($row)),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-fqcn')
-                        ->html(LogCellRenderer::renderCategoryCell($row)),
-                    Td::tag()->html(LogCellRenderer::renderMessageCell($row, $traceLine)),
-                );
-        }
-
-        $queryParams = $context === null ? [] : self::queryParams($context, $filters);
-
-        $headerRows = [self::renderHeaderRow($context, $queryParams)];
-
-        if ($context !== null) {
-            $headerRows[] = self::renderFilterRow($filters);
-        }
-
-        $table = Div::tag()
-            ->class('yii-debug-table-wrap')
-            ->html(
-                Table::tag()
-                    ->class('yii-debug-table')
-                    ->html(
-                        Thead::tag()->html(...$headerRows),
-                        Tbody::tag()->html(...$bodyRows),
-                    ),
-            );
-
-        $footer = GridFooter::render(
-            $totalRows,
-            $offset,
-            count($rows),
-            $page,
-            $pageCount,
-            $context === null ? null : static fn(int $number): string => $context->panelUrl(
-                queryParams: array_replace($queryParams, ['page' => $number]),
-            ),
-        );
-
-        return Div::tag()
-            ->class('yii-debug-grid yii-debug-grid-log')
-            ->html($table, $footer)
-            ->render();
-    }
-
-    /**
-     * @param array<array-key, mixed> $queryParams
-     */
-    private static function renderHeaderRow(PanelRenderContext|null $context, array $queryParams): Tr
-    {
-        [$activeAttribute, $direction] = self::sortState(QueryInput::scalar($queryParams, 'sort'));
+    private static function columns(
+        PanelRenderContext|null $context,
+        array $queryParams,
+        array $filters,
+    ): array {
+        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
 
         unset($queryParams['page']);
 
-        $cells = [
-            Th::tag()
-                ->scope('col')
-                ->content('#'),
-        ];
-
-        $headers = [
-            'time' => 'Time',
-            'timeSincePrevious' => 'Delta',
-            'level' => 'Level',
-            'category' => 'Category',
-            'message' => 'Message',
-        ];
-
-        foreach ($headers as $attribute => $label) {
-            $cell = Th::tag()->scope('col');
-
-            if ($attribute === 'time' || $attribute === 'timeSincePrevious') {
-                $cell = $cell->class('sort-numerical');
-            }
-
+        $header = static function (string $attribute, string $label) use (
+            $context,
+            $queryParams,
+            $state,
+        ): string {
             if ($context === null) {
-                $cells[] = $cell->content($label);
-
-                continue;
+                return $label;
             }
 
-            $isActive = $activeAttribute === $attribute;
+            $isActive = $state->isActive($attribute);
 
-            $queryParams['sort'] = match (true) {
-                $isActive && $direction === 'asc' => "-{$attribute}",
-                !$isActive && $attribute === 'timeSincePrevious' => "-{$attribute}",
-                default => $attribute,
-            };
+            $queryParams['sort'] = $state->next($attribute, $attribute === 'timeSincePrevious');
 
             $link = A::tag()
                 ->href($context->panelUrl(queryParams: $queryParams))
                 ->content($label);
 
-            $cells[] = $cell->html($isActive ? $link->class($direction) : $link);
+            return ($isActive ? $link->class($state->direction) : $link)->render();
+        };
+
+        $blank = $context === null ? null : '';
+        $traceLine = self::renderTraceLine(...);
+
+        return [
+            new GridColumn(
+                header: '#',
+                content: static fn(LogRow $row): string => (string) $row->id,
+                filter: $blank,
+                encodeContent: true,
+                bodyClass: 'yii-debug-nowrap',
+            ),
+            new GridColumn(
+                header: $header('time', 'Time'),
+                content: static fn(LogRow $row): string => LogCellRenderer::renderTimeCell($row),
+                filter: $blank,
+                encodeContent: true,
+                headerClass: 'sort-numerical',
+                bodyClass: 'yii-debug-nowrap',
+            ),
+            new GridColumn(
+                header: $header('timeSincePrevious', 'Delta'),
+                content: static fn(LogRow $row): string => LogCellRenderer::renderTimeSincePreviousCell($row),
+                filter: $blank,
+                headerClass: 'sort-numerical',
+            ),
+            new GridColumn(
+                header: $header('level', 'Level'),
+                content: static fn(LogRow $row): string => LogCellRenderer::renderLevelCell($row),
+                filter: $context === null
+                    ? null
+                    : FilterInput::select(FilterPrefix::LOG, 'level', 'Level', $filters, self::levelOptions()),
+            ),
+            new GridColumn(
+                header: $header('category', 'Category'),
+                content: static fn(LogRow $row): string => LogCellRenderer::renderCategoryCell($row),
+                filter: $context === null
+                    ? null
+                    : FilterInput::text(FilterPrefix::LOG, 'category', 'Category', $filters),
+                bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
+            ),
+            new GridColumn(
+                header: $header('message', 'Message'),
+                content: static fn(LogRow $row): string => LogCellRenderer::renderMessageCell($row, $traceLine),
+                filter: $context === null
+                    ? null
+                    : FilterInput::text(FilterPrefix::LOG, 'message', 'Message', $filters),
+            ),
+        ];
+    }
+
+    /**
+     * Returns the selectable severities of the level filter, mapped to the label shown for each of them.
+     *
+     * @return array<int, string>
+     */
+    private static function levelOptions(): array
+    {
+        return [
+            LogLevel::TRACE => 'Trace',
+            LogLevel::INFO => 'Info',
+            LogLevel::WARNING => 'Warning',
+            LogLevel::ERROR => 'Error',
+        ];
+    }
+
+    private static function renderEmptyState(): string
+    {
+        return EmptyState::card(
+            LogMessage::EMPTY_HEADLINE->value,
+            P::tag()->content(LogMessage::EMPTY_EXPLANATION),
+        );
+    }
+
+    /**
+     * @param OffsetPaginator<int, LogRow> $paginator
+     * @param array<string, string> $filters
+     */
+    private static function renderGrid(
+        OffsetPaginator $paginator,
+        PanelRenderContext|null $context = null,
+        array $filters = [],
+    ): string {
+        $rows = iterator_to_array($paginator->read(), false);
+
+        $queryParams = $context === null
+            ? []
+            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
+
+        /** @var GridView<LogRow> $grid */
+        $grid = GridView::widget();
+
+        $grid = $grid
+            ->bodyRowAttributes(static fn(LogRow $row): array => LogCellRenderer::buildRowOptions($row))
+            ->dataReader($paginator)
+            ->layout('{items}')
+            ->containerClass('yii-debug-table-wrap')
+            ->tableClass('yii-debug-table')
+            ->headerCellAttributes(['scope' => 'col'])
+            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
+            ->filterFormId('yii-debug-log-filters')
+            ->columns(...self::columns($context, $queryParams, $filters));
+
+        if ($context !== null) {
+            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
         }
 
-        return Tr::tag()->html(...$cells);
+        $footer = GridFooter::renderForPanel($paginator, count($rows), $context, $queryParams);
+
+        return Div::tag()
+            ->class('yii-debug-grid yii-debug-grid-log')
+            ->html($grid->render(), $footer)
+            ->render();
     }
 
     /**
@@ -313,26 +265,17 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         PanelRenderContext $context,
         array $filters,
     ): string {
-        $queryParams = self::queryParams($context, $filters);
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
+
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
-        $window = new PageWindow(
-            count($sortedRows),
+        $paginator = PageWindow::paginate(
+            $sortedRows,
             QueryInput::scalar($queryParams, 'per-page'),
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        $visibleRows = array_slice($sortedRows, $window->offset, $window->limit);
-
-        return self::renderGrid(
-            $visibleRows,
-            count($filteredRows),
-            $window->offset,
-            $context,
-            $filters,
-            $window->page,
-            $window->pageCount,
-        );
+        return self::renderGrid($paginator, $context, $filters);
     }
 
     /**
@@ -342,10 +285,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     {
         $entries = self::snapshot($payload)->entries();
 
-        $title = H1::tag()
-            ->class('yii-debug-sr-only')
-            ->content(PanelTitle::LOG_MESSAGES)
-            ->render();
+        $title = PanelHeading::render(PanelTitle::LOG_MESSAGES);
 
         if ($entries === []) {
             return $title . self::renderEmptyState();
@@ -353,15 +293,14 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
 
         $search = LogSearch::fromQueryParams($context->queryParams ?? []);
 
-        $queryParams = $context === null ? [] : self::queryParams($context, $search->activeFilters);
+        $queryParams = $context === null
+            ? []
+            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
-        $pageSizeSelector = $context === null
-            ? null
-            : PageSize::selectorHtml(
-                PageSize::current(QueryInput::scalar($queryParams, 'per-page')),
-            );
+        $pageSizeSelector = $context === null ? null : PageSize::selectorFor($queryParams);
+
         $content = $title . self::renderSummary(
             LogCounts::fromRows($entries),
             $pageSizeSelector,
@@ -370,20 +309,15 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         );
 
         if ($context === null) {
-            return $content . self::renderGrid($filteredRows, count($filteredRows), 0);
+            return $content . self::renderGrid(PageWindow::single($filteredRows));
         }
 
-        $content .= ActiveFilterBanner::render(
-            $search->activeFilters,
-            static fn(array $without): string => $context->panelUrl(
-                queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::LOG, $without),
-            ),
-        );
+        $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::LOG);
 
         if ($filteredRows === []) {
             return $content . EmptyState::card(
-                'No log messages match the active filters',
-                P::tag()->content('Adjust or clear the filters to show the captured messages.'),
+                LogMessage::NO_MATCH_HEADLINE->value,
+                P::tag()->content(LogMessage::NO_MATCH_EXPLANATION),
             );
         }
 
@@ -401,18 +335,10 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     ): string {
         unset($queryParams['page']);
 
-        $items = [
-            Span::tag()
-                ->html(
-                    Strong::tag()->content((string) $counts->total),
-                    ' messages',
-                ),
-        ];
+        $items = [SummaryChip::render((string) $counts->total, ' messages')];
 
         if ($counts->hasErrors()) {
-            $items[] = Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·');
+            $items[] = SummaryChip::separator();
             $items[] = self::renderSummaryLevel(
                 $counts->errors,
                 'errors',
@@ -425,9 +351,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         }
 
         if ($counts->hasWarnings()) {
-            $items[] = Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·');
+            $items[] = SummaryChip::separator();
             $items[] = self::renderSummaryLevel(
                 $counts->warnings,
                 'warnings',
@@ -440,9 +364,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         }
 
         if ($counts->hasInfo()) {
-            $items[] = Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·');
+            $items[] = SummaryChip::separator();
             $items[] = self::renderSummaryLevel(
                 $counts->info,
                 'info',
@@ -455,9 +377,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         }
 
         if ($counts->hasTrace()) {
-            $items[] = Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·');
+            $items[] = SummaryChip::separator();
             $items[] = self::renderSummaryLevel(
                 $counts->trace,
                 'trace',
@@ -491,13 +411,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         PanelRenderContext|null $context,
         array $queryParams,
     ): A|Span {
-        $content = [
-            Strong::tag()->content((string) $count),
-            " {$label}",
-        ];
+        $value = (string) $count;
+        $text = " {$label}";
 
         if ($context === null) {
-            $item = Span::tag()->html(...$content);
+            $item = SummaryChip::render($value, $text);
 
             return $level === LogLevel::INFO ? $item : $item->class($class);
         }
@@ -509,7 +427,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             ->addAttribute('title', "Show only {$levelName} log messages")
             ->class($class)
             ->href($context->panelUrl(queryParams: $queryParams))
-            ->html(...$content);
+            ->html(Strong::tag()->content($value), $text);
     }
 
     /**
@@ -545,57 +463,18 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        [$attribute, $direction] = self::sortState($sort);
+        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'time');
 
-        usort(
+        return $state->apply(
             $rows,
-            static function (LogRow $left, LogRow $right) use ($attribute, $direction): int {
-                $result = match ($attribute) {
-                    'time' => $left->time <=> $right->time,
-                    'timeSincePrevious' => $left->timeSincePrevious <=> $right->timeSincePrevious,
-                    'level' => $left->level <=> $right->level,
-                    'category' => strcasecmp($left->category, $right->category),
-                    default => strcasecmp($left->message, $right->message),
-                };
-
-                if ($result !== 0) {
-                    return $direction === 'desc' ? -$result : $result;
-                }
-
-                return $left->id <=> $right->id;
+            static fn(LogRow $left, LogRow $right): int => match ($state->attribute) {
+                'time' => $left->time <=> $right->time,
+                'timeSincePrevious' => $left->timeSincePrevious <=> $right->timeSincePrevious,
+                'level' => $left->level <=> $right->level,
+                'category' => strcasecmp($left->category, $right->category),
+                default => strcasecmp($left->message, $right->message),
             },
+            static fn(LogRow $left, LogRow $right): int => $left->id <=> $right->id,
         );
-
-        return $rows;
-    }
-
-    /**
-     * @return array{string, 'asc'|'desc'}
-     */
-    private static function sortState(string|null $sort): array
-    {
-        if ($sort === null || $sort === '') {
-            return ['time', 'asc'];
-        }
-
-        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
-
-        $attribute = $direction === 'desc' ? substr($sort, 1) : $sort;
-
-        return in_array($attribute, self::SORT_ATTRIBUTES, true)
-            ? [$attribute, $direction]
-            : ['time', 'asc'];
-    }
-
-    /**
-     * @param array<string, string> $filters
-     */
-    private static function textFilter(string $attribute, array $filters): InputText
-    {
-        return InputText::tag()
-            ->addAriaAttribute('label', 'Filter by ' . ucfirst($attribute))
-            ->class('yii-debug-input')
-            ->name(FilterPrefix::LOG . "[{$attribute}]")
-            ->value($filters[$attribute] ?? '');
     }
 }

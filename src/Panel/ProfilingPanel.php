@@ -8,31 +8,35 @@ use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Helper\{EmptyState, Format};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\{MemorySample, PanelIcon, PanelRenderContext, PanelTitle};
-use PHPForge\Debug\Panel\Profile\{ProfileCellRenderer, ProfileRow, ProfilingSnapshot};
+use PHPForge\Debug\Panel\Profile\{ProfileCellRenderer, ProfileMessage, ProfileRow, ProfilingSnapshot};
 use PHPForge\Debug\Panel\Timeline\{TimelineGeometry, TimelineMemoryRenderer, TimelineRenderer};
 use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
 use PHPForge\Debug\Toolbar\ToolbarItem;
-use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use UIAwesome\Html\Flow\{Div, P, Pre};
 use UIAwesome\Html\Form\{Button, Form, InputHidden, InputNumber, InputText};
-use UIAwesome\Html\Heading\{H1, H2};
+use UIAwesome\Html\Heading\H2;
 use UIAwesome\Html\Palpable\A;
-use UIAwesome\Html\Phrasing\{Code, Label, Span, Strong};
+use UIAwesome\Html\Phrasing\{Code, Label};
 use UIAwesome\Html\Root\Header;
-use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\ProfileSearch;
-use Yii3\Debug\Web\{FilterRemoval, GridFooter, PageWindow};
+use Yii3\Debug\Web\{
+    FilterInput,
+    FilterRemoval,
+    GridColumn,
+    GridFooter,
+    PageWindow,
+    PanelHeading,
+    SortState,
+    SummaryChip,
+};
+use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Yii\DataView\GridView\GridView;
 
-use function array_replace;
-use function array_slice;
 use function count;
-use function in_array;
+use function iterator_to_array;
 use function number_format;
 use function str_replace;
-use function str_starts_with;
 use function strcasecmp;
-use function substr;
-use function usort;
 
 /**
  * Presents captured profiling spans and contributes the processing-time and peak-memory toolbar metrics.
@@ -101,6 +105,54 @@ final readonly class ProfilingPanel implements
     }
 
     /**
+     * @param array<array-key, mixed> $queryParams
+     * @param array<string, string> $filters
+     *
+     * @return list<GridColumn<ProfileRow>>
+     */
+    private static function columns(
+        float $maxDuration,
+        PanelRenderContext|null $context,
+        array $queryParams,
+        array $filters,
+        bool $renderFilters,
+    ): array {
+        $filterCells = $context !== null && $renderFilters;
+
+        return [
+            new GridColumn(
+                header: self::header('seq', 'Time', $context, $queryParams),
+                content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderTimeCell($row),
+                filter: $filterCells ? '' : null,
+                bodyClass: 'yii-debug-cell-mono yii-debug-nowrap',
+            ),
+            new GridColumn(
+                header: self::header('duration', 'Duration', $context, $queryParams),
+                content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderDurationCell(
+                    $row,
+                    $maxDuration,
+                ),
+                filter: $filterCells ? '' : null,
+            ),
+            new GridColumn(
+                header: self::header('category', 'Category', $context, $queryParams),
+                content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderCategoryCell($row),
+                filter: $filterCells
+                    ? FilterInput::text(FilterPrefix::PROFILE, 'category', 'Category', $filters)
+                    : null,
+                bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
+            ),
+            new GridColumn(
+                header: self::header('info', 'Info', $context, $queryParams),
+                content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderInfoCell($row),
+                filter: $filterCells
+                    ? FilterInput::text(FilterPrefix::PROFILE, 'info', 'Info', $filters)
+                    : null,
+            ),
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function filterHiddenParams(PanelRenderContext $context): array
@@ -130,29 +182,43 @@ final readonly class ProfilingPanel implements
     }
 
     /**
-     * @param array<string, string> $filters
+     * Renders the header cell content as a sort link, or as the plain label for context-free rendering.
      *
-     * @return array<array-key, mixed>
+     * @param array<array-key, mixed> $queryParams
      */
-    private static function queryParams(PanelRenderContext $context, array $filters): array
-    {
-        $params = $context->queryParams;
-
-        unset($params['view'], $params[FilterPrefix::TIMELINE]);
-
-        if ($filters === []) {
-            unset($params[FilterPrefix::PROFILE]);
-        } else {
-            $params[FilterPrefix::PROFILE] = $filters;
+    private static function header(
+        string $attribute,
+        string $label,
+        PanelRenderContext|null $context,
+        array $queryParams,
+    ): string {
+        if ($context === null) {
+            return $label;
         }
 
-        return $params;
+        $state = SortState::fromQuery(
+            QueryInput::scalar($queryParams, 'sort'),
+            self::SORT_ATTRIBUTES,
+            'duration',
+            'desc',
+        );
+
+        unset($queryParams['page']);
+
+        $isActive = $state->isActive($attribute);
+        $queryParams['sort'] = $state->next($attribute);
+
+        $link = A::tag()
+            ->href($context->panelUrl(queryParams: $queryParams))
+            ->content($label);
+
+        return ($isActive ? $link->class($state->direction) : $link)->render();
     }
 
     private static function renderEmptyState(): string
     {
         return EmptyState::card(
-            'No profiling data captured',
+            ProfileMessage::EMPTY_HEADLINE->value,
             P::tag()
                 ->html(
                     'This request did not produce any ',
@@ -161,13 +227,11 @@ final readonly class ProfilingPanel implements
                     Code::tag()->content('ProfilerInterface::end()'),
                     ' spans, so the Timeline and details are empty.',
                 ),
-            P::tag()->content('To populate this view, wrap interesting sections of code with profile markers:'),
+            P::tag()->content(ProfileMessage::EMPTY_CALL_TO_ACTION),
             Pre::tag()
                 ->class('yii-debug-empty-state-code')
-                ->content(
-                    "\$profiler->begin('my-token');\n// …work…\n\$profiler->end('my-token');",
-                ),
-            P::tag()->content('Database queries are profiled automatically when the DB collector is configured.'),
+                ->content(ProfileMessage::EMPTY_EXAMPLE),
+            P::tag()->content(ProfileMessage::EMPTY_DB_NOTE),
         );
     }
 
@@ -232,127 +296,58 @@ final readonly class ProfilingPanel implements
     }
 
     /**
-     * @param array<string, string> $filters
-     */
-    private static function renderFilterRow(array $filters): Tr
-    {
-        return Tr::tag()
-            ->class('filters')
-            ->html(
-                Td::tag(),
-                Td::tag(),
-                Td::tag()->html(self::textFilter('category', $filters)),
-                Td::tag()->html(self::textFilter('info', $filters)),
-            );
-    }
-
-    /**
-     * @param list<ProfileRow> $rows
+     * @param OffsetPaginator<int, ProfileRow> $paginator
      * @param array<string, string> $filters
      */
     private static function renderGrid(
-        array $rows,
-        int $totalRows,
-        int $offset,
+        OffsetPaginator $paginator,
         float $maxDuration,
         PanelRenderContext|null $context = null,
         array $filters = [],
-        int $page = 1,
-        int $pageCount = 1,
         bool $renderFilters = true,
     ): string {
-        $bodyRows = [];
-
-        foreach ($rows as $row) {
-            $bodyRows[] = Tr::tag()
-                ->html(
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-nowrap')
-                        ->html(ProfileCellRenderer::renderTimeCell($row)),
-                    Td::tag()->html(ProfileCellRenderer::renderDurationCell($row, $maxDuration)),
-                    Td::tag()
-                        ->class('yii-debug-cell-mono yii-debug-cell-fqcn')
-                        ->html(ProfileCellRenderer::renderCategoryCell($row)),
-                    Td::tag()->html(ProfileCellRenderer::renderInfoCell($row)),
-                );
-        }
-
-        $queryParams = $context === null ? [] : self::queryParams($context, $filters);
-
-        $headerRows = [
-            self::renderHeaderRow($context, $queryParams),
-        ];
-
-        if ($context !== null && $renderFilters) {
-            $headerRows[] = self::renderFilterRow($filters);
-        }
-
-        $table = Div::tag()
-            ->class('yii-debug-table-wrap')
-            ->html(
-                Table::tag()
-                    ->class('yii-debug-table')
-                    ->html(
-                        Thead::tag()->html(...$headerRows),
-                        Tbody::tag()->html(...$bodyRows),
-                    ),
+        $queryParams = $context === null
+            ? []
+            : FilterRemoval::withGroup(
+                $context->queryParams,
+                FilterPrefix::PROFILE,
+                $filters,
+                ['view', FilterPrefix::TIMELINE],
             );
 
-        $footer = GridFooter::render(
-            $totalRows,
-            $offset,
-            count($rows),
-            $page,
-            $pageCount,
-            $context === null ? null : static fn(int $number): string => $context->panelUrl(
-                queryParams: array_replace($queryParams, ['page' => $number]),
-            ),
-        );
+        $rows = iterator_to_array($paginator->read(), false);
+
+        /** @var GridView<ProfileRow> $grid */
+        $grid = GridView::widget();
+
+        $grid = $grid
+            ->dataReader($paginator)
+            ->layout('{items}')
+            ->containerClass('yii-debug-table-wrap')
+            ->tableClass('yii-debug-table')
+            ->headerCellAttributes(['scope' => 'col'])
+            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
+            ->filterFormId('yii-debug-profile-filters')
+            ->columns(...self::columns($maxDuration, $context, $queryParams, $filters, $renderFilters));
+
+        if ($context !== null) {
+            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
+        }
+
+        $footer = GridFooter::renderForPanel($paginator, count($rows), $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-profile')
-            ->html($table, $footer)
+            ->html($grid->render(), $footer)
             ->render();
     }
 
-    /**
-     * @param array<array-key, mixed> $queryParams
-     */
-    private static function renderHeaderRow(PanelRenderContext|null $context, array $queryParams): Tr
+    private static function renderNoMatchState(): string
     {
-        [$activeAttribute, $direction] = self::sortState(QueryInput::scalar($queryParams, 'sort'));
-
-        unset($queryParams['page']);
-
-        $headers = [
-            'seq' => 'Time',
-            'duration' => 'Duration',
-            'category' => 'Category',
-            'info' => 'Info',
-        ];
-
-        $cells = [];
-
-        foreach ($headers as $attribute => $label) {
-            $cell = Th::tag()->scope('col');
-
-            if ($context === null) {
-                $cells[] = $cell->content($label);
-
-                continue;
-            }
-
-            $isActive = $activeAttribute === $attribute;
-            $queryParams['sort'] = $isActive && $direction === 'asc' ? "-{$attribute}" : $attribute;
-
-            $link = A::tag()
-                ->href($context->panelUrl(queryParams: $queryParams))
-                ->content($label);
-
-            $cells[] = $cell->html($isActive ? $link->class($direction) : $link);
-        }
-
-        return Tr::tag()->html(...$cells);
+        return EmptyState::card(
+            ProfileMessage::NO_MATCH_HEADLINE->value,
+            P::tag()->content(ProfileMessage::NO_MATCH_EXPLANATION),
+        );
     }
 
     /**
@@ -367,26 +362,26 @@ final readonly class ProfilingPanel implements
         array $filters = [],
         bool $renderFilters = true,
     ): string {
-        $queryParams = self::queryParams($context, $filters);
+        $queryParams = FilterRemoval::withGroup(
+            $context->queryParams,
+            FilterPrefix::PROFILE,
+            $filters,
+            ['view', FilterPrefix::TIMELINE],
+        );
+
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
-        $window = new PageWindow(
-            count($sortedRows),
+        $paginator = PageWindow::paginate(
+            $sortedRows,
             QueryInput::scalar($queryParams, 'per-page'),
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        $visibleRows = array_slice($sortedRows, $window->offset, $window->limit);
-
         return self::renderGrid(
-            $visibleRows,
-            count($filteredRows),
-            $window->offset,
+            $paginator,
             ProfileRow::maxDuration($entries),
             $context,
             $filters,
-            $window->page,
-            $window->pageCount,
             $renderFilters,
         );
     }
@@ -401,10 +396,8 @@ final readonly class ProfilingPanel implements
     ): string {
         $snapshot = self::snapshot($payload);
 
-        $title = H1::tag()
-            ->class('yii-debug-sr-only')
-            ->content(PanelTitle::PROFILING_DETAILS)
-            ->render();
+        $title = PanelHeading::render(PanelTitle::PROFILING_DETAILS);
+
         if ($context === null || $summary === null) {
             return $title . $this->renderProfilingView($snapshot, $context);
         }
@@ -420,7 +413,14 @@ final readonly class ProfilingPanel implements
 
         $search = ProfileSearch::fromQueryParams($context->queryParams ?? []);
 
-        $queryParams = $context === null ? [] : self::queryParams($context, $search->activeFilters);
+        $queryParams = $context === null
+            ? []
+            : FilterRemoval::withGroup(
+                $context->queryParams,
+                FilterPrefix::PROFILE,
+                $search->activeFilters,
+                ['view', FilterPrefix::TIMELINE],
+            );
 
         $filteredRows = $search->filter($entries);
 
@@ -428,11 +428,7 @@ final readonly class ProfilingPanel implements
             count($filteredRows),
             count($entries),
             $snapshot,
-            $context === null || $filteredRows === []
-                ? null
-                : PageSize::selectorHtml(
-                    PageSize::current(QueryInput::scalar($queryParams, 'per-page')),
-                ),
+            $context === null || $filteredRows === [] ? null : PageSize::selectorFor($queryParams),
         );
 
         if ($entries === []) {
@@ -441,28 +437,15 @@ final readonly class ProfilingPanel implements
 
         if ($context === null) {
             return $content . self::renderGrid(
-                $filteredRows,
-                count($filteredRows),
-                0,
+                PageWindow::single($filteredRows),
                 ProfileRow::maxDuration($entries),
             );
         }
 
-        $filterBanner = ActiveFilterBanner::render(
-            $search->activeFilters,
-            static fn(array $without): string => $context->panelUrl(
-                queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::PROFILE, $without),
-            ),
-        );
+        $filterBanner = FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::PROFILE);
 
         if ($filteredRows === []) {
-            return $content
-                . $filterBanner
-                . EmptyState::card(
-                    'No spans match the active filters',
-                    P::tag()
-                        ->content('Adjust or clear the filters to show the captured spans.'),
-                );
+            return $content . $filterBanner . self::renderNoMatchState();
         }
 
         return "{$content}{$filterBanner}"
@@ -480,27 +463,11 @@ final readonly class ProfilingPanel implements
         $countLabel = $filteredCount === $totalCount ? $spanLabel : " of {$totalCount}{$spanLabel}";
 
         $items = [
-            Span::tag()
-                ->html(
-                    Strong::tag()->content((string) $filteredCount),
-                    $countLabel,
-                ),
-            Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·'),
-            Span::tag()
-                ->html(
-                    Strong::tag()->content(self::formatTime($snapshot->time)),
-                    ' total',
-                ),
-            Span::tag()
-                ->class('yii-debug-grid-summary-sep')
-                ->content('·'),
-            Span::tag()
-                ->html(
-                    Strong::tag()->content(Format::bytesToMb($snapshot->memory, $memoryPrecision)),
-                    ' peak',
-                ),
+            SummaryChip::render((string) $filteredCount, $countLabel),
+            SummaryChip::separator(),
+            SummaryChip::render(self::formatTime($snapshot->time), ' total'),
+            SummaryChip::separator(),
+            SummaryChip::render(Format::bytesToMb($snapshot->memory, $memoryPrecision), ' peak'),
         ];
 
         if ($pageSizeSelector !== null) {
@@ -553,13 +520,9 @@ final readonly class ProfilingPanel implements
     private static function renderTimelineUnavailable(): string
     {
         return EmptyState::card(
-            'Timeline unavailable',
-            P::tag()
-                ->content(
-                    'This capture does not contain the valid request start, duration, and peak-memory values required '
-                    . 'to position the chart.',
-                ),
-            P::tag()->content('The profiling details remain available below.'),
+            ProfileMessage::TIMELINE_UNAVAILABLE_HEADLINE->value,
+            P::tag()->content(ProfileMessage::TIMELINE_UNAVAILABLE_EXPLANATION),
+            P::tag()->content(ProfileMessage::TIMELINE_UNAVAILABLE_DETAILS),
         );
     }
 
@@ -572,7 +535,12 @@ final readonly class ProfilingPanel implements
 
         $search = ProfileSearch::fromQueryParams($context->queryParams);
 
-        $queryParams = self::queryParams($context, $search->activeFilters);
+        $queryParams = FilterRemoval::withGroup(
+            $context->queryParams,
+            FilterPrefix::PROFILE,
+            $search->activeFilters,
+            ['view', FilterPrefix::TIMELINE],
+        );
 
         $filteredRows = $search->filter($entries);
 
@@ -589,18 +557,10 @@ final readonly class ProfilingPanel implements
         }
 
         $content .= self::renderFilterForm($context, $search)
-            . ActiveFilterBanner::render(
-                $search->activeFilters,
-                static fn(array $without): string => $context->panelUrl(
-                    queryParams: FilterRemoval::queryParams($queryParams, FilterPrefix::PROFILE, $without),
-                ),
-            );
+            . FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::PROFILE);
 
         if ($filteredRows === []) {
-            return $content . EmptyState::card(
-                'No spans match the active filters',
-                P::tag()->content('Adjust or clear the filters to show the captured spans.'),
-            );
+            return $content . self::renderNoMatchState();
         }
 
         $content .= H2::tag()->content(PanelTitle::TIMELINE)->render()
@@ -609,9 +569,7 @@ final readonly class ProfilingPanel implements
                 ->class('yii-debug-section-header')
                 ->html(
                     H2::tag()->content('Details'),
-                    PageSize::selectorHtml(
-                        PageSize::current(QueryInput::scalar($queryParams, 'per-page')),
-                    ),
+                    PageSize::selectorFor($queryParams),
                 )
                 ->render();
 
@@ -639,56 +597,18 @@ final readonly class ProfilingPanel implements
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        [$attribute, $direction] = self::sortState($sort);
+        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'duration', 'desc');
 
-        usort(
+        return $state->apply(
             $rows,
-            static function (ProfileRow $left, ProfileRow $right) use ($attribute, $direction): int {
-                $result = match ($attribute) {
-                    'seq' => $left->seq <=> $right->seq,
-                    'duration' => $left->duration <=> $right->duration,
-                    'category' => strcasecmp($left->category, $right->category),
-                    default => strcasecmp($left->info, $right->info),
-                };
-
-                if ($result !== 0) {
-                    return $direction === 'desc' ? -$result : $result;
-                }
-
-                return $left->seq <=> $right->seq;
+            static fn(ProfileRow $left, ProfileRow $right): int => match ($state->attribute) {
+                'seq' => $left->seq <=> $right->seq,
+                'duration' => $left->duration <=> $right->duration,
+                'category' => strcasecmp($left->category, $right->category),
+                default => strcasecmp($left->info, $right->info),
             },
+            static fn(ProfileRow $left, ProfileRow $right): int => $left->seq <=> $right->seq,
         );
-
-        return $rows;
-    }
-
-    /**
-     * @return array{string, 'asc'|'desc'}
-     */
-    private static function sortState(string|null $sort): array
-    {
-        if ($sort === null || $sort === '') {
-            return ['duration', 'desc'];
-        }
-
-        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
-
-        $attribute = $direction === 'desc' ? substr($sort, 1) : $sort;
-
-        return in_array($attribute, self::SORT_ATTRIBUTES, true)
-            ? [$attribute, $direction]
-            : ['duration', 'desc'];
-    }
-
-    /**
-     * @param array<string, string> $filters
-     */
-    private static function textFilter(string $attribute, array $filters): InputText
-    {
-        return InputText::tag()
-            ->class('yii-debug-input')
-            ->name(FilterPrefix::PROFILE . "[{$attribute}]")
-            ->value($filters[$attribute] ?? '');
     }
 
     /**

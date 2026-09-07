@@ -44,41 +44,28 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Component
-            </th><td>
-            &lt;script&gt;alert("component")&lt;/script&gt;
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            URL
-            </th><td>
-            /?&lt;svg onload=alert(1)&gt;
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Version
-            </th><td>
-            &lt;b&gt;v1&lt;/b&gt;
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Visit
-            </th><td>
-            Partial reload
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Status
-            </th><td>
-            200
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            X-Inertia-Partial-Data
-            </th><td>
-            &lt;iframe src=javascript:alert(1)&gt;
-            </td>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
+            <td>&lt;script&gt;alert("component")&lt;/script&gt;</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
+            <td>/?&lt;svg onload=alert(1)&gt;</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
+            <td>&lt;b&gt;v1&lt;/b&gt;</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
+            <td>Partial reload</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
+            <td>200</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">X-Inertia-Partial-Data</th>
+            <td>&lt;iframe src=javascript:alert(1)&gt;</td>
             </tr>
             </tbody>
             </table>
@@ -88,31 +75,20 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">
-            #
-            </th><th scope="col">
-            Prop
-            </th><th scope="col">
-            Origin
-            </th><th scope="col">
-            Type
-            </th><th scope="col">
-            Value
-            </th>
+            <th scope="col">#</th>
+            <th scope="col">Prop</th>
+            <th scope="col">Origin</th>
+            <th scope="col">Type</th>
+            <th scope="col">Value</th>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr>
-            <td>
-            1
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>&lt;img src=x onerror=alert(1)&gt;</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            string(42)
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            "&lt;/textarea&gt;&lt;script&gt;alert(\"value\")&lt;/script&gt;"
-            </td>
+            <td>1</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>&lt;img src=x onerror=alert(1)&gt;</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">string(42)</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">"&lt;/textarea&gt;&lt;script&gt;alert(\"value\")&lt;/script&gt;"</td>
             </tr>
             </tbody>
             </table>
@@ -195,35 +171,24 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Component
-            </th><td>
-            Site/Index
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            URL
-            </th><td>
-            /dashboard
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Version
-            </th><td>
-            42
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Visit
-            </th><td>
-            Full page load
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Status
-            </th><td>
-            201
-            </td>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
+            <td>Site/Index</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
+            <td>/dashboard</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
+            <td>42</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
+            <td>Full page load</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
+            <td>201</td>
             </tr>
             </tbody>
             </table>
@@ -233,31 +198,20 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">
-            #
-            </th><th scope="col">
-            Prop
-            </th><th scope="col">
-            Origin
-            </th><th scope="col">
-            Type
-            </th><th scope="col">
-            Value
-            </th>
+            <th scope="col">#</th>
+            <th scope="col">Prop</th>
+            <th scope="col">Origin</th>
+            <th scope="col">Type</th>
+            <th scope="col">Value</th>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr>
-            <td>
-            1
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>user</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            array(1)
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            {"id":1}
-            </td>
+            <td>1</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>user</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">array(1)</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">{"id":1}</td>
             </tr>
             </tbody>
             </table>
@@ -321,35 +275,24 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Component
-            </th><td>
-            Site/Index
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            URL
-            </th><td>
-            /
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Version
-            </th><td>
-            v1
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Visit
-            </th><td>
-            Full page load
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Status
-            </th><td>
-            200
-            </td>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
+            <td>Site/Index</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
+            <td>/</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
+            <td>v1</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
+            <td>Full page load</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
+            <td>200</td>
             </tr>
             </tbody>
             </table>
@@ -406,53 +349,36 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Component
-            </th><td>
-            Users/Index
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            URL
-            </th><td>
-            /users
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Version
-            </th><td>
-            v2
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Visit
-            </th><td>
-            Partial reload
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Status
-            </th><td>
-            200
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            X-Inertia-Partial-Component
-            </th><td>
-            Users/Index
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            X-Inertia-Partial-Data
-            </th><td>
-            users
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            X-Inertia-Version
-            </th><td>
-            v2
-            </td>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
+            <td>Users/Index</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
+            <td>/users</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
+            <td>v2</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
+            <td>Partial reload</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
+            <td>200</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">X-Inertia-Partial-Component</th>
+            <td>Users/Index</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">X-Inertia-Partial-Data</th>
+            <td>users</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">X-Inertia-Version</th>
+            <td>v2</td>
             </tr>
             </tbody>
             </table>
@@ -462,31 +388,20 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">
-            #
-            </th><th scope="col">
-            Prop
-            </th><th scope="col">
-            Origin
-            </th><th scope="col">
-            Type
-            </th><th scope="col">
-            Value
-            </th>
+            <th scope="col">#</th>
+            <th scope="col">Prop</th>
+            <th scope="col">Origin</th>
+            <th scope="col">Type</th>
+            <th scope="col">Value</th>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr>
-            <td>
-            1
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>users</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            array(1)
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            [{"id":7}]
-            </td>
+            <td>1</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>users</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">array(1)</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">[{"id":7}]</td>
             </tr>
             </tbody>
             </table>
@@ -547,35 +462,24 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Component
-            </th><td>
-            Site/Index
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            URL
-            </th><td>
-            /
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Version
-            </th><td>
-            v1
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Visit
-            </th><td>
-            Full page load
-            </td>
-            </tr><tr>
-            <th style='max-width: none; overflow-wrap: normal; white-space: nowrap;' scope="row">
-            Status
-            </th><td>
-            200
-            </td>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
+            <td>Site/Index</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
+            <td>/</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
+            <td>v1</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
+            <td>Full page load</td>
+            </tr>
+            <tr>
+            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
+            <td>200</td>
             </tr>
             </tbody>
             </table>
@@ -585,91 +489,55 @@ final class InertiaPanelTest extends TestCase
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">
-            #
-            </th><th scope="col">
-            Prop
-            </th><th scope="col">
-            Origin
-            </th><th scope="col">
-            Type
-            </th><th scope="col">
-            Value
-            </th>
+            <th scope="col">#</th>
+            <th scope="col">Prop</th>
+            <th scope="col">Origin</th>
+            <th scope="col">Type</th>
+            <th scope="col">Value</th>
             </tr>
-            </thead><tbody>
+            </thead>
+            <tbody>
             <tr>
-            <td>
-            1
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>auth</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-info">shared</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            array(1)
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            {"isGuest":true}
-            </td>
-            </tr><tr>
-            <td>
-            2
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>title</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            string(7)
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            "Welcome"
-            </td>
-            </tr><tr>
-            <td>
-            3
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>count</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            int
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            7
-            </td>
-            </tr><tr>
-            <td>
-            4
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>ratio</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            float
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            1.5
-            </td>
-            </tr><tr>
-            <td>
-            5
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>enabled</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            bool
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            true
-            </td>
-            </tr><tr>
-            <td>
-            6
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            <strong>missing</strong>
-            </td><td class="yii-debug-cell-pill">
-            <span class="yii-debug-badge yii-debug-badge-muted">page</span>
-            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
-            null
-            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
-            null
-            </td>
+            <td>1</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>auth</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-info">shared</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">array(1)</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">{"isGuest":true}</td>
+            </tr>
+            <tr>
+            <td>2</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>title</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">string(7)</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">"Welcome"</td>
+            </tr>
+            <tr>
+            <td>3</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>count</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">int</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">7</td>
+            </tr>
+            <tr>
+            <td>4</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>ratio</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">float</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">1.5</td>
+            </tr>
+            <tr>
+            <td>5</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>enabled</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">bool</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">true</td>
+            </tr>
+            <tr>
+            <td>6</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>missing</strong></td>
+            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-muted">page</span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">null</td>
+            <td class="yii-debug-cell-mono yii-debug-cell-payload">null</td>
             </tr>
             </tbody>
             </table>

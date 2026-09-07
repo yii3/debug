@@ -4,25 +4,24 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Web;
 
-use Closure;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, HistorySummary};
+use Stringable;
 use UIAwesome\Html\Flow\Div;
-use UIAwesome\Html\Form\{InputText, Option, Select};
-use UIAwesome\Html\Heading\H1;
 use UIAwesome\Html\Palpable\A;
-use UIAwesome\Html\Table\{Table, Tbody, Td, Th, Thead, Tr};
 use Yii3\Debug\Search\HistorySearch;
+use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Yii\DataView\GridView\Column\Base\DataContext;
+use Yiisoft\Yii\DataView\GridView\GridView;
 
-use function array_slice;
+use function array_filter;
+use function array_keys;
 use function count;
 use function http_build_query;
-use function is_string;
-use function str_starts_with;
-use function substr;
+use function iterator_to_array;
 use function usort;
 
 /**
@@ -58,17 +57,8 @@ final class HistoryGridRenderer
         $filteredRows = self::sortRows($search->filter($rows), QueryInput::scalar($queryParams, 'sort'));
 
         $perPageRaw = QueryInput::scalar($queryParams, 'per-page');
-
-        $window = new PageWindow(
-            count($filteredRows),
-            $perPageRaw,
-            QueryInput::scalar($queryParams, 'page'),
-        );
-
-        $visibleRows = array_slice($filteredRows, $window->offset, $window->limit);
-
+        $paginator = PageWindow::paginate($filteredRows, $perPageRaw, QueryInput::scalar($queryParams, 'page'));
         $summary = HistorySummary::fromManifest($summaries);
-        $scale = HistoryScale::fromModels($visibleRows);
 
         $bucketUrls = [];
 
@@ -77,208 +67,202 @@ final class HistoryGridRenderer
                 $routePrefix,
                 $queryParams,
                 [
-                    'Debug' => [
-                        'statusCode' => (string) $bucket->sampleCode],
+                    FilterPrefix::DEBUG => ['statusCode' => (string) $bucket->sampleCode],
                     'page' => null,
                 ],
             );
         }
 
-        return H1::tag()
-            ->class('yii-debug-sr-only')
-            ->content(PanelTitle::REQUEST_HISTORY)
-            ->render()
+        return PanelHeading::render(PanelTitle::REQUEST_HISTORY)
             . HistoryCellRenderer::renderSummary(
                 $summary,
                 $bucketUrls,
-                PageSize::selectorHtml(PageSize::current($perPageRaw)),
+                PageSize::selectorFor($queryParams),
             )
             . HistoryComparisonRenderer::renderHistoryForm($summaries, $routePrefix)
             . ActiveFilterBanner::render(
                 $search->activeFilters,
-                self::filterRemovalUrl($routePrefix, $queryParams),
+                static fn(array $without): string => self::url(
+                    $routePrefix,
+                    FilterRemoval::queryParams($queryParams, FilterPrefix::DEBUG, $without),
+                    [],
+                ),
             )
             . self::renderGrid(
-                $visibleRows,
-                $scale,
+                $paginator,
                 $search->activeFilters,
                 $routePrefix,
                 $queryParams,
-                $window->offset,
-                count($filteredRows),
-                $window->page,
-                $window->pageCount,
             );
     }
 
-    private static function filterLabel(string $attribute): string
-    {
-        return 'Filter by ' . match ($attribute) {
-            'tag' => 'ID',
-            'ip' => 'IP',
-            'method' => 'Method',
-            'ajax' => 'AJAX',
-            'url' => 'URL',
-            default => $attribute,
-        };
-    }
-
     /**
+     * @param array<string, string> $filters
      * @param array<array-key, mixed> $queryParams
      *
-     * @return Closure(list<string>): string
+     * @return list<GridColumn<HistoryRow>>
      */
-    private static function filterRemovalUrl(string $routePrefix, array $queryParams): Closure
-    {
-        return static function (array $without) use ($queryParams, $routePrefix): string {
-            $filters = QueryInput::group($queryParams, FilterPrefix::DEBUG);
-
-            foreach ($without as $attribute) {
-                if (is_string($attribute)) {
-                    unset($filters[$attribute]);
-                }
-            }
-
-            $changes = [FilterPrefix::DEBUG => $filters === [] ? null : $filters, 'page' => null];
-
-            return self::url($routePrefix, $queryParams, $changes);
-        };
-    }
-
-    /**
-     * @param array<string, string> $filters
-     */
-    private static function renderFilterRow(array $filters): Tr
-    {
-        return Tr::tag()
-            ->class('filters')
-            ->html(
-                Td::tag()->class('yii-debug-col-num'),
-                Td::tag()
-                    ->class('yii-debug-col-id')
-                    ->html(
-                        self::textFilter(
-                            'tag',
-                            $filters,
-                            'yii-debug-input yii-debug-col-id-input',
-                        ),
-                    ),
-                Td::tag(),
-                Td::tag(),
-                Td::tag(),
-                Td::tag()
-                    ->class('yii-debug-col-ip')
-                    ->html(self::textFilter('ip', $filters)),
-                Td::tag()
-                    ->html(
-                        self::selectFilter(
-                            'method',
-                            $filters,
-                            [
-                                'GET' => 'GET',
-                                'POST' => 'POST',
-                                'PUT' => 'PUT',
-                                'PATCH' => 'PATCH',
-                                'DELETE' => 'DELETE',
-                                'HEAD' => 'HEAD',
-                                'OPTIONS' => 'OPTIONS',
-                                'COMMAND' => 'COMMAND',
-                            ],
-                        ),
-                    ),
-                Td::tag()
-                    ->html(
-                        self::selectFilter(
-                            'ajax',
-                            $filters,
-                            ['0' => 'No', '1' => 'Yes'],
-                        ),
-                    ),
-                Td::tag()
-                    ->html(
-                        self::textFilter(
-                            'url',
-                            $filters,
-                        ),
-                    ),
-            );
-    }
-
-    /**
-     * @param list<HistoryRow> $rows
-     * @param array<string, string> $filters
-     * @param array<array-key, mixed> $queryParams
-     */
-    private static function renderGrid(
-        array $rows,
+    private static function columns(
         HistoryScale $scale,
         array $filters,
         string $routePrefix,
         array $queryParams,
         int $offset,
-        int $totalRows,
-        int $page,
-        int $pageCount,
+    ): array {
+        $state = SortState::fromQuery(
+            QueryInput::scalar($queryParams, 'sort'),
+            array_keys(self::HEADERS),
+            'time',
+            'desc',
+        );
+
+        $columns = [
+            new GridColumn(
+                header: '#',
+                content: static fn(HistoryRow $row, DataContext $context): string => (string) (
+                    $offset + $context->index + 1
+                ),
+                filter: '',
+                class: 'yii-debug-col-num',
+            ),
+        ];
+
+        foreach (self::HEADERS as $attribute => $label) {
+            $class = match ($attribute) {
+                'tag' => 'yii-debug-col-id',
+                'ip' => 'yii-debug-col-ip',
+                default => null,
+            };
+
+            $active = $state->isActive($attribute);
+            $nextSort = $state->next($attribute);
+
+            $link = A::tag()
+                ->href(self::url($routePrefix, $queryParams, ['sort' => $nextSort, 'page' => null]))
+                ->class($active ? $state->direction : null)
+                ->content($label);
+
+            $columns[] = new GridColumn(
+                header: $link->render(),
+                content: static fn(HistoryRow $row): string => self::renderCell($row, $attribute, $scale, $routePrefix),
+                filter: self::filter($attribute, $filters),
+                encodeContent: $attribute === 'ip' || $attribute === 'ajax',
+                class: $class,
+                headerAttributes: $active ? ['aria-sort' => $state->ariaSort()] : [],
+            );
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param array<string, string> $filters
+     */
+    private static function filter(string $attribute, array $filters): string|Stringable
+    {
+        return match ($attribute) {
+            'tag' => FilterInput::text(
+                FilterPrefix::DEBUG,
+                'tag',
+                'ID',
+                $filters,
+                'yii-debug-input yii-debug-col-id-input',
+            ),
+            'ip' => FilterInput::text(FilterPrefix::DEBUG, 'ip', 'IP', $filters),
+            'url' => FilterInput::text(FilterPrefix::DEBUG, 'url', 'URL', $filters),
+            'method' => FilterInput::select(
+                FilterPrefix::DEBUG,
+                'method',
+                'Method',
+                $filters,
+                [
+                    'GET' => 'GET',
+                    'POST' => 'POST',
+                    'PUT' => 'PUT',
+                    'PATCH' => 'PATCH',
+                    'DELETE' => 'DELETE',
+                    'HEAD' => 'HEAD',
+                    'OPTIONS' => 'OPTIONS',
+                    'COMMAND' => 'COMMAND',
+                ],
+            ),
+            'ajax' => FilterInput::select(FilterPrefix::DEBUG, 'ajax', 'AJAX', $filters, ['0' => 'No', '1' => 'Yes']),
+            default => '',
+        };
+    }
+
+    /**
+     * @param key-of<self::HEADERS> $attribute
+     */
+    private static function renderCell(
+        HistoryRow $row,
+        string $attribute,
+        HistoryScale $scale,
+        string $routePrefix,
     ): string {
-        $bodyRows = [];
+        return match ($attribute) {
+            'tag' => HistoryCellRenderer::renderTagCell(
+                $row,
+                "{$routePrefix}/view?tag=" . rawurlencode($row->tag) . '&panel=auto',
+            ),
+            'time' => HistoryCellRenderer::renderTimeCell($row),
+            'processingTime' => HistoryCellRenderer::renderDurationCell($row, $scale->maxProcessingTime),
+            'peakMemory' => HistoryCellRenderer::renderMemoryCell($row, $scale->maxPeakMemory),
+            'ip' => $row->ip,
+            'method' => HistoryCellRenderer::renderMethodCell($row),
+            'ajax' => HistoryCellRenderer::renderAjaxCell($row),
+            'url' => HistoryCellRenderer::renderUrlCell($row),
+        };
+    }
 
-        foreach ($rows as $index => $row) {
-            $attributes = HistoryCellRenderer::buildRowAttributes($row, $row->statusCode >= 400);
+    /**
+     * @param OffsetPaginator<int, HistoryRow> $paginator
+     * @param array<string, string> $filters
+     * @param array<array-key, mixed> $queryParams
+     */
+    private static function renderGrid(
+        OffsetPaginator $paginator,
+        array $filters,
+        string $routePrefix,
+        array $queryParams,
+    ): string {
+        $rows = iterator_to_array($paginator->read(), false);
 
-            $bodyRows[] = Tr::tag()
-                ->attributes($attributes)
-                ->html(
-                    Td::tag()
-                        ->class('yii-debug-col-num')
-                        ->content((string) ($offset + $index + 1)),
-                    Td::tag()
-                        ->class('yii-debug-col-id')
-                        ->html(
-                            HistoryCellRenderer::renderTagCell(
-                                $row,
-                                "{$routePrefix}/view?tag=" . rawurlencode($row->tag) . '&panel=auto',
-                            ),
-                        ),
-                    Td::tag()->html(HistoryCellRenderer::renderTimeCell($row)),
-                    Td::tag()->html(HistoryCellRenderer::renderDurationCell($row, $scale->maxProcessingTime)),
-                    Td::tag()->html(HistoryCellRenderer::renderMemoryCell($row, $scale->maxPeakMemory)),
-                    Td::tag()->class('yii-debug-col-ip')->content($row->ip),
-                    Td::tag()->html(HistoryCellRenderer::renderMethodCell($row)),
-                    Td::tag()->content(HistoryCellRenderer::renderAjaxCell($row)),
-                    Td::tag()->html(HistoryCellRenderer::renderUrlCell($row)),
-                );
-        }
+        /** @var GridView<HistoryRow> $grid */
+        $grid = GridView::widget();
 
-        if ($bodyRows === []) {
-            $bodyRows[] = Tr::tag()->html(
-                Td::tag()
-                    ->colspan(9)
-                    ->class('yii-debug-muted')
-                    ->content($filters === [] ? 'No requests have been captured.' : 'No requests match the current filters.'),
-            );
-        }
-
-        $table = Div::tag()
-            ->class('yii-debug-table-wrap')
-            ->html(
-                Table::tag()
-                    ->class('yii-debug-table')
-                    ->html(
-                        Thead::tag()
-                            ->html(
-                                self::renderHeaderRow($routePrefix, $queryParams),
-                                self::renderFilterRow($filters),
-                            ),
-                        Tbody::tag()->html(...$bodyRows),
-                    ),
-            );
+        $table = $grid
+            ->bodyRowAttributes(
+                static fn(HistoryRow $row): array => array_filter(
+                    HistoryCellRenderer::buildRowAttributes($row, $row->statusCode >= 400),
+                    static fn(mixed $value): bool => $value !== '',
+                ),
+            )
+            ->dataReader($paginator)
+            ->layout('{items}')
+            ->containerClass('yii-debug-table-wrap')
+            ->tableClass('yii-debug-table')
+            ->headerCellAttributes(['scope' => 'col'])
+            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
+            ->filterFormId('yii-debug-history-filters')
+            ->urlCreator(static fn(): string => $routePrefix)
+            ->noResultsCellAttributes(['class' => 'yii-debug-muted'])
+            ->noResultsText($filters === [] ? 'No requests have been captured.' : 'No requests match the current filters.')
+            ->columns(...self::columns(
+                HistoryScale::fromModels($rows),
+                $filters,
+                $routePrefix,
+                $queryParams,
+                $paginator->getOffset(),
+            ))
+            ->render();
 
         $footer = GridFooter::render(
-            $totalRows,
-            $offset,
+            $paginator->getTotalItems(),
+            $paginator->getOffset(),
             count($rows),
-            $page,
-            $pageCount,
+            $paginator->getCurrentPage(),
+            $paginator->getTotalPages(),
             static fn(int $number): string => self::url($routePrefix, $queryParams, ['page' => $number]),
         );
 
@@ -289,106 +273,29 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
-     */
-    private static function renderHeaderRow(string $routePrefix, array $queryParams): Tr
-    {
-        [$activeAttribute, $direction] = self::sortState(QueryInput::scalar($queryParams, 'sort'));
-
-        $cells = [
-            Th::tag()
-                ->scope('col')
-                ->class('yii-debug-col-num')
-                ->content('#'),
-        ];
-
-        foreach (self::HEADERS as $attribute => $label) {
-            $cell = Th::tag()->scope('col');
-
-            $class = match ($attribute) {
-                'tag' => 'yii-debug-col-id',
-                'ip' => 'yii-debug-col-ip',
-                default => null,
-            };
-
-            $active = $attribute === $activeAttribute;
-            $nextSort = $active && $direction === 'asc' ? "-{$attribute}" : $attribute;
-
-            $link = A::tag()
-                ->href(self::url($routePrefix, $queryParams, ['sort' => $nextSort, 'page' => null]))
-                ->content($label);
-
-            if ($active) {
-                $cell = $cell->addAriaAttribute('sort', $direction === 'asc' ? 'ascending' : 'descending');
-                $link = $link->class($direction);
-            }
-
-            $cell = $cell->html($link);
-
-            $cells[] = $class === null ? $cell : $cell->class($class);
-        }
-
-        return Tr::tag()->html(...$cells);
-    }
-
-    /**
-     * @param array<string, string> $filters
-     * @param array<array-key, string> $options
-     */
-    private static function selectFilter(string $attribute, array $filters, array $options): Select
-    {
-        $select = Select::tag()
-            ->class('yii-debug-select')
-            ->addAriaAttribute('label', self::filterLabel($attribute))
-            ->name('Debug[' . $attribute . ']')
-            ->value($filters[$attribute] ?? '')
-            ->option(Option::tag()->value('')->content(''));
-
-        foreach ($options as $value => $label) {
-            $select = $select->option(Option::tag()->value((string) $value)->content($label));
-        }
-
-        return $select;
-    }
-
-    /**
      * @param list<HistoryRow> $rows
      *
      * @return list<HistoryRow>
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        [$attribute, $direction] = self::sortState($sort);
+        $state = SortState::fromQuery($sort, array_keys(self::HEADERS), 'time', 'desc');
 
         usort(
             $rows,
-            static function (HistoryRow $left, HistoryRow $right) use ($attribute, $direction): int {
-                $a = self::sortValue($left, $attribute);
-                $b = self::sortValue($right, $attribute);
+            static function (HistoryRow $left, HistoryRow $right) use ($state): int {
+                $a = self::sortValue($left, $state->attribute);
+                $b = self::sortValue($right, $state->attribute);
 
                 if ($a === null || $b === null) {
                     return ($a === null) <=> ($b === null);
                 }
 
-                return $direction === 'asc' ? $a <=> $b : $b <=> $a;
+                return $state->direction === 'asc' ? $a <=> $b : $b <=> $a;
             }
         );
 
         return $rows;
-    }
-
-    /**
-     * @return array{string, 'asc'|'desc'}
-     */
-    private static function sortState(string|null $sort): array
-    {
-        $sort ??= '';
-
-        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
-
-        $attribute = $direction === 'desc' ? substr($sort, 1) : $sort;
-
-        return isset(self::HEADERS[$attribute]) ? [$attribute, $direction] : ['time', 'desc'];
     }
 
     private static function sortValue(HistoryRow $row, string $attribute): string|float|int|bool|null
@@ -403,18 +310,6 @@ final class HistoryGridRenderer
             'url' => $row->url,
             default => $row->time,
         };
-    }
-
-    /**
-     * @param array<string, string> $filters
-     */
-    private static function textFilter(string $attribute, array $filters, string $class = 'yii-debug-input'): InputText
-    {
-        return InputText::tag()
-            ->class($class)
-            ->addAriaAttribute('label', self::filterLabel($attribute))
-            ->name("Debug[{$attribute}]")
-            ->value($filters[$attribute] ?? '');
     }
 
     /**
