@@ -21,9 +21,4 @@ final readonly class HistoryMetricValues
         public string $delta,
         public string $trend,
     ) {}
-
-    public function hasDifference(): bool
-    {
-        return $this->delta !== 'No change';
-    }
 }

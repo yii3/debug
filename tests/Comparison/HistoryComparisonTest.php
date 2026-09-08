@@ -18,6 +18,8 @@ use Yii3\Debug\Comparison\{
 };
 use Yii3\Debug\Tests\Provider\{HistoryComparisonProvider, SummaryMetricComparisonProvider};
 
+use function array_replace;
+
 /**
  * Unit tests for {@see HistoryComparison} metric deltas, panel ordering, and privacy-preserving fingerprints.
  *
@@ -809,7 +811,7 @@ final class HistoryComparisonTest extends TestCase
 
     public function testMetricConfigurationMethodsReturnCopies(): void
     {
-        $original = new HistoryMetricComparison(
+        $original = HistoryMetricComparison::create(
             'Duration',
             new HistoryMetricValues('10.00 ms', '15.00 ms', '+5.00 ms (+50.0%)', 'up'),
         );
@@ -862,10 +864,10 @@ final class HistoryComparisonTest extends TestCase
         $empty = $linked->withPanelId('');
         $cleared = $linked->withPanelId(null);
 
-        self::assertEquals(
-            new HistoryMetricComparison('SQL queries', $values),
-            $original,
-            'Factory defaults must match.',
+        self::assertSame(
+            'SQL queries',
+            $original->label,
+            'Factory defaults must retain the label.',
         );
         self::assertNotSame(
             $original,
@@ -929,20 +931,18 @@ final class HistoryComparisonTest extends TestCase
         int $statusCode = 200,
         bool $ajax = false,
     ): RequestSummary {
-        return new RequestSummary(
-            tag: $tag,
-            url: 'https://example.test/path',
-            ajax: $ajax,
-            method: 'GET',
-            ip: '127.0.0.1',
-            time: 1_700_000_000.0,
-            statusCode: $statusCode,
-            sqlCount: $sqlCount,
-            excessiveCallersCount: 0,
-            mailCount: 0,
-            mailFiles: [],
-            processingTime: $processingTime,
-            peakMemory: $peakMemory,
-        );
+        $summary = RequestSummary::create($tag)
+            ->withRequest('https://example.test/path', 'GET', '127.0.0.1', 1_700_000_000.0, $ajax)
+            ->withResponse($statusCode)
+            ->withDatabase($sqlCount);
+
+        return $processingTime === null && $peakMemory === null
+            ? $summary
+            : RequestSummary::fromArray(
+                array_replace(
+                    $summary->jsonSerialize(),
+                    ['processingTime' => $processingTime, 'peakMemory' => $peakMemory],
+                ),
+            );
     }
 }

@@ -132,6 +132,28 @@ final class ToolbarDataFactory
     }
 
     /**
+     * Builds the single-metric panel shown when a capture or its toolbar contribution failed.
+     *
+     * @param string $id Stable panel identifier.
+     * @param string $title Panel display name.
+     * @param string $url Debug page URL.
+     * @param string $message Failure diagnostic shown as the metric tooltip.
+     */
+    private static function failedPanel(string $id, string $title, string $url, string $message): ToolbarPanel
+    {
+        return ToolbarPanel::create($id, $title)
+            ->withUrl($url)
+            ->withItems(
+                [
+                    ToolbarItem::create('error')
+                        ->withLabel($title)
+                        ->withStatus('danger')
+                        ->withTitle($message),
+                ],
+            );
+    }
+
+    /**
      * Adds Logs panel filter URLs to its error and warning toolbar metrics.
      *
      * @param list<ToolbarItem> $items
@@ -152,18 +174,12 @@ final class ToolbarDataFactory
 
             $linked[] = $level === null
                 ? $item
-                : new ToolbarItem(
-                    value: $item->value,
-                    label: $item->label,
-                    icon: $item->icon,
-                    status: $item->status,
-                    title: $item->title,
-                    url: $urls->panel(
+                : $item->withUrl(
+                    $urls->panel(
                         $tag,
                         'log',
                         [FilterPrefix::LOG => ['level' => (string) $level]],
                     ),
-                    id: $item->id,
                 );
         }
 
@@ -183,18 +199,11 @@ final class ToolbarDataFactory
             $failure = $snapshot->failures[$id] ?? null;
 
             if ($failure !== null) {
-                $toolbarPanels[] = new ToolbarPanel(
-                    id: $id,
-                    title: $panel->name(),
-                    url: $url,
-                    items: [
-                        new ToolbarItem(
-                            value: 'error',
-                            label: $panel->name(),
-                            status: 'danger',
-                            title: $failure->exception->getMessage(),
-                        ),
-                    ],
+                $toolbarPanels[] = self::failedPanel(
+                    $id,
+                    $panel->name(),
+                    $url,
+                    $failure->exception->getMessage(),
                 );
 
                 continue;
@@ -217,18 +226,11 @@ final class ToolbarDataFactory
                     $items = $this->logFilterLinks($tag, $items);
                 }
             } catch (Throwable $throwable) {
-                $toolbarPanels[] = new ToolbarPanel(
-                    id: $id,
-                    title: $panel->name(),
-                    url: $url,
-                    items: [
-                        new ToolbarItem(
-                            value: 'error',
-                            label: $panel->name(),
-                            status: 'danger',
-                            title: ExceptionSnapshot::fromThrowable($throwable)->getMessage(),
-                        ),
-                    ],
+                $toolbarPanels[] = self::failedPanel(
+                    $id,
+                    $panel->name(),
+                    $url,
+                    ExceptionSnapshot::fromThrowable($throwable)->getMessage(),
                 );
 
                 continue;
@@ -238,13 +240,13 @@ final class ToolbarDataFactory
                 continue;
             }
 
-            $toolbarPanels[] = new ToolbarPanel(
-                id: $id,
-                title: $panel instanceof ToolbarTitleProviderInterface ? $panel->toolbarTitle() : $panel->name(),
-                url: $url,
-                icon: $panel->icon(),
-                items: $items,
-            );
+            $toolbarPanels[] = ToolbarPanel::create(
+                $id,
+                $panel instanceof ToolbarTitleProviderInterface ? $panel->toolbarTitle() : $panel->name(),
+            )
+                ->withUrl($url)
+                ->withIcon($panel->icon())
+                ->withItems($items);
         }
 
         return $toolbarPanels;

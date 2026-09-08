@@ -82,24 +82,20 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     {
         $counts = LogCounts::fromRows(self::snapshot($payload)->entries());
 
-        $items = [new ToolbarItem(value: (string) $counts->total, id: 'total')];
+        $items = [ToolbarItem::create((string) $counts->total)->withId('total')];
 
         if ($counts->hasErrors()) {
-            $items[] = new ToolbarItem(
-                value: (string) $counts->errors,
-                label: 'Errors',
-                status: 'danger',
-                id: 'errors',
-            );
+            $items[] = ToolbarItem::create((string) $counts->errors)
+                ->withLabel('Errors')
+                ->withStatus('danger')
+                ->withId('errors');
         }
 
         if ($counts->hasWarnings()) {
-            $items[] = new ToolbarItem(
-                value: (string) $counts->warnings,
-                label: 'Warnings',
-                status: 'warning',
-                id: 'warnings',
-            );
+            $items[] = ToolbarItem::create((string) $counts->warnings)
+                ->withLabel('Warnings')
+                ->withStatus('warning')
+                ->withId('warnings');
         }
 
         return $items;

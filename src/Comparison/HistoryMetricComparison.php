@@ -13,7 +13,7 @@ final readonly class HistoryMetricComparison
      * @param string $label Human-readable metric name.
      * @param string|null $panelId Related panel ID used for deep links, when applicable.
      */
-    public function __construct(
+    private function __construct(
         public string $label,
         private HistoryMetricValues $values,
         private string|null $panelId = null,
@@ -38,11 +38,6 @@ final readonly class HistoryMetricComparison
     public function delta(): string
     {
         return $this->values->delta;
-    }
-
-    public function hasDifference(): bool
-    {
-        return $this->values->hasDifference();
     }
 
     public function panelId(): string|null

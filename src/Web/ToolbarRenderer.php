@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Web;
 
+use PHPForge\Debug\Toolbar\ToolbarInjector;
 use Yii3\Debug\ToolbarAsset;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
 use function htmlspecialchars;
-use function strripos;
-use function substr_replace;
 use function trim;
 
 use const ENT_QUOTES;
@@ -42,11 +41,7 @@ final readonly class ToolbarRenderer
      */
     public function inject(string $html, string $toolbar): string
     {
-        $offset = strripos($html, '</body>');
-
-        return $offset === false
-            ? $html . $toolbar
-            : substr_replace($html, $toolbar, $offset, 0);
+        return ToolbarInjector::inject($html, $toolbar);
     }
 
     /**

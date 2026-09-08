@@ -43,7 +43,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix: improve capture UI, accessible history filters, and local Debug Core Composer linking.
 - feat(ui): render every panel grid with Yii DataView through shared column, sort, filter, and paging helpers; label Profiling filters.
 - perf(ui): render a bounded pager window with first and last page links instead of one link per page.
-
-### Added
-
 - feat(events): add the shared execution inspector, identity-based middleware correlation, and opt-in bounded lifecycle context and source traces.
+- refactor!: delegate history, toolbar, and duration parsing to Debug Core; use fluent factories.
