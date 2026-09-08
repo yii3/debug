@@ -42,7 +42,8 @@ final class DbExplainActionTest extends TestCase
             ->writeSnapshot(
                 new DebugSnapshot(
                     RequestSummary::create('valid'),
-                    ['db' => $payload->jsonSerialize()], [],
+                    ['db' => $payload->jsonSerialize()],
+                    [],
                 ),
                 50,
             );
