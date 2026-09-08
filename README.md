@@ -9,7 +9,7 @@ The package provides:
 - minimal filesystem persistence for request summaries and redacted Request snapshots;
 - the Yii version chip linked to the live Configuration page;
 - the PHP version chip linked to the Debug Core phpinfo page;
-- the shared Yii-style page shell with the current-request card, primary History, Request, Logs, Events, and Profiling
+- the shared Yii-style page shell with the current-request card, primary History, Request, Logs, Events, Profiling, and Database
   navigation, and the complete top brand bar;
 - the built-in Request toolbar with the resolved route followed by HTTP status, plus Debug Core's shared request-and-route
   execution overview, canonical input and metadata tabs, and a filterable live route inventory;
@@ -110,6 +110,8 @@ return [
             'position' => 'bottom',
             'height' => 50,
         ],
+        'traceLine' => null,
+        'tracePathMappings' => [],
     ],
 ];
 ```
@@ -119,6 +121,22 @@ Application metadata is optional; neutral values are used when it is omitted.
 `historySize` limits retained request summaries. The default storage directory is resolved through Yii aliases.
 `viewPath` accepts any registered Yii alias. Override `@yii3DebugViews` through `yiisoft/aliases.aliases`, or point
 `viewPath` at an application-owned template directory, to customize the shared debugger views.
+
+`traceLine` is the trace-line template applied to every captured source frame of the Logs and Database panels. `null`
+keeps the default `ide://` deep link that IDE extensions resolve into "open file at line", `false` renders plain
+`file:line` text without a link, and a string is a template resolving the `{file}`, `{line}`, and `{text}`
+placeholders. A `Closure` receiving the frame array and returning the rendered line is also accepted:
+
+```php
+'traceLine' => '<a href="phpstorm://open?file={file}&line={line}">{text}</a>',
+```
+
+`tracePathMappings` maps containerized or remote path prefixes to local ones for the `{file}` portion of `traceLine`;
+only the first match is applied:
+
+```php
+'tracePathMappings' => ['/var/www/html' => '/home/developer/projects/app'],
+```
 
 ### Request
 
@@ -269,6 +287,65 @@ correlation state is cleared between worker requests and does not retain middlew
 Old snapshots remain readable but cannot acquire missing diagnostics retroactively. Upgrade the core and adapter
 together because older readers reject undeclared diagnostic fields.
 
+### Database
+
+Database follows Profiling in primary navigation and uses Core's canonical `DbSnapshot` and `QueryRow` payloads.
+The grid mirrors Yii2: Type, Time, Duration, Rows, Dup, and Query, with SQL highlighting, argument-free source traces,
+exact duplicates, and page-scoped potential N+1 groups. It reuses the standard `Db[type]` / `Db[query]` filters,
+active-filter removal, sorting, page-size selection, bounded pagination, and theme-preserving links.
+
+Yii DB is optional. Install a Yii DB 2 driver in the application (for example, `yiisoft/db-sqlite:^2.0`) and observe
+its existing development connection with `Yii3\Debug\Db\DebugDbProfiler`. Do not replace the application's driver,
+credentials, or connection definition. `instrument()` is the recommended one-call setup: it registers the profiler and
+installs the statement class that reports driver row counts. In the development-only connection definition, add:
+
+```php
+use Yii3\Debug\Db\DebugDbProfiler;
+use Yiisoft\Db\Connection\ConnectionInterface;
+
+// Adjust the existing development connection definition to receive the debugger profiler:
+ConnectionInterface::class => static function (DebugDbProfiler $profiler): ConnectionInterface {
+    $connection = new Connection(new Driver($dsn), $schemaCache);
+
+    $profiler->instrument($connection);
+
+    return $connection;
+},
+```
+
+The debugger binds the Yii DB 2 profiler interface to `DebugDbProfiler` in development, so the container resolves the
+argument without extra configuration. For manual wiring outside the container:
+
+```php
+use Yii3\Debug\Collector\DbCollector;
+use Yii3\Debug\Db\DebugDbProfiler;
+
+// Use the same request-scoped collector registered in CollectorCoordinator.
+(new DebugDbProfiler($dbCollector))->instrument($connection);
+```
+
+`setProfiler()` alone remains supported and keeps every timing, but Rows then displays `–` because no statement reports
+a count. `instrument()` requires a PDO connection (`Yiisoft\Db\Driver\Pdo\PdoConnectionInterface`) and installs
+`PDO::ATTR_STATEMENT_CLASS` on the live PDO instance, immediately when the connection is already open and again after
+every reconnect.
+
+The profiler captures completed command timings and the driver's diagnostic SQL, including substituted parameter
+values. It does not capture a separate parameter payload, objects, or trace arguments. Connection opens and incomplete
+commands are excluded; failed SQL remains inspectable and keeps an empty Rows cell, because a rejected statement never
+reported a count. Rows shows the unmodified driver value, so `SELECT` reports `0` on drivers such as SQLite that count
+affected rows only. Multiple connections can share the collector; instrument each one.
+
+EXPLAIN uses the development `ConnectionInterface` binding, is available only for MySQL, SQLite, and PostgreSQL,
+and is served through the same environment and IP-protected GET route group as the other debugger pages. It looks up
+SQL only from a stored tag and exact sequence, never from request SQL. Plans never use `ANALYZE`; statements containing
+semicolons are conservatively rejected, including semicolons inside literals. Database errors render as escaped inline
+diagnostics. For multiple captured connections, leave EXPLAIN unconfigured unless the binding is appropriate for all
+captured queries: the current wire format does not store connection identity.
+
+`yii3/debug.database.criticalQueryThreshold` and `excessiveCallerThreshold` default to `null` (disabled). The former
+warns above the query count; the latter warns at or above the count from one captured call site. Query totals also
+populate Request history. The debugger and database instrumentation must never be enabled in production.
+
 ### Profiling
 
 The Profiling collector is enabled by default. Every captured request records its total processing time and peak
@@ -306,7 +383,7 @@ final readonly class HomeAction
 The token and category passed to `begin()` and `end()` must match. Completed spans retain their nesting, duration,
 memory delta, category, and token in the captured snapshot.
 
-Profiling is the single performance entry in the debugger sidebar. One screen presents the request-relative
+Profiling is the request-performance entry in the debugger sidebar. One screen presents the request-relative
 **Timeline** first and the sortable, paginated details table below it. Minimum-duration, category, and information
 filters apply to both representations, while sorting and pagination affect only the detailed table. The Timeline keeps
 the complete filtered capture order and includes a memory curve composed from profiler samples and available log
@@ -467,3 +544,12 @@ $metric = HistoryMetricComparison::create(
 ```
 
 The constructor remains supported. `withPanelId()` returns a copy; `null` clears the link and `''` remains an empty ID.
+
+### Database demo
+
+See [the loopback-only SQLite demo](examples/database/README.md) to verify query filters, pagination, duplicate and N+1 indicators, source links, row counts, and EXPLAIN.
+
+Database instrumentation also forwards native connection and command timings to the application's Yii profiler.
+Profiling therefore shows native SQL diagnostics without manual `begin()`/`end()` calls around queries; Database
+continues to list only SQL commands and their duplicate counts. The package DI configuration shares the profiler
+automatically. When constructing `DebugDbProfiler` manually, pass the application profiler as its second argument.

@@ -4,21 +4,25 @@ declare(strict_types=1);
 
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
+use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Storage\SnapshotStore;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\{ResponseFactoryInterface, StreamFactoryInterface};
 use Psr\Log\LoggerInterface;
 use Yii3\Debug\Action\ToolbarDataAction;
-use Yii3\Debug\Collector\{EventCollector, LogCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{DbCollector, EventCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
+use Yii3\Debug\Db\{DbExplain, DebugDbProfiler};
 use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
-use Yii3\Debug\Panel\{EventPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\{DbPanel, EventPanel, LogPanel, ProfilingPanel, RequestPanel};
 use Yii3\Debug\ToolbarDataFactory;
-use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
+use Yii3\Debug\Web\{DebugPageRenderer, DebugUrlGenerator,ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\AssetManager;
-use Yiisoft\Definitions\ReferencesArray;
+use Yiisoft\Db\Connection\ConnectionInterface;
+use Yiisoft\Db\Profiler\ProfilerInterface as DbProfilerInterface;
+use Yiisoft\Definitions\{Reference, ReferencesArray};
 use Yiisoft\EventDispatcher\Dispatcher\Dispatcher;
 use Yiisoft\Log\Logger;
 use Yiisoft\NetworkUtilities\IpRanges;
@@ -38,10 +42,11 @@ return [
         LogCollector $logCollector,
         EventCollector $eventCollector,
         ProfilingCollector $profilingCollector,
+        DbCollector $dbCollector,
         ExtensionRegistry $extensions,
     ): CollectorCoordinator => new CollectorCoordinator(
         $extensions->collectorsWithBuiltIns(
-            [$requestCollector, $logCollector, $eventCollector, $profilingCollector],
+            [$requestCollector, $logCollector, $eventCollector, $profilingCollector, $dbCollector],
         ),
     ),
     ConfigDataFactory::class => [
@@ -58,6 +63,7 @@ return [
         LogPanel $logPanel,
         EventPanel $eventPanel,
         ProfilingPanel $profilingPanel,
+        DbPanel $dbPanel,
         ExtensionRegistry $extensions,
     ): DebugPageRenderer => (
         new DebugPageRenderer(
@@ -68,9 +74,26 @@ return [
         )
     )
     ->withExtensionPanels(
-        $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel]),
+        $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel, $dbPanel]),
     )
     ->withRoutePrefix($config['routePrefix']),
+    DbExplain::class => [
+        '__construct()' => [
+            'connection' => Reference::optional(ConnectionInterface::class),
+        ],
+    ],
+    DbPanel::class => static fn(DbExplain $explain, Trace $trace): DbPanel => (
+        new DbPanel(
+            $explain,
+            new DebugUrlGenerator($config['routePrefix']),
+            $trace,
+        )
+    )->withThresholds($config['database']['criticalQueryThreshold'], $config['database']['excessiveCallerThreshold']),
+    DbProfilerInterface::class => DebugDbProfiler::class,
+    DebugDbProfiler::class => static fn(DbCollector $collector, ProfilerInterface $profiler): DebugDbProfiler => new DebugDbProfiler(
+        $collector,
+        $profiler,
+    ),
     EventDispatcherInterface::class => static fn(
         Dispatcher $dispatcher,
         EventCollector $collector,
@@ -81,6 +104,7 @@ return [
             'targets' => ReferencesArray::from($params['yiisoft/log']['targets']),
         ],
     ],
+    LogPanel::class => static fn(Trace $trace): LogPanel => new LogPanel($trace),
     ProfilingCollector::class => static fn(
         ProfilerInterface $profiler,
     ): ProfilingCollector => new ProfilingCollector($profiler),
@@ -106,12 +130,13 @@ return [
         LogPanel $logPanel,
         EventPanel $eventPanel,
         ProfilingPanel $profilingPanel,
+        DbPanel $dbPanel,
         ExtensionRegistry $extensions,
     ): ToolbarDataFactory => (
         new ToolbarDataFactory($assetManager)
     )
     ->withExtensionPanels(
-        $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel]),
+        $extensions->panelsWithBuiltIns([$requestPanel, $logPanel, $eventPanel, $profilingPanel, $dbPanel]),
     )
     ->withRoutePrefix($config['routePrefix'])
     ->withPresentation($config['toolbar']['position'], $config['toolbar']['height']),
@@ -144,4 +169,13 @@ return [
         $assetManager,
         $aliases->get($config['viewPath']),
     ),
+    Trace::class => static function () use ($config): Trace {
+        $trace = Trace::create();
+
+        if ($config['traceLine'] !== null) {
+            $trace = $trace->withTemplate($config['traceLine']);
+        }
+
+        return $trace->withPathMappings($config['tracePathMappings']);
+    },
 ];

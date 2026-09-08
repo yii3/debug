@@ -6,6 +6,7 @@ namespace Yii3\Debug\Web;
 
 use Closure;
 use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\View\Grid\GridCount;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\List\{Li, Ul};
 use UIAwesome\Html\Palpable\A;
@@ -80,9 +81,7 @@ final class GridFooter
         return Div::tag()
             ->class('yii-debug-grid-footer')
             ->html(
-                Span::tag()
-                    ->class('summary yii-debug-grid-count')
-                    ->content("Showing {$begin}-{$end} of {$total} items."),
+                GridCount::render($begin, $end, $total),
                 $items === []
                     ? ''
                     : Nav::tag()

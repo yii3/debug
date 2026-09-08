@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Web;
 
 use Closure;
 use InvalidArgumentException;
+use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
@@ -1522,7 +1523,7 @@ final class DebugPageRendererTest extends TestCase
             </tbody>
             </table>
             </div><div class="yii-debug-grid-footer">
-            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 items.</span>
+            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 item.</span>
             </div>
             </div>
             </main>
@@ -2017,7 +2018,7 @@ final class DebugPageRendererTest extends TestCase
 
         $renderer = $this->rendererWithPanels(
             'page-renderer-log-assets',
-            [new RequestPanel(), new LogPanel(), new EventPanel(), new ProfilingPanel()],
+            [new RequestPanel(), new LogPanel(Trace::create()), new EventPanel(), new ProfilingPanel()],
         );
 
         [, $html] = self::renderWithPeakMemory(

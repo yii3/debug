@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
@@ -513,7 +514,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotLinksLogSeverityMetricsToTheirFilters(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new LogPanel()])
+            ->withExtensionPanels([new LogPanel(Trace::create())])
             ->withRoutePrefix('/developer/debug/');
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
@@ -610,7 +611,7 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels(
-                [new RequestPanel(), new LogPanel(), new EventPanel(), new ProfilingPanel()],
+                [new RequestPanel(), new LogPanel(Trace::create()), new EventPanel(), new ProfilingPanel()],
             );
 
         $snapshot = new DebugSnapshot(

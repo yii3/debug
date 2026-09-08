@@ -16,11 +16,24 @@ use const PHP_QUERY_RFC3986;
  */
 final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
 {
+    /**
+     * Base route used to generate debugger URLs.
+     */
     private string $routePrefix;
 
     public function __construct(string $routePrefix = '/debug')
     {
         $this->routePrefix = rtrim($routePrefix, '/');
+    }
+
+    public function dbExplain(string $tag, int $sequence): string
+    {
+        return "{$this->routePrefix}/db-explain?" . http_build_query(
+            ['tag' => $tag, 'seq' => $sequence],
+            '',
+            '&',
+            PHP_QUERY_RFC3986,
+        );
     }
 
     public function panel(string $tag, string $panel, array $queryParams = []): string

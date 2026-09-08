@@ -13,6 +13,10 @@ if (!(require __DIR__ . '/enabled.php')) {
 return [
     'yii3/debug' => [
         'application' => [],
+        'database' => [
+            'criticalQueryThreshold' => null,
+            'excessiveCallerThreshold' => null,
+        ],
         'extensions' => [
             'inertia' => false,
             'vite' => false,
@@ -31,6 +35,8 @@ return [
             'position' => 'bottom',
             'height' => 50,
         ],
+        'traceLine' => null,
+        'tracePathMappings' => [],
     ],
     'yiisoft/aliases' => [
         'aliases' => [
