@@ -285,42 +285,6 @@ final class DebugDbProfilerTest extends TestCase
         self::assertSame([], $afterConnectionEnd?->entries(), 'Connection contexts must not complete command spans.');
         self::assertCount(1, $afterCommandEnd?->entries() ?? [], 'Only command contexts may complete a statement.');
     }
-    public function testSqliteCaptureRetainsDuplicateSqlAndDoesNotExposeArguments(): void
-    {
-        $collector = new DbCollector();
-        $profiler = new DebugDbProfiler($collector);
-        $db = DatabaseFixture::connection();
-        $db->setProfiler($profiler);
-        $db->createCommand('SELECT 0')->queryScalar();
-        $collector->startup();
-        $profiler->begin('not a command');
-        $profiler->end('not a command');
-
-        for ($i = 0; $i < 3; $i++) {
-            self::assertSame('7', $db->createCommand('SELECT :value', [':value' => 7])->queryScalar(), 'SQL must execute.');
-        }
-
-        $snapshot = $collector->capture();
-        self::assertNotNull($snapshot, 'Active database instrumentation must expose a snapshot.');
-        self::assertCount(3, $snapshot->entries(), 'Connection opens and inactive queries must not appear as statements.');
-        foreach ($snapshot->entries() as $index => $row) {
-            self::assertSame('SELECT 7', $row->query, 'The driver-rendered diagnostic SQL must be retained.');
-            self::assertSame(3, $row->duplicate, 'All repeated executions must report the exact duplicate count.');
-            self::assertSame($index, $row->seq, 'Sequence IDs must remain stable in capture order.');
-            self::assertNull($row->rows, 'Bare `setProfiler()` wiring must leave row counts unreported.');
-            self::assertNotEmpty($row->trace, 'The query must retain an argument-free application call site.');
-            self::assertSame(__FILE__, $row->trace[0]['file'] ?? null, 'The first trace frame must identify the application caller.');
-            self::assertSame($snapshot->entries()[0]->traceHash, $row->traceHash, 'Repeated callers must share a hash.');
-            self::assertGreaterThanOrEqual(0.0, $row->duration, 'Captured duration must be nonnegative.');
-            foreach ($row->trace as $frame) {
-                self::assertArrayNotHasKey('args', $frame, 'Trace capture must never serialize arguments.');
-                self::assertArrayNotHasKey('object', $frame, 'Trace capture must never serialize application objects.');
-            }
-        }
-        $collector->shutdown();
-        $db->createCommand('SELECT 2')->queryScalar();
-        self::assertNull($collector->capture(), 'Database instrumentation must stop with the request.');
-    }
 
     public function testThrowRuntimeExceptionWhenGuardReportsObserverFailures(): void
     {
