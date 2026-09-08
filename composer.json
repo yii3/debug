@@ -43,7 +43,7 @@
         "yiisoft/router": "^4.0",
         "yiisoft/validator": "^2.1",
         "yiisoft/view": "^12.2",
-        "yiisoft/yii-dataview": "dev-optional-container#9c36d8ba423d034e7ef0486b450c12dc102b6f8c",
+        "yiisoft/yii-dataview": "dev-master",
         "yiisoft/yii-middleware": "^1.1"
     },
     "require-dev": {
