@@ -7,18 +7,22 @@ namespace Yii3\Debug\Tests;
 use Closure;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
+use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
+use Yii3\Debug\Collector\DbCollector;
 use Yii3\Debug\Collector\{EventCollector, InertiaCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
+use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Panel\{EventPanel, InertiaPanel, LogPanel, ProfilingPanel, RequestPanel};
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\ToolbarDataFactory;
-use Yii3\Debug\Web\{DebugPageRenderer, ToolbarRenderer};
+use Yii3\Debug\Web\{DebugPageRenderer, DebugUrlGenerator, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\View\WebView;
@@ -34,6 +38,7 @@ final class ExtensionRegistryTest extends TestCase
     {
         $inertiaCollector = new InertiaCollector();
         $profilingCollector = new ProfilingCollector();
+        $dbCollector = new DbCollector();
         $inertiaPanel = new InertiaPanel();
         $profilingPanel = new ProfilingPanel();
 
@@ -104,12 +109,14 @@ final class ExtensionRegistryTest extends TestCase
         $logCollector = new LogCollector(new DebugLogTarget());
         $eventCollector = new EventCollector();
         $profilingCollector = new ProfilingCollector();
+        $dbCollector = new DbCollector();
 
         $coordinator = $coordinatorFactory(
             $requestCollector,
             $logCollector,
             $eventCollector,
             $profilingCollector,
+            $dbCollector,
             $registry,
         );
 
@@ -124,9 +131,10 @@ final class ExtensionRegistryTest extends TestCase
                 'log' => $logCollector,
                 'event' => $eventCollector,
                 'profiling' => $profilingCollector,
+                'db' => $dbCollector,
             ],
             (new ReflectionProperty(CollectorCoordinator::class, 'collectors'))->getValue($coordinator),
-            'Default DI must register Request, Log, Event, and Profiling collectors in built-in order.',
+            'Default DI must keep Database immediately after Profiling.',
         );
         self::assertFalse(
             $coordinator->hasCollector('inertia'),
@@ -183,8 +191,8 @@ final class ExtensionRegistryTest extends TestCase
         $panel = new InertiaPanel();
         $builtInRequestPanel = new RequestPanel();
         $requestPanelOverride = new RequestPanel();
-        $builtInLogPanel = new LogPanel();
-        $logPanelOverride = new LogPanel();
+        $builtInLogPanel = new LogPanel(Trace::create());
+        $logPanelOverride = new LogPanel(Trace::create());
         $builtInEventPanel = new EventPanel();
         $eventPanelOverride = new EventPanel();
         $builtInProfilingPanel = new ProfilingPanel();
@@ -291,11 +299,15 @@ final class ExtensionRegistryTest extends TestCase
             'Built-in composition must not alter the explicit panel registry.',
         );
 
+        $dbCollector = new DbCollector();
+        $dbPanel = new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create());
+
         $coordinator = $coordinatorFactory(
             $builtInRequestCollector,
             $builtInLogCollector,
             $builtInEventCollector,
             $builtInProfilingCollector,
+            $dbCollector,
             $registry,
         );
 
@@ -310,6 +322,7 @@ final class ExtensionRegistryTest extends TestCase
                 'log' => $logCollectorOverride,
                 'event' => $eventCollectorOverride,
                 'profiling' => $profilingCollectorOverride,
+                'db' => $dbCollector,
                 'inertia' => $collector,
             ],
             (new ReflectionProperty(CollectorCoordinator::class, 'collectors'))->getValue($coordinator),
@@ -358,6 +371,7 @@ final class ExtensionRegistryTest extends TestCase
             $builtInLogPanel,
             $builtInEventPanel,
             $builtInProfilingPanel,
+            $dbPanel,
             $registry,
         );
 
@@ -372,6 +386,7 @@ final class ExtensionRegistryTest extends TestCase
                 'log' => $logPanelOverride,
                 'event' => $eventPanelOverride,
                 'profiling' => $profilingPanelOverride,
+                'db' => $dbPanel,
                 'inertia' => $panel,
             ],
             (new ReflectionProperty(DebugPageRenderer::class, 'extensionPanels'))->getValue($renderer),
@@ -412,6 +427,7 @@ final class ExtensionRegistryTest extends TestCase
             $builtInLogPanel,
             $builtInEventPanel,
             $builtInProfilingPanel,
+            $dbPanel,
             $registry,
         );
 
@@ -426,6 +442,7 @@ final class ExtensionRegistryTest extends TestCase
                 'log' => $logPanelOverride,
                 'event' => $eventPanelOverride,
                 'profiling' => $profilingPanelOverride,
+                'db' => $dbPanel,
                 'inertia' => $panel,
             ],
             (new ReflectionProperty(ToolbarDataFactory::class, 'extensionPanels'))->getValue($toolbarDataFactory),

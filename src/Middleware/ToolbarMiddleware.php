@@ -6,6 +6,7 @@ namespace Yii3\Debug\Middleware;
 
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
+use PHPForge\Debug\Panel\Db\{DbSnapshot, DbSummary};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
@@ -33,14 +34,33 @@ use function uniqid;
  */
 final class ToolbarMiddleware implements MiddlewareInterface
 {
-    private CapturePolicy $capturePolicy;
-    private CollectorCoordinator|null $collectorCoordinator = null;
-    private int $height = 50;
-    private int $historySize = 50;
-    private string $position = 'bottom';
-    private string $routePrefix = '/debug';
-
     /**
+     * Defines which request data the debugger may capture.
+     */
+    private CapturePolicy $capturePolicy;
+    /**
+     * Coordinates collectors while processing a request.
+     */
+    private CollectorCoordinator|null $collectorCoordinator = null;
+    /**
+     * Defines the toolbar height in pixels.
+     */
+    private int $height = 50;
+    /**
+     * Defines the number of snapshots retained in history.
+     */
+    private int $historySize = 50;
+    /**
+     * Defines the toolbar position within the page.
+     */
+    private string $position = 'bottom';
+    /**
+     * Defines the route prefix used by the debugger endpoints.
+     */
+    private string $routePrefix = '/debug';
+    /**
+     * Stores same-origin URLs excluded from AJAX tracking.
+     *
      * @var list<string>
      */
     private array $skipUrls = [];
@@ -187,10 +207,18 @@ final class ToolbarMiddleware implements MiddlewareInterface
             ->withResponse($response->getStatusCode())
             ->withProfiling($processingTime, memory_get_peak_usage(true));
 
-        $this->store->writeSnapshot(
-            $this->collectorCoordinator?->capture($summary) ?? new DebugSnapshot($summary, [], []),
-            $this->historySize,
-        );
+        $snapshot = $this->collectorCoordinator?->capture($summary) ?? new DebugSnapshot($summary, [], []);
+
+        if (isset($snapshot->panels['db'])) {
+            $database = new DbSummary(DbSnapshot::fromArray($snapshot->panels['db'], '$.panels.db')->entries());
+            $snapshot = new DebugSnapshot(
+                $snapshot->summary->withDatabase($database->count),
+                $snapshot->panels,
+                $snapshot->failures,
+            );
+        }
+
+        $this->store->writeSnapshot($snapshot, $this->historySize);
 
         if (!$injectToolbar) {
             return $response;

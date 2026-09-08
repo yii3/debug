@@ -60,13 +60,22 @@ final class DebugPageRenderer
         'log',
         'event',
         'profiling',
+        'db',
     ];
 
     /**
+     * Extension panels registered with the debugger.
+     *
      * @var array<string, ExtensionPanelInterface>
      */
     private array $extensionPanels = [];
+    /**
+     * Base route used to generate debugger URLs.
+     */
     private string $routePrefix = '/debug';
+    /**
+     * Path to the debugger view templates.
+     */
     private readonly string $viewPath;
 
     public function __construct(

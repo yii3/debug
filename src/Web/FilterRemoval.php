@@ -8,6 +8,8 @@ use PHPForge\Debug\Data\QueryInput;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 
+use function array_keys;
+
 /**
  * Rewrites a panel filter group in the query parameters and renders the banner dropping single filters: replaces the
  * group with the active filters or removes selected attributes while resetting pagination, without changing unrelated
@@ -18,8 +20,11 @@ final class FilterRemoval
     /**
      * Renders the active-filter banner whose links remove single filters from the panel query.
      *
+     * The clear-all link drops the union of the submitted group keys and the active ones, so values the panel search
+     * rejected are cleared together with the filters they left out.
+     *
      * @param array<string, string> $activeFilters Attribute-to-value map of the currently applied filters.
-     * @param PanelRenderContext $context Context resolving the panel URL.
+     * @param PanelRenderContext $context Context resolving the panel URL and exposing the submitted query.
      * @param array<array-key, mixed> $queryParams Query parameters already normalized by the panel.
      * @param string $prefix Filter group the removed attributes belong to.
      */
@@ -34,6 +39,7 @@ final class FilterRemoval
             static fn(array $without): string => $context->panelUrl(
                 queryParams: self::queryParams($queryParams, $prefix, $without),
             ),
+            array_keys(QueryInput::group($context->queryParams, $prefix) + $activeFilters),
         );
     }
 

@@ -64,7 +64,7 @@ final class LogPanelProvider
         yield 'combined filters precede pagination' => [
             ['Log' => ['category' => 'app.db', 'message' => 'query'], 'per-page' => '1', 'page' => '99'],
             [2],
-            'Showing 1-1 of 1 items.',
+            'Showing 1-1 of 1 item.',
         ];
         yield 'invalid size uses default' => [
             ['per-page' => ['1'], 'page' => 'invalid'],

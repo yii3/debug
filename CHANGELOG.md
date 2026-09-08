@@ -45,3 +45,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - perf(ui): render a bounded pager window with first and last page links instead of one link per page.
 - feat(events): add the shared execution inspector, identity-based middleware correlation, and opt-in bounded lifecycle context and source traces.
 - refactor!: delegate history, toolbar, and duration parsing to Debug Core; use fluent factories.
+- refactor(db)!: align the Database panel with Debug Core across row counts, EXPLAIN responses, traces, grid footer, and sort reset.

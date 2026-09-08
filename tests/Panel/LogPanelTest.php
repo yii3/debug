@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Panel;
 
+use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\Storage\HydrationException;
@@ -41,7 +42,7 @@ final class LogPanelTest extends TestCase
             ],
         )->jsonSerialize();
 
-        $html = (new LogPanel())->render($payload);
+        $html = (new LogPanel(Trace::create()))->render($payload);
 
         foreach (['#', 'Time', 'Delta', 'Level', 'Category', 'Message'] as $heading) {
             self::assertStringContainsString(
@@ -95,7 +96,7 @@ final class LogPanelTest extends TestCase
     #[DataProviderExternal(LogPanelProvider::class, 'filterRemoval')]
     public function testFilterRemovalPreservesNavigationFromNormalizedInput(array $filters, array $remainingQueries): void
     {
-        $html = (new LogPanel())
+        $html = (new LogPanel(Trace::create()))
             ->renderWithContext(
                 self::payload(),
                 self::context(
@@ -131,12 +132,12 @@ final class LogPanelTest extends TestCase
             'Invalid debug snapshot',
         );
 
-        (new LogPanel())->render(['entries' => 'invalid']);
+        (new LogPanel(Trace::create()))->render(['entries' => 'invalid']);
     }
 
     public function testMetadataVisibilityAndInterfacesIdentifyTheBuiltInPanel(): void
     {
-        $panel = new LogPanel();
+        $panel = new LogPanel(Trace::create());
 
         self::assertSame(
             'log',
@@ -170,7 +171,7 @@ final class LogPanelTest extends TestCase
     #[DataProviderExternal(LogPanelProvider::class, 'pages')]
     public function testPaginationUsesFilteredRowsAndPreservesNavigation(array $query, array $expectedIds, string $summary): void
     {
-        $html = (new LogPanel())->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->renderWithContext(
             self::payload(),
             self::context($query + ['yii_debug_theme' => 'dark', 'return' => 'overview']),
         );
@@ -208,14 +209,14 @@ final class LogPanelTest extends TestCase
             </p>
             </div>
             HTML,
-            (new LogPanel())->render(['entries' => []]),
+            (new LogPanel(Trace::create()))->render(['entries' => []]),
             'A valid capture without messages must render the complete guidance state.',
         );
     }
 
     public function testRenderWithContextExplainsWhenNoMessagesMatch(): void
     {
-        $html = (new LogPanel())->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->renderWithContext(
             self::payload(),
             self::context(['Log' => ['message' => 'missing'], 'per-page' => '10']),
         );
@@ -239,7 +240,7 @@ final class LogPanelTest extends TestCase
 
     public function testRenderWithContextFiltersRowsAndKeepsSummaryCountsUnfiltered(): void
     {
-        $html = (new LogPanel())->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->renderWithContext(
             self::payload(),
             self::context(
                 [
@@ -381,7 +382,7 @@ final class LogPanelTest extends TestCase
             ],
         )->jsonSerialize();
 
-        $html = (new LogPanel())->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->renderWithContext(
             $payload,
             self::context(
                 [
@@ -451,7 +452,7 @@ final class LogPanelTest extends TestCase
             ],
         )->jsonSerialize();
 
-        $html = (new LogPanel())
+        $html = (new LogPanel(Trace::create()))
             ->renderWithContext($payload, self::context(['sort' => $sort, 'per-page' => 'all']));
 
         preg_match_all('/id="log-(\d+)"/', $html, $matches);
@@ -469,7 +470,7 @@ final class LogPanelTest extends TestCase
     #[DataProviderExternal(LogPanelProvider::class, 'summaryLinks')]
     public function testSummaryLinksReplaceFiltersAndPreserveQueryOrder(array $query, string $expectedQuery): void
     {
-        $html = (new LogPanel())
+        $html = (new LogPanel(Trace::create()))
             ->renderWithContext(self::payload(), self::context($query));
 
         preg_match_all('/<a class="yii-debug-grid-summary-stat-[^"]+" href="([^"]+)"/', $html, $matches);
@@ -487,7 +488,7 @@ final class LogPanelTest extends TestCase
 
     public function testToolbarItemsMatchTheTotalErrorAndWarningContracts(): void
     {
-        $panel = new LogPanel();
+        $panel = new LogPanel(Trace::create());
 
         self::assertSame(
             [['value' => '0', 'status' => 'default', 'id' => 'total']],

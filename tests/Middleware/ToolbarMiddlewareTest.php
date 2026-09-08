@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Middleware;
 
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
+use PHPForge\Debug\Panel\Db\QueryRow;
 use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
@@ -15,6 +16,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionProperty;
+use Yii3\Debug\Collector\DbCollector;
 use Yii3\Debug\Collector\{InertiaCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Tests\Support\HelperFactory;
@@ -122,6 +124,32 @@ final class ToolbarMiddlewareTest extends TestCase
             ],
             'Each immutable copy must preserve its own state and settings applied by earlier methods.',
         );
+    }
+    public function testDatabaseTotalsReachHistoryAndCollectorStopsAfterTheRequest(): void
+    {
+        $store = $this->store();
+        $collector = new DbCollector();
+        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]));
+        $handler = new readonly class ($collector) implements RequestHandlerInterface {
+            public function __construct(private DbCollector $collector) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->observe(QueryRow::create('SELECT 1', 1.0, 1000.0));
+                $this->collector->observe(QueryRow::create('SELECT 2', 2.0, 2000.0));
+
+                return HelperFactory::createResponse(204);
+            }
+        };
+        $response = $middleware->process(
+            HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            $handler,
+        );
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+        self::assertNotNull($snapshot, 'Database requests must be persisted.');
+        self::assertSame(2, $snapshot->summary->sqlCount, 'History must receive the captured query total.');
+        self::assertArrayHasKey('db', $snapshot->panels, 'The canonical Database payload must be stored.');
+        self::assertNull($collector->capture(), 'Request completion must stop Database capture.');
     }
 
     public function testProcessAddsAjaxMetadataWithoutInjectingMarkup(): void

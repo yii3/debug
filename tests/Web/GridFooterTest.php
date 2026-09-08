@@ -168,6 +168,11 @@ final class GridFooterTest extends TestCase
             'A partially filled page must stop at the total.',
         );
         self::assertStringContainsString(
+            '<span class="summary yii-debug-grid-count">Showing 1-1 of 1 item.</span>',
+            GridFooter::render(1, 0, 1)->render(),
+            'A single row must use the shared singular noun.',
+        );
+        self::assertStringContainsString(
             'Showing 1-10 of 100 items.',
             self::pager(1, 10),
             'A full page must span the requested size.',

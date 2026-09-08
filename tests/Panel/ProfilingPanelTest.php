@@ -510,7 +510,7 @@ final class ProfilingPanelTest extends TestCase
             </tbody>
             </table>
             </div><div class="yii-debug-grid-footer">
-            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 items.</span>
+            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 item.</span>
             </div>
             </div>
             HTML,
@@ -1103,7 +1103,7 @@ final class ProfilingPanelTest extends TestCase
             </tbody>
             </table>
             </div><div class="yii-debug-grid-footer">
-            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 items.</span>
+            <span class="summary yii-debug-grid-count">Showing 1-1 of 1 item.</span>
             </div>
             </div>
             HTML,

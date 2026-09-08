@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
-use PHPForge\Debug\Helper\{Dump, EmptyState, LogLevel};
+use PHPForge\Debug\Helper\{EmptyState, LogLevel, Trace};
 use PHPForge\Debug\Panel\Log\{LogCellRenderer, LogCounts, LogMessage, LogRow, LogSnapshot};
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
@@ -27,20 +27,28 @@ use Yii3\Debug\Web\{
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
-use function htmlspecialchars;
-use function is_int;
-use function is_string;
 use function strcasecmp;
-
-use const ENT_QUOTES;
-use const ENT_SUBSTITUTE;
 
 /**
  * Presents captured log messages and contributes the total, error, and warning toolbar metrics.
  */
 final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPanelProviderInterface
 {
-    private const array SORT_ATTRIBUTES = ['time', 'timeSincePrevious', 'level', 'category', 'message'];
+    /**
+     * Attributes by which the log entries can be sorted in the grid view.
+     */
+    private const array SORT_ATTRIBUTES = [
+        'time',
+        'timeSincePrevious',
+        'level',
+        'category',
+        'message',
+    ];
+
+    /**
+     * @param Trace $trace Configured renderer of the argument-free source frames shown in the message cells.
+     */
+    public function __construct(private Trace $trace) {}
 
     public function hasContent(array $payload): bool
     {
@@ -107,7 +115,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      *
      * @return list<GridColumn<LogRow>>
      */
-    private static function columns(
+    private function columns(
         PanelRenderContext|null $context,
         array $queryParams,
         array $filters,
@@ -137,7 +145,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         };
 
         $blank = $context === null ? null : '';
-        $traceLine = self::renderTraceLine(...);
+        $traceLine = $this->trace->render(...);
 
         return [
             new GridColumn(
@@ -213,7 +221,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      * @param OffsetPaginator<int, LogRow> $paginator
      * @param array<string, string> $filters
      */
-    private static function renderGrid(
+    private function renderGrid(
         OffsetPaginator $paginator,
         PanelRenderContext|null $context = null,
         array $filters = [],
@@ -234,7 +242,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             ->headerCellAttributes(['scope' => 'col'])
             ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
             ->filterFormId('yii-debug-log-filters')
-            ->columns(...self::columns($context, $queryParams, $filters));
+            ->columns(...$this->columns($context, $queryParams, $filters));
 
         if ($context !== null) {
             $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
@@ -252,7 +260,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      * @param list<LogRow> $filteredRows
      * @param array<string, string> $filters
      */
-    private static function renderPaginatedGrid(
+    private function renderPaginatedGrid(
         array $filteredRows,
         PanelRenderContext $context,
         array $filters,
@@ -267,7 +275,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        return self::renderGrid($paginator, $context, $filters);
+        return $this->renderGrid($paginator, $context, $filters);
     }
 
     /**
@@ -301,7 +309,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         );
 
         if ($context === null) {
-            return $content . self::renderGrid(PageWindow::single($filteredRows));
+            return $content . $this->renderGrid(PageWindow::single($filteredRows));
         }
 
         $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::LOG);
@@ -313,7 +321,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             );
         }
 
-        return $content . self::renderPaginatedGrid($filteredRows, $context, $search->activeFilters);
+        return $content . $this->renderPaginatedGrid($filteredRows, $context, $search->activeFilters);
     }
 
     /**
@@ -420,24 +428,6 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             ->class($class)
             ->href($context->panelUrl(queryParams: $queryParams))
             ->html(Strong::tag()->content($value), $text);
-    }
-
-    /**
-     * @param array<string, mixed> $frame
-     */
-    private static function renderTraceLine(array $frame): string
-    {
-        $file = $frame['file'] ?? '';
-        $line = $frame['line'] ?? '';
-
-        if (!is_string($file) || !is_int($line)) {
-            return htmlspecialchars(Dump::asString($frame), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        }
-
-        return A::tag()
-            ->href("ide://open?url=file://{$file}&line={$line}")
-            ->content("{$file}:{$line}")
-            ->render();
     }
 
     /**
