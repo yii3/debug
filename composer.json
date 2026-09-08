@@ -58,6 +58,8 @@
         "phpunit/phpunit": "^12.5",
         "yii2-extensions/scaffold": "^0.2",
         "yiisoft/config": "^1.6",
+        "yiisoft/db": "^2.0",
+        "yiisoft/db-sqlite": "^2.0",
         "yiisoft/router-fastroute": "^4.0"
     },
     "autoload": {
@@ -114,6 +116,7 @@
         "tests": "./vendor/bin/phpunit"
     },
     "suggest": {
-        "yii3/inertia": "Enables the optional Inertia integration (^0.1)."
+        "yii3/inertia": "Enables the optional Inertia integration (^0.1).",
+        "yiisoft/db": "Enables optional Yii DB 2 instrumentation and EXPLAIN (^2.0; install a driver)."
     }
 }
