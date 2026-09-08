@@ -7,8 +7,6 @@ namespace Yii3\Debug\Search;
 use PHPForge\Debug\Data\{FilterEngine, FilterPrefix, QueryInput};
 use PHPForge\Debug\Panel\Profile\ProfileRow;
 
-use function is_finite;
-use function is_numeric;
 use function trim;
 
 /**
@@ -61,12 +59,8 @@ final readonly class ProfileSearch
 
         $duration = trim($submitted['duration'] ?? '');
 
-        if ($duration !== '' && is_numeric($duration)) {
-            $minimum = (float) $duration;
-
-            if (is_finite($minimum) && $minimum >= 0.0) {
-                $filters['duration'] = $duration;
-            }
+        if (QueryInput::minimumBound($duration) !== null) {
+            $filters['duration'] = $duration;
         }
 
         foreach (['category', 'info'] as $attribute) {

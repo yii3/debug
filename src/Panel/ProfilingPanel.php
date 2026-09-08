@@ -33,7 +33,6 @@ use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
-use function number_format;
 use function str_replace;
 use function strcasecmp;
 
@@ -93,8 +92,8 @@ final readonly class ProfilingPanel implements
         $snapshot = self::snapshot($payload);
 
         return [
-            new ToolbarItem(value: self::formatTime($snapshot->time), title: 'Total processing time'),
-            new ToolbarItem(value: Format::bytesToMb($snapshot->memory, 3), title: 'Peak memory'),
+            ToolbarItem::create(Format::milliseconds($snapshot->time))->withTitle('Total processing time'),
+            ToolbarItem::create(Format::bytesToMb($snapshot->memory, 3))->withTitle('Peak memory'),
         ];
     }
 
@@ -170,14 +169,6 @@ final readonly class ProfilingPanel implements
         }
 
         return $params;
-    }
-
-    /**
-     * Formats a duration in seconds as a millisecond readout.
-     */
-    private static function formatTime(float $seconds): string
-    {
-        return number_format($seconds * 1000) . ' ms';
     }
 
     /**
@@ -462,7 +453,7 @@ final readonly class ProfilingPanel implements
         $items = [
             SummaryChip::render((string) $filteredCount, $countLabel),
             SummaryChip::separator(),
-            SummaryChip::render(self::formatTime($snapshot->time), ' total'),
+            SummaryChip::render(Format::milliseconds($snapshot->time), ' total'),
             SummaryChip::separator(),
             SummaryChip::render(Format::bytesToMb($snapshot->memory, $memoryPrecision), ' peak'),
         ];

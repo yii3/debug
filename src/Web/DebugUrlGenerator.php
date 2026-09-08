@@ -7,7 +7,6 @@ namespace Yii3\Debug\Web;
 use PHPForge\Debug\Routing\DebugUrlGeneratorInterface;
 
 use function http_build_query;
-use function ltrim;
 use function rtrim;
 
 use const PHP_QUERY_RFC3986;
@@ -24,31 +23,18 @@ final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
         $this->routePrefix = rtrim($routePrefix, '/');
     }
 
-    public function action(string $action, string $tag, array $queryParams = []): string
-    {
-        unset($queryParams['tag'], $queryParams['panel']);
-
-        return $this->withQuery(
-            $this->routePrefix . '/' . ltrim($action, '/'),
-            ['tag' => $tag] + $queryParams,
-        );
-    }
-
-    public function history(array $queryParams = []): string
-    {
-        unset($queryParams['tag'], $queryParams['panel']);
-
-        return $this->withQuery($this->routePrefix, $queryParams);
-    }
-
     public function panel(string $tag, string $panel, array $queryParams = []): string
     {
         unset($queryParams['tag'], $queryParams['panel']);
 
-        return $this->withQuery(
-            $this->routePrefix . '/view',
+        $query = http_build_query(
             ['tag' => $tag, 'panel' => $panel] + $queryParams,
+            '',
+            '&',
+            PHP_QUERY_RFC3986,
         );
+
+        return "{$this->routePrefix}/view?{$query}";
     }
 
     /**
@@ -57,17 +43,5 @@ final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
     public function routePrefix(): string
     {
         return $this->routePrefix;
-    }
-
-    /**
-     * @param array<array-key, mixed> $queryParams
-     */
-    private function withQuery(string $path, array $queryParams): string
-    {
-        if ($queryParams === []) {
-            return $path;
-        }
-
-        return "{$path}?" . http_build_query($queryParams, '', '&', PHP_QUERY_RFC3986);
     }
 }

@@ -51,7 +51,7 @@ final class InertiaPanel implements ToolbarPanelProviderInterface
 
         return $component === ''
             ? []
-            : [new ToolbarItem(value: $component, title: 'Inertia component')];
+            : [ToolbarItem::create($component)->withTitle('Inertia component')];
     }
 
     /**

@@ -650,12 +650,10 @@ final class ToolbarDataFactoryTest extends TestCase
         $panel->method('name')->willReturn('Application Logs');
         $panel->method('toolbarItems')->willReturn(
             [
-                new ToolbarItem(
-                    value: '1',
-                    label: 'Errors',
-                    url: '/application/logs?severity=error',
-                    id: 'errors',
-                ),
+                ToolbarItem::create('1')
+                    ->withLabel('Errors')
+                    ->withUrl('/application/logs?severity=error')
+                    ->withId('errors'),
             ],
         );
 
@@ -758,7 +756,7 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $invalidCollections = [
             'associative collection' => [
-                ['metric' => new ToolbarItem('value')],
+                ['metric' => ToolbarItem::create('value')],
                 'Debug toolbar extension panel associative collection must return a list of items.',
             ],
             'invalid item type' => [

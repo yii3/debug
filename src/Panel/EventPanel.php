@@ -87,7 +87,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         return $total === 0
             ? []
-            : [new ToolbarItem(value: (string) $total, id: 'total')];
+            : [ToolbarItem::create((string) $total)->withId('total')];
     }
 
     /**

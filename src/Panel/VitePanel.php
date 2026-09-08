@@ -50,10 +50,7 @@ final class VitePanel implements ToolbarPanelProviderInterface
         $mode = $summary->modeLabel();
 
         return [
-            new ToolbarItem(
-                value: $count === 1 ? $mode : "{$count} components · {$mode}",
-                title: 'Vite mode',
-            ),
+            ToolbarItem::create($count === 1 ? $mode : "{$count} components · {$mode}")->withTitle('Vite mode'),
         ];
     }
 

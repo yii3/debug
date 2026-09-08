@@ -9,43 +9,11 @@ use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 /**
- * Unit tests for debugger history, panel, and action URL generation.
+ * Unit tests for debugger panel URL generation and route-prefix normalization.
  */
 #[Group('routing')]
 final class DebugUrlGeneratorTest extends TestCase
 {
-    public function testBuildsActionUrlScopedToTag(): void
-    {
-        $urls = new DebugUrlGenerator();
-
-        self::assertSame(
-            '/debug/db-explain?tag=request-1&seq=3',
-            $urls->action('/db-explain', 'request-1', ['panel' => 'db', 'seq' => 3]),
-            'Action URLs must normalize the action path and retain the current tag.',
-        );
-    }
-
-    public function testBuildsHistoryUrlAndNormalizesPrefix(): void
-    {
-        $urls = new DebugUrlGenerator('/tools/debug/');
-
-        self::assertSame(
-            '/tools/debug',
-            $urls->history(),
-            'Trailing slashes must be removed from the prefix.',
-        );
-        self::assertSame(
-            '/tools/debug?Debug%5BstatusCode%5D=500',
-            $urls->history(['Debug' => ['statusCode' => 500]]),
-            'History filters must use RFC 3986 query encoding.',
-        );
-        self::assertSame(
-            '/tools/debug',
-            $urls->routePrefix(),
-            'The normalized route prefix must be available to adapter-owned callers.',
-        );
-    }
-
     public function testBuildsPanelUrlAndReplacesReservedParameters(): void
     {
         $urls = new DebugUrlGenerator();
@@ -58,6 +26,22 @@ final class DebugUrlGeneratorTest extends TestCase
                 ['tag' => 'stale', 'panel' => 'stale', 'page' => 2],
             ),
             'Panel URLs must preserve the requested target instead of stale query values.',
+        );
+    }
+
+    public function testNormalizesTrailingSlashesInTheRoutePrefix(): void
+    {
+        $urls = new DebugUrlGenerator('/tools/debug/');
+
+        self::assertSame(
+            '/tools/debug',
+            $urls->routePrefix(),
+            'Trailing slashes must be removed from the prefix.',
+        );
+        self::assertSame(
+            '/tools/debug/view?tag=request-1&panel=log&Debug%5BstatusCode%5D=500',
+            $urls->panel('request-1', 'log', ['Debug' => ['statusCode' => 500]]),
+            'Nested filters must use RFC 3986 query encoding.',
         );
     }
 }
