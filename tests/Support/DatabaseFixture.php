@@ -16,15 +16,29 @@ final class DatabaseFixture
 {
     public static function connection(): Connection
     {
-        return new Connection(new Driver('sqlite::memory:'), new SchemaCache(new ArrayCache()));
+        return new Connection(
+            new Driver('sqlite::memory:'),
+            new SchemaCache(new ArrayCache()),
+        );
     }
 
     public static function snapshot(): DbSnapshot
     {
-        return new DbSnapshot([
-            new QueryRow('SELECT', 'SELECT alpha', 3.0, [], 'same', 1000.0, 0, 2, 10),
-            new QueryRow('UPDATE', 'UPDATE beta', 1.0, [], 'same', 2000.0, 1, 1, 0),
-            new QueryRow('SELECT', 'SELECT gamma', 2.0, [], 'same', 3000.0, 2, 2, null),
-        ]);
+        return new DbSnapshot(
+            [
+                QueryRow::create('SELECT alpha', 3.0, 1000.0)
+                    ->withTraceHash('same')
+                    ->withDuplicate(2)
+                    ->withRows(10),
+                QueryRow::create('UPDATE beta', 1.0, 2000.0)
+                    ->withTraceHash('same')
+                    ->withSequence(1)
+                    ->withRows(0),
+                QueryRow::create('SELECT gamma', 2.0, 3000.0)
+                    ->withTraceHash('same')
+                    ->withSequence(2)
+                    ->withDuplicate(2),
+            ],
+        );
     }
 }

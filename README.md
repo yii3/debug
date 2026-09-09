@@ -293,6 +293,7 @@ Database follows Profiling in primary navigation and uses Core's canonical `DbSn
 The grid mirrors Yii2: Type, Time, Duration, Rows, Dup, and Query, with SQL highlighting, argument-free source traces,
 exact duplicates, and page-scoped potential N+1 groups. It reuses the standard `Db[type]` / `Db[query]` filters,
 active-filter removal, sorting, page-size selection, bounded pagination, and theme-preserving links.
+The Database toolbar shows only the query count and its alerts; query durations remain in the panel.
 
 Yii DB is optional. Install a Yii DB 2 driver in the application (for example, `yiisoft/db-sqlite:^2.0`) and observe
 its existing development connection with `Yii3\Debug\Db\DebugDbProfiler`. Do not replace the application's driver,

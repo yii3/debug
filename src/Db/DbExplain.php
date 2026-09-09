@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Db;
 
-use PHPForge\Debug\Panel\Db\{DbExplainRenderer, DbMessage, QueryRow};
+use PHPForge\Debug\Panel\Db\{DbExplainRenderer, DbExplainSupport, DbMessage, QueryRow};
 use Yiisoft\Db\Connection\ConnectionInterface;
 use Yiisoft\Db\Exception\Exception;
-
-use function in_array;
 
 /**
  * Runs non-ANALYZE plans for captured single DML statements on an explicitly configured development connection.
@@ -19,24 +17,32 @@ final readonly class DbExplain
 
     public function available(): bool
     {
-        return $this->connection !== null
-            && in_array($this->connection->getDriverName(), ['mysql', 'sqlite', 'pgsql'], true);
+        return $this->connection !== null && DbExplainSupport::isSupported($this->connection->getDriverName());
     }
 
     public function render(QueryRow $row): string
     {
         if (!$this->available() || $this->connection === null || !$row->isExplainable()) {
-            return DbExplainRenderer::renderError($row->query, DbMessage::EXPLAIN_UNAVAILABLE->value);
+            return DbExplainRenderer::renderError(
+                $row->getQuery(),
+                DbMessage::EXPLAIN_UNAVAILABLE->value,
+            );
         }
 
-        $prefix = $this->connection->getDriverName() === 'sqlite' ? 'EXPLAIN QUERY PLAN ' : 'EXPLAIN ';
+        $prefix = DbExplainSupport::prefix($this->connection->getDriverName());
 
         try {
-            $results = $this->connection->createCommand($prefix . $row->query)->queryAll();
+            $results = $this->connection->createCommand($prefix . $row->getQuery())->queryAll();
         } catch (Exception $exception) {
-            return DbExplainRenderer::renderError($row->query, $exception->getMessage());
+            return DbExplainRenderer::renderError(
+                $row->getQuery(),
+                $exception->getMessage(),
+            );
         }
 
-        return DbExplainRenderer::render($row->query, $results);
+        return DbExplainRenderer::render(
+            $row->getQuery(),
+            $results,
+        );
     }
 }

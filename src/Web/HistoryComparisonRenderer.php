@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Web;
 
+use PHPForge\Debug\Comparison\PanelComparison;
 use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
 use PHPForge\Debug\View\History\CaptureLabel;
@@ -443,8 +444,8 @@ final class HistoryComparisonRenderer
         bool $available,
     ): string {
         $variant = match ($state) {
-            'Captured' => 'success',
-            'Failed' => 'danger',
+            PanelComparison::STATE_CAPTURED => 'success',
+            PanelComparison::STATE_FAILED => 'danger',
             default => 'muted',
         };
         $badge = Span::tag()
@@ -452,7 +453,7 @@ final class HistoryComparisonRenderer
             ->content($state)
             ->render();
 
-        if ($state === 'Not captured') {
+        if ($state === PanelComparison::STATE_NOT_CAPTURED) {
             return $badge . ' ' . Span::tag()
                 ->class('yii-debug-not-set')
                 ->content('—')
