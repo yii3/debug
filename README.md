@@ -14,8 +14,8 @@
     <a href="https://github.com/yii3/debug/actions/workflows/build.yml" target="_blank">
         <img src="https://img.shields.io/github/actions/workflow/status/yii3/debug/build.yml?style=for-the-badge&label=PHPUnit&logo=github" alt="PHPUnit">
     </a>
-    <a href="https://github.com/yii3/debug/actions/workflows/mutation.yml" target="_blank">
-        <img src="https://img.shields.io/github/actions/workflow/status/yii3/debug/mutation.yml?style=for-the-badge&label=Mutation&logo=github" alt="Mutation Testing">
+    <a href="https://dashboard.stryker-mutator.io/reports/github.com/yii3/debug/main" target="_blank">
+        <img src="https://img.shields.io/endpoint?style=for-the-badge&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2Fyii3%2Fdebug%2Fmain" alt="Mutation Testing">
     </a>
     <a href="https://github.com/yii3/debug/actions/workflows/static.yml" target="_blank">
         <img src="https://img.shields.io/github/actions/workflow/status/yii3/debug/static.yml?style=for-the-badge&label=PHPStan&logo=github" alt="PHPStan">
@@ -30,6 +30,15 @@
     <em>Shared Debug Core UI, scoped CSS, light/dark mode, and opt-in Inertia/Vite panels</em>
 </p>
 
+<p align="center">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/home-dark.png">
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/home-light.png">
+        <img src="docs/images/home-light.png" alt="Yii3 application with the debug toolbar">
+    </picture>
+</p>
+
+> [!WARNING]
 > **Development only.** Never enable the debugger in production. Keep access restricted to trusted development IPs
 > and install production dependencies with `composer install --no-dev`.
 
@@ -187,10 +196,104 @@ and are not redacted by the capture policy; SQL diagnostics can include substitu
 as sensitive and review them before sharing. In the Events panel, context capture and source traces are disabled by
 default; this does not affect source traces in Logs or Database.
 
+## Screenshots
+
+Expand a panel to preview it. Images follow your GitHub light or dark theme.
+
+<details>
+<summary>History</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/history-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/history-light.png">
+    <img src="docs/images/history-light.png" alt="History panel">
+</picture>
+</details>
+
+<details>
+<summary>Request</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/request-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/request-light.png">
+    <img src="docs/images/request-light.png" alt="Request panel">
+</picture>
+</details>
+
+<details>
+<summary>Logs</summary>
+<p>This capture contains no log messages; the panel displays its empty state.</p>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/log-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/log-light.png">
+    <img src="docs/images/log-light.png" alt="Logs panel">
+</picture>
+</details>
+
+<details>
+<summary>Events</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/event-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/event-light.png">
+    <img src="docs/images/event-light.png" alt="Events panel">
+</picture>
+</details>
+
+<details>
+<summary>Profiling</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/profiling-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/profiling-light.png">
+    <img src="docs/images/profiling-light.png" alt="Profiling panel">
+</picture>
+</details>
+
+<details>
+<summary>Database</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/database-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/database-light.png">
+    <img src="docs/images/database-light.png" alt="Database panel">
+</picture>
+</details>
+
+<details>
+<summary>Configuration</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/config-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/config-light.png">
+    <img src="docs/images/config-light.png" alt="Configuration panel">
+</picture>
+</details>
+
+<details>
+<summary>PHP info</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/phpinfo-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/phpinfo-light.png">
+    <img src="docs/images/phpinfo-light.png" alt="PHP info panel">
+</picture>
+</details>
+
+<details>
+<summary>Inertia</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/inertia-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/inertia-light.png">
+    <img src="docs/images/inertia-light.png" alt="Inertia panel">
+</picture>
+</details>
+
+<details>
+<summary>Vite</summary>
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/vite-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/vite-light.png">
+    <img src="docs/images/vite-light.png" alt="Vite panel">
+</picture>
+</details>
+
 ## Documentation
 
 - [Default configuration options](config/params.php)
-- [Changelog](CHANGELOG.md)
 
 ## Package information
 
