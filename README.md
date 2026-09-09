@@ -135,15 +135,30 @@ means it is inspecting built assets in your development application, not that th
 
 ### Database
 
-Database capture requires a Yii DB 2 driver and an instrumented application connection. In your development-only
-connection configuration, use the container-provided `Yii3\Debug\Db\DebugDbProfiler` to instrument the existing PDO
-connection before running queries:
+Database capture requires a Yii DB 2 driver and an instrumented application connection. For example, if your SQLite
+application already registers its configured connection as `Yiisoft\Db\Sqlite\Connection`, add this factory to your
+development-only DI configuration. The container supplies that connection and the debugger's registered profiler:
 
 ```php
-$debugDbProfiler->instrument($connection);
+use Yii3\Debug\Db\DebugDbProfiler;
+use Yiisoft\Db\Connection\ConnectionInterface;
+use Yiisoft\Db\Sqlite\Connection;
+
+return [
+    ConnectionInterface::class => static function (
+        Connection $connection,
+        DebugDbProfiler $debugDbProfiler,
+    ): ConnectionInterface {
+        $debugDbProfiler->instrument($connection);
+
+        return $connection;
+    },
+];
 ```
 
-Keep the application's existing driver and connection settings. EXPLAIN supports MySQL, SQLite, and PostgreSQL and
+Keep the existing concrete `Connection` registration and its driver settings; it must not resolve back to
+`ConnectionInterface`. For another PDO driver, use its configured concrete connection class instead of SQLite's.
+EXPLAIN supports MySQL, SQLite, and PostgreSQL and
 requires the application's `Yiisoft\Db\Connection\ConnectionInterface` binding to match the captured queries.
 Leave EXPLAIN unconfigured when one binding cannot represent all captured connections.
 
@@ -169,7 +184,8 @@ not forwarded proxy headers. Add only trusted development addresses to `allowedI
 
 Request and Inertia captures redact sensitive fields and URL query values. Logs preserve original diagnostic values
 and are not redacted by the capture policy; SQL diagnostics can include substituted query values. Treat stored captures
-as sensitive and review them before sharing. Event context and source traces are disabled by default.
+as sensitive and review them before sharing. In the Events panel, context capture and source traces are disabled by
+default; this does not affect source traces in Logs or Database.
 
 ## Documentation
 
