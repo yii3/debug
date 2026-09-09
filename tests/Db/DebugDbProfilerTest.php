@@ -5,61 +5,79 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Db;
 
 use PHPForge\Debug\Panel\Db\QueryRow;
-use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use Yii3\Debug\Collector\DbCollector;
 use Yii3\Debug\Collector\ProfilingCollector;
 use Yii3\Debug\Db\DebugDbProfiler;
+use Yii3\Debug\Tests\Provider\DebugDbProfilerProvider;
 use Yii3\Debug\Tests\Support\DatabaseFixture;
 use Yiisoft\Db\Exception\Exception;
+use Yiisoft\Db\Profiler\Context\{CommandContext, ConnectionContext};
 use Yiisoft\Db\Profiler\ContextInterface;
 use Yiisoft\Profiler\Profiler;
 
+use function array_intersect_key;
 use function array_map;
+use function array_values;
 
 /**
- * Integration tests for optional Yii DB 2 profiling with real parameterized SQLite commands.
+ * Tests for {@see DebugDbProfiler} covering SQLite command capture, driver row counts, application-profiler
+ * forwarding, trace limits, and observer lifecycle and failure handling.
+ *
+ * {@see DebugDbProfilerProvider} for context forwarding cases.
  */
 #[Group('db')]
 final class DebugDbProfilerTest extends TestCase
 {
-    public function testApplicationProfilerReceivesOnlyTheMethodCategoryOrContextType(): void
-    {
-        foreach ([[], ['method' => 'native.query', 'params' => ['private' => 'diagnostic marker']]] as $data) {
-            $collector = new DbCollector();
+    /**
+     * @param CommandContext|ConnectionContext $context Native context containing diagnostic data.
+     * @param string $expectedCategory Method category expected by the application profiler.
+     */
+    #[DataProviderExternal(DebugDbProfilerProvider::class, 'applicationProfilerContexts')]
+    public function testApplicationProfilerReceivesOnlyTheMethodCategory(
+        CommandContext|ConnectionContext $context,
+        string $expectedCategory,
+    ): void {
+        $collector = new DbCollector();
 
-            $collector->startup();
+        $collector->startup();
 
-            $context = self::createStub(ContextInterface::class);
+        $applicationProfiler = new Profiler(new NullLogger());
+        $profiler = new DebugDbProfiler($collector, $applicationProfiler);
 
-            $context
-                ->method('getType')
-                ->willReturn('command');
-            $context
-                ->method('asArray')
-                ->willReturn($data);
+        $profiler->begin('SELECT 1', $context);
+        $profiler->end('SELECT 1', $context);
 
-            $applicationProfiler = $this->createMock(\Yiisoft\Profiler\ProfilerInterface::class);
+        $messages = array_values($applicationProfiler->getMessages());
 
-            $forwarded = ['category' => $data['method'] ?? 'command'];
+        self::assertCount(
+            1,
+            $messages,
+            'The application profiler must complete exactly one span.',
+        );
+        self::assertSame(
+            'SELECT 1',
+            $messages[0]->token(),
+            'The original profiling token must be preserved.',
+        );
 
-            $applicationProfiler
-                ->expects(self::once())
-                ->method('begin')
-                ->with('SELECT 1', $forwarded);
-            $applicationProfiler
-                ->expects(self::once())
-                ->method('end')
-                ->with('SELECT 1', $forwarded);
+        $forwarded = $messages[0]->context();
 
-            $profiler = new DebugDbProfiler($collector, $applicationProfiler);
-
-            $profiler->begin('SELECT 1', $context);
-            $profiler->end('SELECT 1', $context);
-        }
+        self::assertSame(
+            $expectedCategory,
+            $forwarded['category'] ?? null,
+            'The native method must become the application profiler category.',
+        );
+        self::assertSame(
+            [],
+            array_intersect_key($forwarded, $context->asArray()),
+            'Native context fields must not leak into the application profiler.',
+        );
     }
+
     public function testDeepApplicationTracesHaveAnExactFrameBudget(): void
     {
         $collector = new DbCollector();
@@ -67,16 +85,19 @@ final class DebugDbProfilerTest extends TestCase
         $collector->startup();
 
         $profiler = new DebugDbProfiler($collector);
-
-        $context = self::createStub(ContextInterface::class);
-
-        $context
-            ->method('getType')
-            ->willReturn('command');
+        $context = new CommandContext('native.query', 'trace budget', 'SELECT 1', []);
 
         $this->captureAtDepth($profiler, $context, 30);
 
-        $trace = $collector->capture()?->entries()[0]->trace ?? [];
+        $row = $collector->capture()?->entries()[0] ?? null;
+
+        self::assertInstanceOf(
+            QueryRow::class,
+            $row,
+            'The profiled query must be captured.',
+        );
+
+        $trace = $row->getTrace();
 
         self::assertCount(
             21,
@@ -143,19 +164,27 @@ final class DebugDbProfilerTest extends TestCase
         );
     }
 
-    public function testInactiveObserversNeverInspectContexts(): void
+    public function testInactiveObserversDoNotCaptureOrForwardCommands(): void
     {
-        $context = $this->createMock(ContextInterface::class);
+        $collector = new DbCollector();
+        $applicationProfiler = new Profiler(new NullLogger());
+        $profiler = new DebugDbProfiler($collector, $applicationProfiler);
+        $context = new CommandContext('native.query', 'inactive request', 'SELECT 1', []);
 
-        $context
-            ->expects(self::never())
-            ->method('getType');
+        $profiler->begin('SELECT 1', $context);
+        $profiler->end('SELECT 1', $context);
 
-        $profiler = new DebugDbProfiler(new DbCollector());
-
-        $profiler->begin('inactive', $context);
-        $profiler->end('inactive', $context);
+        self::assertNull(
+            $collector->capture(),
+            'An inactive collector must not produce a database snapshot.',
+        );
+        self::assertSame(
+            [],
+            $applicationProfiler->getMessages(),
+            'Inactive commands must not reach the application profiler.',
+        );
     }
+
     public function testInstrumentedCommandsReportDriverRowCounts(): void
     {
         $collector = new DbCollector();
@@ -166,10 +195,18 @@ final class DebugDbProfilerTest extends TestCase
 
         (new DebugDbProfiler($collector))->instrument($db);
 
-        $db->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)')->execute();
-        $db->createCommand('INSERT INTO items (id, name) VALUES (:id, :name)', [':id' => 1, ':name' => 'a'])->execute();
-        $db->createCommand('INSERT INTO items (id, name) VALUES (:id, :name)', [':id' => 2, ':name' => 'b'])->execute();
-        $db->createCommand('UPDATE items SET name = :name', [':name' => 'c'])->execute();
+        $db
+            ->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)')
+            ->execute();
+        $db
+            ->createCommand('INSERT INTO items (id, name) VALUES (:id, :name)', [':id' => 1, ':name' => 'a'])
+            ->execute();
+        $db
+            ->createCommand('INSERT INTO items (id, name) VALUES (:id, :name)', [':id' => 2, ':name' => 'b'])
+            ->execute();
+        $db
+            ->createCommand('UPDATE items SET name = :name', [':name' => 'c'])
+            ->execute();
 
         self::assertCount(
             2,
@@ -191,9 +228,13 @@ final class DebugDbProfilerTest extends TestCase
 
         (new DebugDbProfiler($collector))->instrument($db);
 
-        $db->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY)')->execute();
+        $db
+            ->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY)')
+            ->execute();
         $collector->startup();
-        $db->createCommand('INSERT INTO items (id) VALUES (1)')->execute();
+        $db
+            ->createCommand('INSERT INTO items (id) VALUES (1)')
+            ->execute();
 
         self::assertSame(
             [1],
@@ -207,12 +248,24 @@ final class DebugDbProfilerTest extends TestCase
         $collector = new DbCollector();
 
         $collector->startup();
-        $db = DatabaseFixture::connection();
-        (new DebugDbProfiler($collector))->instrument($db);
-        $db->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY)')->execute();
-        $db->createCommand('INSERT INTO items (id) VALUES (1)')->execute();
 
-        foreach (['INSERT INTO items (id) VALUES (1)', 'SELECT id FROM absent_table'] as $sql) {
+        $db = DatabaseFixture::connection();
+
+        (new DebugDbProfiler($collector))->instrument($db);
+
+        $db
+            ->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY)')
+            ->execute();
+        $db
+            ->createCommand('INSERT INTO items (id) VALUES (1)')
+            ->execute();
+
+        $statements = [
+            'INSERT INTO items (id) VALUES (1)',
+            'SELECT id FROM absent_table',
+        ];
+
+        foreach ($statements as $sql) {
             try {
                 $db->createCommand($sql)->execute();
                 self::fail('Rejected SQL must reach the caller.');
@@ -221,19 +274,37 @@ final class DebugDbProfilerTest extends TestCase
             }
         }
 
-        self::assertSame([0, 1, null, null], $this->reported($collector), 'Incomplete statements carry no count.');
+        self::assertSame(
+            [0, 1, null, null],
+            $this->reported($collector),
+            'Incomplete statements carry no count.',
+        );
     }
 
     public function testInstrumentedOpenConnectionsReportRowCountsWithoutReopening(): void
     {
         $collector = new DbCollector();
+
         $collector->startup();
+
         $db = DatabaseFixture::connection();
+
         $db->open();
+
         (new DebugDbProfiler($collector))->instrument($db);
-        $db->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY)')->execute();
-        $db->createCommand('INSERT INTO items (id) VALUES (1)')->execute();
-        self::assertSame([0, 1], $this->reported($collector), 'An open connection must be instrumented immediately.');
+
+        $db
+            ->createCommand('CREATE TABLE items (id INTEGER PRIMARY KEY)')
+            ->execute();
+        $db
+            ->createCommand('INSERT INTO items (id) VALUES (1)')
+            ->execute();
+
+        self::assertSame(
+            [0, 1],
+            $this->reported($collector),
+            'An open connection must be instrumented immediately.'
+        );
     }
 
     public function testNativeConnectionAndDuplicateCommandsAlsoReachProfiling(): void
@@ -241,64 +312,138 @@ final class DebugDbProfilerTest extends TestCase
         $collector = new DbCollector();
         $applicationProfiler = new Profiler(new NullLogger());
         $profiling = new ProfilingCollector($applicationProfiler);
+
         $profiling->startup();
         $collector->startup();
+
         $db = DatabaseFixture::connection();
+
         $db->setProfiler(new DebugDbProfiler($collector, $applicationProfiler));
+
         for ($i = 0; $i < 2; $i++) {
-            $db->createCommand('SELECT :value', [':value' => 7])->queryScalar();
+            $db
+                ->createCommand('SELECT :value', [':value' => 7])
+                ->queryScalar();
         }
+
         $spans = $profiling->capture()?->entries() ?? [];
-        self::assertCount(3, $spans, 'Profiling must retain the real connection and both command timings.');
-        self::assertSame('Yiisoft\\Db\\Driver\\Pdo\\AbstractPdoConnection::open', $spans[1]->category, 'Connection categories must use the native method.');
-        self::assertStringStartsWith('Opening DB connection:', $spans[1]->info, 'Connection diagnostics must retain their native token.');
+
+        self::assertCount(
+            3,
+            $spans,
+            'Profiling must retain the real connection and both command timings.',
+        );
+        self::assertSame(
+            'Yiisoft\\Db\\Driver\\Pdo\\AbstractPdoConnection::open',
+            $spans[1]->category,
+            'Connection categories must use the native method.'
+        );
+        self::assertStringStartsWith(
+            'Opening DB connection:',
+            $spans[1]->info,
+            'Connection diagnostics must retain their native token.'
+        );
+
         foreach ([$spans[0], $spans[2]] as $span) {
-            self::assertSame('SELECT 7', $span->info, 'Profiling must retain the actual driver-rendered SQL.');
-            self::assertSame('Yiisoft\\Db\\Driver\\Pdo\\AbstractPdoCommand::queryInternal', $span->category, 'Command categories must use the native method.');
+            self::assertSame(
+                'SELECT 7',
+                $span->info,
+                'Profiling must retain the actual driver-rendered SQL.'
+            );
+            self::assertSame(
+                'Yiisoft\\Db\\Driver\\Pdo\\AbstractPdoCommand::queryInternal',
+                $span->category,
+                'Command categories must use the native method.'
+            );
         }
+
         $rows = $collector->capture()?->entries() ?? [];
-        self::assertCount(2, $rows, 'Database must contain commands only, never connection events.');
-        self::assertSame(2, $rows[0]->duplicate, 'Database must mark both executions as duplicates.');
+
+        self::assertCount(
+            2,
+            $rows,
+            'Database must contain commands only, never connection events.'
+        );
+        self::assertSame(
+            2,
+            $rows[0]->getDuplicate(),
+            'Database must mark both executions as duplicates.'
+        );
+
         $collector->shutdown();
-        $db->createCommand('SELECT 8')->queryScalar();
-        self::assertCount(3, $applicationProfiler->getMessages(), 'Inactive requests must not forward profiler messages.');
+
+        $db
+            ->createCommand('SELECT 8')
+            ->queryScalar();
+
+        self::assertCount(
+            3,
+            $applicationProfiler->getMessages(),
+            'Inactive requests must not forward profiler messages.'
+        );
     }
 
     public function testNonCommandContextsCannotOpenOrCloseCommandSpans(): void
     {
         $collector = new DbCollector();
+
         $collector->startup();
+
         $profiler = new DebugDbProfiler($collector);
-        $command = self::createStub(ContextInterface::class);
-        $command->method('getType')->willReturn('command');
-        $connection = self::createStub(ContextInterface::class);
-        $connection->method('getType')->willReturn('connection');
+        $command = new CommandContext('native.query', 'command span', 'SELECT 1', []);
+        $connection = new ConnectionContext('native.open');
+
         $profiler->begin('ignored', $connection);
         $profiler->end('ignored', $command);
+
         $afterConnectionBegin = $collector->capture();
+
         $profiler->begin('SELECT 1', $command);
         $profiler->end('SELECT 1', $connection);
+
         $afterConnectionEnd = $collector->capture();
+
         $profiler->end('SELECT 1', $command);
         $afterCommandEnd = $collector->capture();
-        self::assertSame([], $afterConnectionBegin?->entries(), 'Connection contexts must not begin command spans.');
-        self::assertSame([], $afterConnectionEnd?->entries(), 'Connection contexts must not complete command spans.');
-        self::assertCount(1, $afterCommandEnd?->entries() ?? [], 'Only command contexts may complete a statement.');
+
+        self::assertSame(
+            [],
+            $afterConnectionBegin?->entries(),
+            'Connection contexts must not begin command spans.'
+        );
+        self::assertSame(
+            [],
+            $afterConnectionEnd?->entries(),
+            'Connection contexts must not complete command spans.'
+        );
+        self::assertCount(
+            1,
+            $afterCommandEnd?->entries() ?? [],
+            'Only command contexts may complete a statement.'
+        );
     }
 
-    public function testThrowRuntimeExceptionWhenGuardReportsObserverFailures(): void
+    public function testThrowRuntimeExceptionWhenGuardReportsUnmatchedProfilerEnd(): void
     {
         $collector = new DbCollector();
+
         $collector->startup();
-        $profiler = new DebugDbProfiler($collector);
-        $context = self::createStub(ContextInterface::class);
-        $failure = new RuntimeException('broken observer');
-        $context->method('getType')->willThrowException($failure);
-        $profiler->begin('SELECT 1', $context);
+
+        $applicationProfiler = new Profiler(new NullLogger());
+        $profiler = new DebugDbProfiler($collector, $applicationProfiler);
+        $context = new CommandContext('native.query', 'unmatched span', 'SELECT 1', []);
+
         $profiler->end('SELECT 1', $context);
-        $this->expectExceptionObject($failure);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage(
+            'Unexpected ' . Profiler::class
+            . '::end() call for category "native.query" token "SELECT 1". A matching begin() was not found.',
+        );
+
         $collector->capture();
     }
+
     private function captureAtDepth(DebugDbProfiler $profiler, ContextInterface $context, int $depth): void
     {
         if ($depth > 0) {
@@ -317,7 +462,7 @@ final class DebugDbProfilerTest extends TestCase
     private function reported(DbCollector $collector): array
     {
         return array_map(
-            static fn(QueryRow $row): int|null => $row->rows,
+            static fn(QueryRow $row): int|null => $row->getRows(),
             $collector->capture()?->entries() ?? [],
         );
     }

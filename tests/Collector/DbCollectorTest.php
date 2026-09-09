@@ -13,7 +13,7 @@ use Yii3\Debug\Collector\DbCollector;
 use function array_map;
 
 /**
- * Unit tests for Database collector lifecycle, completed queries, and isolated observer failures.
+ * Unit tests for {@see DbCollector} lifecycle, completed queries, and isolated observer failures.
  */
 #[Group('db')]
 final class DbCollectorTest extends TestCase
@@ -62,17 +62,17 @@ final class DbCollectorTest extends TestCase
 
         self::assertSame(
             250.0,
-            $row->duration,
+            $row->getDuration(),
             'Seconds must be converted to milliseconds exactly once.'
         );
         self::assertSame(
             2000.0,
-            $row->timestamp,
+            $row->getTimestamp(),
             'Capture timestamps must use milliseconds.'
         );
         self::assertSame(
             [['file' => '/app.php', 'line' => 12]],
-            $row->trace,
+            $row->getTrace(),
             'The source trace must survive completion.'
         );
 
@@ -95,9 +95,16 @@ final class DbCollectorTest extends TestCase
 
         $collector->observe(QueryRow::create('SELECT 2', 1.0, 1000.0)->withSequence(9));
 
+        $row = $collector->capture()?->entries()[0] ?? null;
+
+        self::assertInstanceOf(
+            QueryRow::class,
+            $row,
+            'The observed query must be captured.',
+        );
         self::assertSame(
             0,
-            $collector->capture()?->entries()[0]->seq ?? null,
+            $row->getSequence(),
             'New requests must restart the sequence.'
         );
     }
@@ -176,7 +183,7 @@ final class DbCollectorTest extends TestCase
     private function reported(DbCollector $collector): array
     {
         return array_map(
-            static fn(QueryRow $row): int|null => $row->rows,
+            static fn(QueryRow $row): int|null => $row->getRows(),
             $collector->capture()?->entries() ?? [],
         );
     }

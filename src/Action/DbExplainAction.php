@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Action;
 
-use PHPForge\Debug\Panel\Db\DbSnapshot;
+use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
 use PHPForge\Debug\Storage\SnapshotStore;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\Db\DbExplain;
@@ -41,13 +41,14 @@ final readonly class DbExplainAction
             return $this->response('', 404);
         }
 
-        foreach (DbSnapshot::fromArray($payload, '$.panels.db')->entries() as $row) {
-            if ((string) $row->seq === $seq) {
-                return $this->response($this->explain->render($row));
-            }
+        $entries = DbSnapshot::fromArray($payload, '$.panels.db')->entries();
+        $row = QueryRow::findBySequence($entries, $seq);
+
+        if ($row === null) {
+            return $this->response('', 404);
         }
 
-        return $this->response('', 404);
+        return $this->response($this->explain->render($row));
     }
 
     private function response(string $body, int $status = 200): ResponseInterface
