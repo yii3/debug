@@ -196,7 +196,8 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
             $filter = match ($attribute) {
                 'type' => FilterInput::select(
                     FilterPrefix::DB,
-                    'type', $label,
+                    'type',
+                    $label,
                     $filters,
                     $summary->types,
                 ),

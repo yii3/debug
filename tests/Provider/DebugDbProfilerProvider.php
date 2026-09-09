@@ -35,8 +35,9 @@ final class DebugDbProfilerProvider
             'connection method without exception' => [
                 (
                     new ConnectionContext('native.open'))
-                    ->setException(new RuntimeException('connection diagnostic'),
-                ),
+                    ->setException(
+                        new RuntimeException('connection diagnostic'),
+                    ),
                 'native.open',
             ],
         ];
