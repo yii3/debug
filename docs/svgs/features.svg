@@ -1,0 +1,58 @@
+<svg viewBox="0 0 1200 380" width="100%" height="340" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="features-title features-description">
+    <title id="features-title">Yii3 Debug features</title>
+    <desc id="features-description">Request and history, logs and events, profiling, database, a shared toolbar, and opt-in Inertia and Vite extensions.</desc>
+    <style>
+        text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .box-bg { fill: #e6f4ea; stroke: #a7cdb3; stroke-width: 1; }
+        .title { font-weight: 700; font-size: 16px; fill: #1a202c; }
+        .content { font-size: 13px; fill: #4a5568; }
+    </style>
+
+    <g>
+        <rect class="box-bg" x="20" y="20" width="570" height="100" rx="6"/>
+        <rect x="20" y="20" width="4" height="100" fill="#1f883d"/>
+        <text class="title" x="40" y="50">Request &amp; History</text>
+        <text class="content" x="40" y="78">Routes, headers, input, and server diagnostics</text>
+        <text class="content" x="40" y="98">Protected captures and structural request comparisons</text>
+    </g>
+
+    <g>
+        <rect class="box-bg" x="610" y="20" width="570" height="100" rx="6"/>
+        <rect x="610" y="20" width="4" height="100" fill="#1f883d"/>
+        <text class="title" x="630" y="50">Logs &amp; Events</text>
+        <text class="content" x="630" y="78">Severity filters, source traces, and PSR-14 dispatches</text>
+        <text class="content" x="630" y="98">Inspect messages and opt-in event diagnostics</text>
+    </g>
+
+    <g>
+        <rect class="box-bg" x="20" y="140" width="570" height="100" rx="6"/>
+        <rect x="20" y="140" width="4" height="100" fill="#1f883d"/>
+        <text class="title" x="40" y="170">Profiling Timeline</text>
+        <text class="content" x="40" y="198">Request-relative spans and a shared memory curve</text>
+        <text class="content" x="40" y="218">Filter the timeline and sortable details together</text>
+    </g>
+
+    <g>
+        <rect class="box-bg" x="610" y="140" width="570" height="100" rx="6"/>
+        <rect x="610" y="140" width="4" height="100" fill="#1f883d"/>
+        <text class="title" x="630" y="170">Database Query Profiler</text>
+        <text class="content" x="630" y="198">SQL filters, duplicate detection, and EXPLAIN</text>
+        <text class="content" x="630" y="218">Driver row counts and IDE-linked caller traces</text>
+    </g>
+
+    <g>
+        <rect class="box-bg" x="20" y="260" width="570" height="100" rx="6"/>
+        <rect x="20" y="260" width="4" height="100" fill="#1f883d"/>
+        <text class="title" x="40" y="290">Debug Toolbar UI</text>
+        <text class="content" x="40" y="318">Pico-inspired design, light/dark mode, and scoped CSS</text>
+        <text class="content" x="40" y="338">Web Component drawer and AJAX request tracking</text>
+    </g>
+
+    <g>
+        <rect class="box-bg" x="610" y="260" width="570" height="100" rx="6"/>
+        <rect x="610" y="260" width="4" height="100" fill="#1f883d"/>
+        <text class="title" x="630" y="290">Inertia &amp; Vite Extensions</text>
+        <text class="content" x="630" y="318">Page props, negotiation headers, and manifest chunks</text>
+        <text class="content" x="630" y="338">Explicit opt-in using native application configuration</text>
+    </g>
+</svg>
