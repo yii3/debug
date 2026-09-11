@@ -22,6 +22,7 @@ use Yii3\Debug\Panel\{
     ContextAndSummaryAwarePanelInterface,
     ContextAwarePanelInterface,
     ExtensionPanelInterface,
+    ProviderPanel,
     SummaryAwarePanelInterface,
 };
 use Yiisoft\Assets\AssetManager;
@@ -69,6 +70,8 @@ final class DebugPageRenderer
      * @var array<string, ExtensionPanelInterface>
      */
     private array $extensionPanels = [];
+
+    private bool $prepared = false;
     /**
      * Base route used to generate debugger URLs.
      */
@@ -166,9 +169,12 @@ final class DebugPageRenderer
         array $manifest = [],
         array $queryParams = [],
     ): string {
+        if (!$this->prepared) {
+            return $this->forSnapshot($snapshot)->extension($snapshot, $panelId, $theme, $manifest, $queryParams);
+        }
         $panel = $this->extensionPanels[$panelId] ?? null;
 
-        if ($panel === null) {
+        if ($panel === null && !array_key_exists($panelId, $snapshot->panels) && !array_key_exists($panelId, $snapshot->failures)) {
             throw new InvalidArgumentException(
                 Message::EXTENSION_PANEL_UNKNOWN->getMessage($panelId),
             );
@@ -179,7 +185,7 @@ final class DebugPageRenderer
         $panelContent = null;
         $renderError = null;
 
-        if (array_key_exists($panelId, $snapshot->panels)) {
+        if ($panel !== null && array_key_exists($panelId, $snapshot->panels)) {
             try {
                 $context = new PanelRenderContext(
                     $snapshot->summary->tag,
@@ -221,7 +227,7 @@ final class DebugPageRenderer
                     ],
                 'method' => $snapshot->summary->method,
                 'panelContent' => $panelContent,
-                'panelLabel' => $panel->name(),
+                'panelLabel' => $panel?->name() ?? $panelId,
                 'payload' => json_encode(
                     $payload,
                     JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
@@ -231,7 +237,7 @@ final class DebugPageRenderer
             ],
         );
         return $this->page(
-            $panel->name(),
+            $panel?->name() ?? $panelId,
             $content,
             $theme,
             $this->viewUrl($snapshot->summary->tag),
@@ -389,7 +395,32 @@ final class DebugPageRenderer
             );
         }
 
+        foreach (array_unique([...array_keys($snapshot->panels), ...array_keys($snapshot->failures)]) as $id) {
+            if (isset($this->extensionPanels[$id])) {
+                continue;
+            }
+            $items[] = new SidebarNavItem(
+                label: $id,
+                iconSvg: Icon::render('code'),
+                url: $this->viewUrl($summary->tag, $id),
+                tooltip: 'View captured data without an installed presenter',
+                isActive: $activePanelId === $id,
+            );
+        }
+
         return $items === [] ? [] : ['Extensions' => $items];
+    }
+
+    private function forSnapshot(DebugSnapshot $snapshot): self
+    {
+        $prepared = clone $this;
+        $prepared->prepared = true;
+        foreach ($this->extensionPanels as $id => $panel) {
+            if ($panel instanceof ProviderPanel && isset($snapshot->panels[$id])) {
+                $prepared->extensionPanels[$id] = $panel->forPayload($snapshot->panels[$id]);
+            }
+        }
+        return $prepared;
     }
 
     private function historyNavItem(bool $isActive, string|null $tag = null): SidebarNavItem

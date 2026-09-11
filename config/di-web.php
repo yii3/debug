@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
-use PHPForge\Vite\Manifest\ManifestLoader;
-use Yii3\Debug\Collector\{InertiaCollector, ViteCollector};
+use PHPForge\Debug\Capture\CapturePolicy;
+use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
+use PHPForge\Inertia\Event\ProtocolResultCreated;
+use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
+use PHPForge\Vite\Event\AssetsResolved;
+use Psr\Container\ContainerInterface;
 use Yii3\Debug\ExtensionRegistry;
-use Yii3\Debug\Panel\{InertiaPanel, VitePanel};
-use Yii3\Inertia\{ResolvedPageObserver, ResolvedPageObserverInterface};
-use Yiisoft\Definitions\{Reference, ReferencesArray};
+use Yiisoft\Definitions\ReferencesArray;
+use Yiisoft\EventDispatcher\Provider\ListenerCollection;
 
 if (!(require __DIR__ . '/enabled.php')) {
     return [];
@@ -19,23 +22,40 @@ $collectors = [];
 $panels = [];
 $definitions = [];
 
+/** @var array<class-string, class-string> $listeners */
+$listeners = [];
+
 if ($extensions['inertia']) {
     $collectors[] = InertiaCollector::class;
     $panels[] = InertiaPanel::class;
-    $definitions[ResolvedPageObserverInterface::class] = static fn(
-        InertiaCollector $collector,
-    ): ResolvedPageObserverInterface => new ResolvedPageObserver($collector->observe(...));
+    $definitions[InertiaCollector::class] = static fn(
+        CapturePolicy $capturePolicy,
+    ): InertiaCollector => new InertiaCollector($capturePolicy->redact(...), $capturePolicy->redactUrl(...));
+    $listeners[ProtocolResultCreated::class] = InertiaCollector::class;
 }
 
 if ($extensions['vite']) {
     $collectors[] = ViteCollector::class;
     $panels[] = VitePanel::class;
-    $definitions[ViteCollector::class] = [
-        '__construct()' => [
-            ...$params['php-forge/vite'],
-            'manifestLoader' => Reference::optional(ManifestLoader::class),
-        ],
-    ];
+    $listeners[AssetsResolved::class] = ViteCollector::class;
+}
+
+if ($listeners !== []) {
+    $definitions[ListenerCollection::class] = static function (
+        ContainerInterface $container,
+    ) use ($listeners): ListenerCollection {
+        $collection = new ListenerCollection();
+
+        foreach ($listeners as $event => $class) {
+            $listener = $container->get($class);
+
+            if (is_callable($listener)) {
+                $collection = $collection->add($listener, $event);
+            }
+        }
+
+        return $collection;
+    };
 }
 
 $definitions[ExtensionRegistry::class] = [

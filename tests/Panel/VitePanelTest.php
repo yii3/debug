@@ -4,24 +4,23 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Panel;
 
-use PHPForge\Debug\Panel\Asset\ViteChunk;
-use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPForge\Vite\Debug\VitePanel;
 use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
-use Yii3\Debug\Panel\VitePanel;
+use Yii3\Debug\Panel\ProviderPanel;
 
 use function array_map;
 use function array_values;
 
 /**
- * Unit tests for the stateless Vite extension-panel presentation.
+ * Unit tests for the provider-owned {@see VitePanel} adapted by the host {@see ProviderPanel}.
  */
 #[Group('vite')]
 final class VitePanelTest extends TestCase
 {
-    private VitePanel $panel;
+    private ProviderPanel $panel;
 
     public function testContractMetadataAndPerCaptureVisibility(): void
     {
@@ -84,7 +83,7 @@ final class VitePanelTest extends TestCase
             $this->payload(
                 $this->component(
                     id: 'frontend',
-                    mode: ViteComponent::MODE_PRODUCTION,
+                    mode: 'production',
                     entrypoints: ['resources/js/app.ts'],
                     baseUrl: '/build',
                     devServerUrl: null,
@@ -92,7 +91,7 @@ final class VitePanelTest extends TestCase
                     includeViteClient: null,
                     modulePreload: true,
                     chunks: [
-                        new ViteChunk('resources/js/app.ts', 'assets/app.js', 2, 1, true),
+                        ['name' => 'resources/js/app.ts', 'file' => 'assets/app.js', 'cssCount' => 2, 'imports' => 1, 'isEntry' => true],
                     ],
                 ),
             ),
@@ -104,9 +103,9 @@ final class VitePanelTest extends TestCase
             Vite
             </h1><header class="yii-debug-grid-summary">
             <span><strong>1</strong> component</span><span class="yii-debug-grid-summary-sep">·</span><span>Production</span>
-            </header><section class="yii-debug-vite-component" aria-label="Vite component frontend">
+            </header><section class="yii-debug-panel-group" aria-label="Vite component frontend">
             <div class="yii-debug-table-wrap">
-            <table class="yii-debug-table yii-debug-table-mono yii-debug-table-vite-overview">
+            <table class="yii-debug-table yii-debug-table-mono yii-debug-table-overview">
             <tbody>
             <tr>
             <th scope="row">
@@ -181,7 +180,7 @@ final class VitePanelTest extends TestCase
             <h2>
             Build chunks
             </h2>
-            </div><div class="yii-debug-table-wrap">
+            </div><div class="yii-debug-table-wrap" role="region" tabindex="0" aria-label="#, Chunk, Output, CSS, Imports, Entry">
             <table class="yii-debug-table">
             <thead>
             <tr>
@@ -228,12 +227,12 @@ final class VitePanelTest extends TestCase
     public function testToolbarItemsExposeSingleAndMixedRuntimeModes(): void
     {
         $single = $this->panel->toolbarItems(
-            $this->payload($this->component(mode: ViteComponent::MODE_DEVELOPMENT)),
+            $this->payload($this->component(mode: 'development')),
         );
         $mixed = $this->panel->toolbarItems(
             $this->payload(
-                $this->component(id: 'frontend', mode: ViteComponent::MODE_DEVELOPMENT),
-                $this->component(id: 'admin', mode: ViteComponent::MODE_PRODUCTION),
+                $this->component(id: 'frontend', mode: 'development'),
+                $this->component(id: 'admin', mode: 'production'),
             ),
         );
 
@@ -263,16 +262,18 @@ final class VitePanelTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->panel = new VitePanel();
+        $this->panel = new ProviderPanel(new VitePanel());
     }
 
     /**
      * @param list<string> $entrypoints
-     * @param list<ViteChunk> $chunks
+     * @param list<array<string, mixed>> $chunks
+     *
+     * @return array<string, mixed>
      */
     private function component(
         string $id = 'vite',
-        string $mode = ViteComponent::MODE_DEVELOPMENT,
+        string $mode = 'development',
         array $entrypoints = ['resources/js/app.ts'],
         string $baseUrl = '',
         string|null $devServerUrl = 'http://127.0.0.1:5173',
@@ -280,30 +281,30 @@ final class VitePanelTest extends TestCase
         bool|null $includeViteClient = true,
         bool|null $modulePreload = null,
         array $chunks = [],
-    ): ViteComponent {
-        return new ViteComponent(
-            id: $id,
-            class: Vite::class,
-            implementation: ViteComponent::IMPLEMENTATION_MODERN,
-            inspectionAvailable: true,
-            mode: $mode,
-            entrypoints: $entrypoints,
-            baseUrl: $baseUrl,
-            devServerUrl: $devServerUrl,
-            manifestPath: $manifestPath,
-            includeViteClient: $includeViteClient,
-            modulePreload: $modulePreload,
-            chunks: $chunks,
-        );
+    ): array {
+        return [
+            'id' => $id,
+            'class' => Vite::class,
+            'implementation' => 'modern',
+            'inspectionAvailable' => true,
+            'mode' => $mode,
+            'entrypoints' => $entrypoints,
+            'baseUrl' => $baseUrl,
+            'devServerUrl' => $devServerUrl,
+            'manifestPath' => $manifestPath,
+            'includeViteClient' => $includeViteClient,
+            'modulePreload' => $modulePreload,
+            'chunks' => $chunks,
+        ];
     }
 
     /**
+     * @param array<string, mixed> ...$components
+     *
      * @return array<string, mixed>
      */
-    private function payload(ViteComponent ...$components): array
+    private function payload(array ...$components): array
     {
-        $viteSnapshot = new ViteSnapshot(array_values($components));
-
-        return $viteSnapshot->jsonSerialize();
+        return ['components' => array_values($components)];
     }
 }

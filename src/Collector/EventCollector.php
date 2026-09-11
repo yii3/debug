@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Collector;
 
-use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Panel\Event\{EventCapture, EventInspection, EventRow, EventSnapshot};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use ReflectionClass;
@@ -58,13 +58,16 @@ final class EventCollector implements CollectorInterface
     private WeakMap|null $scopes = null;
     private bool $started = false;
 
-    public function capture(): EventSnapshot|null
+    /**
+     * @return array<string, mixed>|null Encoded Events panel payload; `null` when the collector never started.
+     */
+    public function capture(): array|null
     {
         if ($this->started === false) {
             return null;
         }
 
-        return new EventSnapshot($this->events);
+        return (new EventSnapshot($this->events))->jsonSerialize();
     }
 
     public function id(): string

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Collector\EventCollector;
+use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Tests\Support\Stubs\{
     AlternateEventStub,
@@ -56,7 +57,7 @@ final class EventCollectorTest extends TestCase
             'An inactive collector must not inspect middleware metadata.',
         );
         self::assertNull(
-            $collector->capture(),
+            Captured::event($collector),
             'An inactive collector must not expose a snapshot.',
         );
     }
@@ -70,7 +71,7 @@ final class EventCollectorTest extends TestCase
         $collector->startup();
         $collector->record($event);
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -127,7 +128,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $beforeMiddleware($invalidMiddleware, $request), 'AnonymousMiddlewareStack');
         $collector->record(new $beforeMiddleware($throwingMiddleware, $request), 'AnonymousMiddlewareStack');
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -164,7 +165,7 @@ final class EventCollectorTest extends TestCase
         $collector->startup();
         $collector->record($event);
 
-        $entry = $collector->capture()?->entries()[0] ?? null;
+        $entry = Captured::event($collector)?->entries()[0] ?? null;
 
         self::assertInstanceOf(
             EventRow::class,
@@ -214,7 +215,7 @@ final class EventCollectorTest extends TestCase
 
         $after = microtime(true);
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertInstanceOf(
             EventSnapshot::class,
@@ -289,7 +290,7 @@ final class EventCollectorTest extends TestCase
         $collector->startup();
         $collector->record(new EventStub());
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -305,7 +306,7 @@ final class EventCollectorTest extends TestCase
         );
         self::assertCount(
             2,
-            $collector->capture()?->entries() ?? [],
+            Captured::event($collector)?->entries() ?? [],
             'A later capture must include events dispatched after the first snapshot.',
         );
     }
@@ -324,7 +325,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $beforeMiddleware($middleware, $request), 'AnonymousMiddlewareStack');
         $collector->record(new $afterMiddleware($middleware, null), 'AnonymousMiddlewareStack');
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -362,7 +363,7 @@ final class EventCollectorTest extends TestCase
         $collector->startup();
         $collector->record(new $beforeMiddleware($middleware, $request), 'AnonymousMiddlewareStack');
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -408,14 +409,14 @@ final class EventCollectorTest extends TestCase
             'The collector ID must match the Event panel payload key.',
         );
         self::assertNull(
-            $collector->capture(),
+            Captured::event($collector),
             'An inactive collector must not expose a snapshot.',
         );
 
         $collector->record($beforeStartup);
         $collector->startup();
 
-        $emptySnapshot = $collector->capture();
+        $emptySnapshot = Captured::event($collector);
 
         self::assertNotNull(
             $emptySnapshot,
@@ -430,7 +431,7 @@ final class EventCollectorTest extends TestCase
         $collector->record($firstRequest);
         $collector->startup();
 
-        $firstSnapshot = $collector->capture();
+        $firstSnapshot = Captured::event($collector);
 
         self::assertNotNull(
             $firstSnapshot,
@@ -445,7 +446,7 @@ final class EventCollectorTest extends TestCase
         $collector->shutdown();
 
         self::assertNull(
-            $collector->capture(),
+            Captured::event($collector),
             'Shutdown must stop snapshot capture.',
         );
 
@@ -453,7 +454,7 @@ final class EventCollectorTest extends TestCase
         $collector->shutdown();
         $collector->startup();
 
-        $nextSnapshot = $collector->capture();
+        $nextSnapshot = Captured::event($collector);
 
         self::assertNotNull(
             $nextSnapshot,
@@ -483,7 +484,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $after($middleware, null));
         $collector->record(new $after($middleware, null));
 
-        $rows = $collector->capture()?->entries() ?? [];
+        $rows = Captured::event($collector)?->entries() ?? [];
 
         self::assertSame(
             [1, 2, 2, 1],
@@ -506,7 +507,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $after($middleware, null));
 
         self::assertNull(
-            ($collector->capture()?->entries()[0] ?? self::fail('Expected row 0.'))->inspection()?->getPairId(),
+            (Captured::event($collector)?->entries()[0] ?? self::fail('Expected row 0.'))->inspection()?->getPairId(),
             'Reused workers must not correlate with a previous request.',
         );
 
@@ -514,7 +515,7 @@ final class EventCollectorTest extends TestCase
 
         self::assertSame(
             1,
-            ($collector->capture()?->entries()[1] ?? self::fail('Expected row 1.'))->inspection()?->getPairId(),
+            (Captured::event($collector)?->entries()[1] ?? self::fail('Expected row 1.'))->inspection()?->getPairId(),
             'Request-local identities must restart.',
         );
     }
@@ -534,7 +535,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $before($first, HelperFactory::createRequest()));
         $collector->record(new $after($second, null));
 
-        $rows = $collector->capture()?->entries() ?? [];
+        $rows = Captured::event($collector)?->entries() ?? [];
 
         self::assertNull(
             ($rows[1] ?? self::fail('Expected row 1.'))->inspection()?->getPairId(),
@@ -570,7 +571,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $before($middleware, $request));
         $collector->record(new $after($middleware, null));
         $collector->record(new SensitiveEventStub());
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,

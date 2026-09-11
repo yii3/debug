@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Action;
 
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
+use PHPForge\Inertia\Debug\InertiaPanel;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\{ConfigAction, HistoryAction, PhpInfoAction};
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{InertiaPanel, RequestPanel};
+use Yii3\Debug\Panel\{ProviderPanel, RequestPanel};
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
@@ -251,13 +251,13 @@ final class BrandPageActionsTest extends TestCase
             new DebugSnapshot(
                 $snapshot->summary,
                 [
-                    'inertia' => InertiaSnapshot::capture(
-                        null,
-                        null,
-                        [],
-                        [],
-                        200,
-                    )->jsonSerialize(),
+                    'inertia' => [
+                        'location' => null,
+                        'page' => null,
+                        'requestHeaders' => [],
+                        'sharedKeys' => [],
+                        'statusCode' => 200,
+                    ],
                 ],
                 [],
             ),
@@ -551,18 +551,19 @@ final class BrandPageActionsTest extends TestCase
      */
     private function inertiaPayload(): array
     {
-        return InertiaSnapshot::capture(
-            null,
-            [
+        return [
+            'location' => null,
+            'page' => [
                 'component' => 'Site/Index',
                 'props' => ['appName' => 'Test application'],
                 'url' => '/',
                 'version' => 'version-1',
             ],
-            ['X-Inertia' => 'true'],
-            ['appName'],
-            200,
-        )->jsonSerialize();
+            'requestHeaders' => ['X-Inertia' => 'true'],
+            'sharedKeys' => ['appName'],
+            'statusCode' => 200,
+            'resultType' => 'page',
+        ];
     }
 
     private function inertiaStore(): SnapshotStore
@@ -639,7 +640,7 @@ final class BrandPageActionsTest extends TestCase
                 new ConfigDataFactory(),
                 $aliases->get('@vendor/php-forge/debug-core/resources/views'),
             )
-        )->withExtensionPanels([new RequestPanel(), new InertiaPanel()]);
+        )->withExtensionPanels([new RequestPanel(), new ProviderPanel(new InertiaPanel())]);
     }
 
     private function store(): SnapshotStore

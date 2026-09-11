@@ -7,13 +7,13 @@ namespace Yii3\Debug\Tests;
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPForge\Inertia\Debug\InertiaPanel;
+use PHPForge\Vite\Debug\VitePanel;
 use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -21,12 +21,11 @@ use RuntimeException;
 use Yii3\Debug\Panel\{
     EventPanel,
     ExtensionPanelInterface,
-    InertiaPanel,
     LogPanel,
     ProfilingPanel,
+    ProviderPanel,
     RequestPanel,
     ToolbarPanelProviderInterface,
-    VitePanel,
 };
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
@@ -76,7 +75,7 @@ final class ToolbarDataFactoryTest extends TestCase
         $original = new ToolbarDataFactory($this->assetManager());
 
         $withPanels = $original
-            ->withExtensionPanels([new InertiaPanel()]);
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
         $withRoutePrefix = $withPanels
             ->withRoutePrefix('/developer/debug/');
         $configured = $withRoutePrefix
@@ -84,7 +83,7 @@ final class ToolbarDataFactoryTest extends TestCase
         $panelsLast = $original
             ->withRoutePrefix('/developer/debug/')
             ->withPresentation('top', 65)
-            ->withExtensionPanels([new InertiaPanel()]);
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
 
         self::assertSame(
             [
@@ -229,7 +228,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotExposesPanelFailuresAsDangerItems(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new InertiaPanel()]);
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
 
         $failure = PanelFailure::fromThrowable(
             PanelFailure::CAPTURE,
@@ -312,7 +311,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotExposesRequestBeforeExtensions(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new RequestPanel(), new InertiaPanel()]);
+            ->withExtensionPanels([new RequestPanel(), new ProviderPanel(new InertiaPanel())]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
@@ -375,7 +374,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotExposesTheInertiaComponentPanel(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new InertiaPanel()]);
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
 
         $payload = $toolbarDataFactory
             ->withRoutePrefix('/developer/debug/')
@@ -417,7 +416,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotExposesTheViteModePanel(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new VitePanel()]);
+            ->withExtensionPanels([new ProviderPanel(new VitePanel())]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             ['vite' => $this->vitePayload()],
@@ -452,7 +451,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotIsolatesMalformedInertiaPayloads(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new InertiaPanel()]);
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             ['inertia' => []],
@@ -505,9 +504,9 @@ final class ToolbarDataFactoryTest extends TestCase
             'A malformed captured payload must expose its redacted diagnostic.',
         );
         self::assertStringContainsString(
-            'Invalid debug snapshot',
+            'Invalid decoded Inertia diagnostics.',
             $item['title'],
-            'The danger-item tooltip must contain the redacted hydration diagnostic.',
+            'The danger-item tooltip must contain the redacted presentation diagnostic.',
         );
     }
 
@@ -594,7 +593,7 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotOmitsInertiaWithoutAComponent(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new InertiaPanel()]);
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
 
         $payload = $toolbarDataFactory
             ->createForSnapshot($this->snapshot($this->inertiaPayload(null)))
@@ -861,9 +860,9 @@ final class ToolbarDataFactoryTest extends TestCase
      */
     private function inertiaPayload(string|null $component): array
     {
-        return InertiaSnapshot::capture(
-            null,
-            $component === null
+        return [
+            'location' => null,
+            'page' => $component === null
                 ? null
                 : [
                     'component' => $component,
@@ -871,10 +870,10 @@ final class ToolbarDataFactoryTest extends TestCase
                     'url' => '/',
                     'version' => 'v1',
                 ],
-            [],
-            [],
-            200,
-        )->jsonSerialize();
+            'requestHeaders' => [],
+            'sharedKeys' => [],
+            'statusCode' => 200,
+        ];
     }
 
     /**
@@ -894,25 +893,23 @@ final class ToolbarDataFactoryTest extends TestCase
      */
     private function vitePayload(): array
     {
-        $viteSnapshot = new ViteSnapshot(
-            [
-                new ViteComponent(
-                    id: 'vite',
-                    class: Vite::class,
-                    implementation: ViteComponent::IMPLEMENTATION_MODERN,
-                    inspectionAvailable: true,
-                    mode: ViteComponent::MODE_PRODUCTION,
-                    entrypoints: ['resources/js/app.ts'],
-                    baseUrl: '/build',
-                    devServerUrl: null,
-                    manifestPath: '/app/public/build/.vite/manifest.json',
-                    includeViteClient: null,
-                    modulePreload: true,
-                    chunks: [],
-                ),
+        return [
+            'components' => [
+                [
+                    'id' => 'vite',
+                    'class' => Vite::class,
+                    'implementation' => 'modern',
+                    'inspectionAvailable' => true,
+                    'mode' => 'production',
+                    'entrypoints' => ['resources/js/app.ts'],
+                    'baseUrl' => '/build',
+                    'devServerUrl' => null,
+                    'manifestPath' => '/app/public/build/.vite/manifest.json',
+                    'includeViteClient' => null,
+                    'modulePreload' => true,
+                    'chunks' => [],
+                ],
             ],
-        );
-
-        return $viteSnapshot->jsonSerialize();
+        ];
     }
 }

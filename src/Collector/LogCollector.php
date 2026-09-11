@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Collector;
 
-use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Helper\LogLevel;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Storage\Json;
@@ -30,7 +30,10 @@ final class LogCollector implements CollectorInterface
         private readonly LoggerInterface|null $logger = null,
     ) {}
 
-    public function capture(): LogSnapshot|null
+    /**
+     * @return array<string, mixed>|null Encoded Logs panel payload; `null` when the collector never started.
+     */
+    public function capture(): array|null
     {
         if ($this->started === false) {
             return null;
@@ -53,7 +56,7 @@ final class LogCollector implements CollectorInterface
             ];
         }
 
-        return LogSnapshot::capture($messages);
+        return LogSnapshot::capture($messages)->jsonSerialize();
     }
 
     public function id(): string

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Collector;
 
-use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Helper\Coerce;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use Psr\Http\Message\ServerRequestInterface;
@@ -32,7 +32,10 @@ final class ProfilingCollector implements CollectorInterface
 
     public function __construct(private readonly ProfilerInterface|null $profiler = null) {}
 
-    public function capture(): ProfilingSnapshot|null
+    /**
+     * @return array<string, mixed>|null Encoded Profiling panel payload; `null` when the collector never started.
+     */
+    public function capture(): array|null
     {
         if ($this->started === false) {
             return null;
@@ -44,7 +47,7 @@ final class ProfilingCollector implements CollectorInterface
             memory_get_peak_usage(),
             $end - $this->start,
             $this->messages(),
-        );
+        )->jsonSerialize();
     }
 
     public function collectRequest(ServerRequestInterface $request): void

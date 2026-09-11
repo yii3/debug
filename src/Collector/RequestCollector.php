@@ -6,7 +6,7 @@ namespace Yii3\Debug\Collector;
 
 use LogicException;
 use PHPForge\Debug\Capture\CapturePolicy;
-use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Request\Routing\RouteDefinition;
@@ -30,7 +30,7 @@ use function substr;
 /**
  * Captures PSR-7 request and response state in the canonical Request panel shape.
  */
-final class RequestCollector implements CollectorInterface
+final class RequestCollector implements CollectorInterface, RequestObserverInterface
 {
     /**
      * Header fields whose complete value is a URI reference rather than a compound field value.
@@ -64,13 +64,16 @@ final class RequestCollector implements CollectorInterface
         private readonly CapturePolicy $capturePolicy = new CapturePolicy(),
     ) {}
 
-    public function capture(): RequestSnapshot|null
+    /**
+     * @return array<string, mixed>|null Encoded Request panel payload; `null` when the request was not observed.
+     */
+    public function capture(): array|null
     {
         if ($this->started === false || $this->request === null || $this->response === null) {
             return null;
         }
 
-        return RequestSnapshot::capture([...$this->request, ...$this->response]);
+        return RequestSnapshot::capture([...$this->request, ...$this->response])->jsonSerialize();
     }
 
     public function collectRequest(ServerRequestInterface $request): void

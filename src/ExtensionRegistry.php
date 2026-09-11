@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Yii3\Debug;
 
-use PHPForge\Debug\Collector\CollectorInterface;
+use InvalidArgumentException;
+use PHPForge\Debug\{CollectorInterface, Panel as PortablePanel};
 use Yii3\Debug\Panel\ExtensionPanelInterface;
+use Yii3\Debug\Panel\ProviderPanel;
 
 /**
  * Holds the collectors and panels explicitly enabled by the application.
@@ -23,24 +25,32 @@ final readonly class ExtensionRegistry
 
     /**
      * @param iterable<CollectorInterface> $collectors Enabled collectors in capture order.
-     * @param iterable<ExtensionPanelInterface> $panels Enabled panels in navigation order.
+     * @param iterable<ExtensionPanelInterface|PortablePanel> $panels Enabled panels in navigation order.
      */
     public function __construct(iterable $collectors = [], iterable $panels = [])
     {
         $collectorList = [];
 
         foreach ($collectors as $collector) {
-            $collectorList[] = $collector;
+            $id = $collector->id();
+            if (trim($id) === '' || isset($collectorList[$id])) {
+                throw new InvalidArgumentException('Empty or duplicate debug collector ID: ' . $id);
+            }
+            $collectorList[$id] = $collector;
         }
 
         $panelList = [];
 
         foreach ($panels as $panel) {
-            $panelList[] = $panel;
+            $id = $panel->id();
+            if (trim($id) === '' || isset($panelList[$id])) {
+                throw new InvalidArgumentException('Empty or duplicate debug panel ID: ' . $id);
+            }
+            $panelList[$id] = $panel instanceof PortablePanel ? new ProviderPanel($panel) : $panel;
         }
 
-        $this->collectors = $collectorList;
-        $this->panels = $panelList;
+        $this->collectors = array_values($collectorList);
+        $this->panels = array_values($panelList);
     }
 
     /**
@@ -102,7 +112,7 @@ final readonly class ExtensionRegistry
      * Creates a registry from explicitly enabled collectors and panels.
      *
      * @param iterable<CollectorInterface> $collectors Enabled collectors in capture order.
-     * @param iterable<ExtensionPanelInterface> $panels Enabled panels in navigation order.
+     * @param iterable<ExtensionPanelInterface|PortablePanel> $panels Enabled panels in navigation order.
      */
     public static function create(iterable $collectors = [], iterable $panels = []): self
     {
@@ -178,7 +188,7 @@ final readonly class ExtensionRegistry
         );
     }
 
-    public function withPanel(ExtensionPanelInterface $panel): self
+    public function withPanel(ExtensionPanelInterface|PortablePanel $panel): self
     {
         return new self(
             $this->collectors,

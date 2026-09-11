@@ -10,7 +10,7 @@ use PHPForge\Debug\Panel\Db\{DbSnapshot, DbSummary};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
-use Yii3\Debug\Collector\{InertiaCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{ProfilingCollector, RequestObserverInterface};
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
@@ -149,7 +149,6 @@ final class ToolbarMiddleware implements MiddlewareInterface
 
         $start = self::requestStart($request);
 
-        $inertiaCollector = $this->collectorCoordinator?->collector('inertia');
         $profilingCollector = $this->collectorCoordinator?->collector('profiling');
         $requestCollector = $this->collectorCoordinator?->collector('request');
 
@@ -157,19 +156,15 @@ final class ToolbarMiddleware implements MiddlewareInterface
             $profilingCollector->collectRequestStart($start);
         }
 
-        if ($requestCollector instanceof RequestCollector) {
-            $requestCollector->collectRequest($request);
-        }
-
-        if ($inertiaCollector instanceof InertiaCollector) {
-            $inertiaCollector->collectRequest($request);
+        $observers = [];
+        foreach ($this->collectorCoordinator?->collectors() ?? [] as $collector) {
+            if ($collector instanceof RequestObserverInterface) {
+                $observers[] = $collector;
+                $collector->collectRequest($request);
+            }
         }
 
         $response = $handler->handle($request);
-
-        if ($inertiaCollector instanceof InertiaCollector) {
-            $inertiaCollector->collectResponse($response);
-        }
 
         $processingTime = microtime(true) - $start;
 
@@ -192,8 +187,8 @@ final class ToolbarMiddleware implements MiddlewareInterface
             $response = $response->withoutHeader('Content-Length');
         }
 
-        if ($requestCollector instanceof RequestCollector) {
-            $requestCollector->collectResponse($response);
+        foreach ($observers as $observer) {
+            $observer->collectResponse($response);
         }
 
         $summary = RequestSummary::create($tag)

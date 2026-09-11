@@ -15,6 +15,7 @@ use RuntimeException;
 use Throwable;
 use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\Event\DebugEventDispatcher;
+use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\Stubs\{
     AlternateEventStub,
     AnonymousEventCallerStubFactory,
@@ -97,7 +98,7 @@ final class DebugEventDispatcherTest extends TestCase
             $event,
         );
 
-        $senderClass = $collector->capture()?->entries()[0]->senderClass ?? null;
+        $senderClass = Captured::event($collector)?->entries()[0]->senderClass ?? null;
 
         self::assertSame(
             $event,
@@ -133,7 +134,7 @@ final class DebugEventDispatcherTest extends TestCase
 
         self::assertSame(
             '',
-            $collector->capture()?->entries()[0]->senderClass ?? null,
+            Captured::event($collector)?->entries()[0]->senderClass ?? null,
             'A dispatch made outside class scope must keep the sender metadata empty.',
         );
     }
@@ -166,7 +167,7 @@ final class DebugEventDispatcherTest extends TestCase
             [$outerEvent::class, $nestedEvent::class],
             array_map(
                 static fn(EventRow $row): string => $row->class,
-                $collector->capture()?->entries() ?? [],
+                Captured::event($collector)?->entries() ?? [],
             ),
             'The collector must preserve the outer-before-nested dispatch order.',
         );
@@ -174,7 +175,7 @@ final class DebugEventDispatcherTest extends TestCase
             [self::class, NestedEventDispatcherStub::class],
             array_map(
                 static fn(EventRow $row): string => $row->senderClass,
-                $collector->capture()?->entries() ?? [],
+                Captured::event($collector)?->entries() ?? [],
             ),
             'Each row must identify the immediate class that invoked the decorated dispatcher.',
         );
@@ -206,7 +207,7 @@ final class DebugEventDispatcherTest extends TestCase
         );
         self::assertCount(
             1,
-            $collector->capture()?->entries() ?? [],
+            Captured::event($collector)?->entries() ?? [],
             'A stoppable event must still produce exactly one metadata row.',
         );
     }
@@ -237,13 +238,13 @@ final class DebugEventDispatcherTest extends TestCase
             [$event::class],
             array_map(
                 static fn(EventRow $row): string => $row->class,
-                $collector->capture()?->entries() ?? [],
+                Captured::event($collector)?->entries() ?? [],
             ),
             'A failed real dispatch must remain visible because recording happens first.',
         );
         self::assertSame(
             self::class,
-            $collector->capture()?->entries()[0]->senderClass ?? null,
+            Captured::event($collector)?->entries()[0]->senderClass ?? null,
             'A failed real dispatch must retain its immediate caller class.',
         );
     }
@@ -269,7 +270,7 @@ final class DebugEventDispatcherTest extends TestCase
         );
         self::assertSame(
             self::class,
-            $collector->capture()?->entries()[0]->senderClass ?? null,
+            Captured::event($collector)?->entries()[0]->senderClass ?? null,
             'The collector must receive the class whose test method invoked the dispatcher.',
         );
         self::assertSame(

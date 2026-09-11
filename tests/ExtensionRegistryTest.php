@@ -8,19 +8,20 @@ use Closure;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Helper\Trace;
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
+use PHPForge\Inertia\Debug\InertiaPanel;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use Yii3\Debug\Collector\DbCollector;
-use Yii3\Debug\Collector\{EventCollector, InertiaCollector, LogCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{EventCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
 use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Panel\DbPanel;
-use Yii3\Debug\Panel\{EventPanel, InertiaPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\{EventPanel, LogPanel, ProfilingPanel, ProviderPanel, RequestPanel};
 use Yii3\Debug\Tests\Support\HelperFactory;
+use Yii3\Debug\Tests\Support\Stubs\ExtensionCollectorStub;
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\Web\{DebugPageRenderer, DebugUrlGenerator, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
@@ -36,16 +37,15 @@ final class ExtensionRegistryTest extends TestCase
 {
     public function testCreateNormalizesIterablesAndPreservesOrder(): void
     {
-        $inertiaCollector = new InertiaCollector();
-        $profilingCollector = new ProfilingCollector();
         $dbCollector = new DbCollector();
-        $inertiaPanel = new InertiaPanel();
+        $profilingCollector = new ProfilingCollector();
+        $inertiaPanel = new ProviderPanel(new InertiaPanel());
         $profilingPanel = new ProfilingPanel();
 
         $registry = ExtensionRegistry::create(
             collectors: (
-                static function () use ($inertiaCollector, $profilingCollector): iterable {
-                    yield 'inertia' => $inertiaCollector;
+                static function () use ($dbCollector, $profilingCollector): iterable {
+                    yield 'db' => $dbCollector;
                     yield 'profiling' => $profilingCollector;
                 }
             )(),
@@ -58,7 +58,7 @@ final class ExtensionRegistryTest extends TestCase
         );
 
         self::assertSame(
-            [$inertiaCollector, $profilingCollector],
+            [$dbCollector, $profilingCollector],
             $registry->collectors(),
             'The named factory must normalize collector iterables without changing their order.',
         );
@@ -179,7 +179,7 @@ final class ExtensionRegistryTest extends TestCase
         );
 
         $capturePolicy = new CapturePolicy(maxBodyBytes: 4096);
-        $collector = new InertiaCollector();
+        $collector = new ExtensionCollectorStub();
         $builtInRequestCollector = new RequestCollector(capturePolicy: $capturePolicy);
         $requestCollectorOverride = new RequestCollector(capturePolicy: $capturePolicy);
         $builtInLogCollector = new LogCollector(new DebugLogTarget());
@@ -188,7 +188,7 @@ final class ExtensionRegistryTest extends TestCase
         $eventCollectorOverride = new EventCollector();
         $builtInProfilingCollector = new ProfilingCollector();
         $profilingCollectorOverride = new ProfilingCollector();
-        $panel = new InertiaPanel();
+        $panel = new ProviderPanel(new InertiaPanel());
         $builtInRequestPanel = new RequestPanel();
         $requestPanelOverride = new RequestPanel();
         $builtInLogPanel = new LogPanel(Trace::create());
@@ -323,14 +323,14 @@ final class ExtensionRegistryTest extends TestCase
                 'event' => $eventCollectorOverride,
                 'profiling' => $profilingCollectorOverride,
                 'db' => $dbCollector,
-                'inertia' => $collector,
+                'extension' => $collector,
             ],
             (new ReflectionProperty(CollectorCoordinator::class, 'collectors'))->getValue($coordinator),
             'Collector factory must preserve built-in order before explicitly registered extensions.',
         );
         self::assertSame(
             $collector,
-            $coordinator->collector('inertia'),
+            $coordinator->collector('extension'),
             'Collector coordinator must use the explicitly registered collector instance.',
         );
         self::assertSame(
@@ -452,13 +452,14 @@ final class ExtensionRegistryTest extends TestCase
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
-                'inertia' => InertiaSnapshot::capture(
-                    null,
-                    ['component' => 'Site/Index', 'props' => [], 'url' => '/', 'version' => null],
-                    [],
-                    [],
-                    200,
-                )->jsonSerialize(),
+                'inertia' => [
+                    'location' => null,
+                    'page' => ['component' => 'Site/Index', 'props' => [], 'url' => '/', 'version' => null],
+                    'requestHeaders' => [],
+                    'sharedKeys' => [],
+                    'statusCode' => 200,
+                    'resultType' => 'page',
+                ],
             ],
             [],
         );
@@ -516,8 +517,8 @@ final class ExtensionRegistryTest extends TestCase
 
     public function testRegistrationIsExplicitOrderedAndImmutable(): void
     {
-        $collector = new InertiaCollector();
-        $panel = new InertiaPanel();
+        $collector = new ExtensionCollectorStub();
+        $panel = new ProviderPanel(new InertiaPanel());
         $empty = new ExtensionRegistry();
 
         $withCollector = $empty->withCollector($collector);
