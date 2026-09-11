@@ -13,6 +13,7 @@ use Yii3\Debug\Collector\DbCollector;
 use Yii3\Debug\Collector\ProfilingCollector;
 use Yii3\Debug\Db\DebugDbProfiler;
 use Yii3\Debug\Tests\Provider\DebugDbProfilerProvider;
+use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\DatabaseFixture;
 use Yiisoft\Db\Exception\Exception;
 use Yiisoft\Db\Profiler\Context\{CommandContext, ConnectionContext};
@@ -89,7 +90,7 @@ final class DebugDbProfilerTest extends TestCase
 
         $this->captureAtDepth($profiler, $context, 30);
 
-        $row = $collector->capture()?->entries()[0] ?? null;
+        $row = Captured::db($collector)?->entries()[0] ?? null;
 
         self::assertInstanceOf(
             QueryRow::class,
@@ -159,7 +160,7 @@ final class DebugDbProfilerTest extends TestCase
 
         self::assertCount(
             1,
-            $collector->capture()?->entries() ?? [],
+            Captured::db($collector)?->entries() ?? [],
             'Failed commands must still be diagnosable.'
         );
     }
@@ -175,7 +176,7 @@ final class DebugDbProfilerTest extends TestCase
         $profiler->end('SELECT 1', $context);
 
         self::assertNull(
-            $collector->capture(),
+            Captured::db($collector),
             'An inactive collector must not produce a database snapshot.',
         );
         self::assertSame(
@@ -326,7 +327,7 @@ final class DebugDbProfilerTest extends TestCase
                 ->queryScalar();
         }
 
-        $spans = $profiling->capture()?->entries() ?? [];
+        $spans = Captured::profiling($profiling)?->entries() ?? [];
 
         self::assertCount(
             3,
@@ -357,7 +358,7 @@ final class DebugDbProfilerTest extends TestCase
             );
         }
 
-        $rows = $collector->capture()?->entries() ?? [];
+        $rows = Captured::db($collector)?->entries() ?? [];
 
         self::assertCount(
             2,
@@ -396,15 +397,15 @@ final class DebugDbProfilerTest extends TestCase
         $profiler->begin('ignored', $connection);
         $profiler->end('ignored', $command);
 
-        $afterConnectionBegin = $collector->capture();
+        $afterConnectionBegin = Captured::db($collector);
 
         $profiler->begin('SELECT 1', $command);
         $profiler->end('SELECT 1', $connection);
 
-        $afterConnectionEnd = $collector->capture();
+        $afterConnectionEnd = Captured::db($collector);
 
         $profiler->end('SELECT 1', $command);
-        $afterCommandEnd = $collector->capture();
+        $afterCommandEnd = Captured::db($collector);
 
         self::assertSame(
             [],
@@ -441,7 +442,7 @@ final class DebugDbProfilerTest extends TestCase
             . '::end() call for category "native.query" token "SELECT 1". A matching begin() was not found.',
         );
 
-        $collector->capture();
+        Captured::db($collector);
     }
 
     private function captureAtDepth(DebugDbProfiler $profiler, ContextInterface $context, int $depth): void
@@ -463,7 +464,7 @@ final class DebugDbProfilerTest extends TestCase
     {
         return array_map(
             static fn(QueryRow $row): int|null => $row->getRows(),
-            $collector->capture()?->entries() ?? [],
+            Captured::db($collector)?->entries() ?? [],
         );
     }
 }

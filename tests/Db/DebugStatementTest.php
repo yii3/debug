@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Collector\DbCollector;
 use Yii3\Debug\Db\DebugStatement;
+use Yii3\Debug\Tests\Support\Captured;
 
 use function array_map;
 
@@ -135,7 +136,7 @@ final class DebugStatementTest extends TestCase
     {
         return array_map(
             static fn(QueryRow $row): int|null => $row->getRows(),
-            $collector->capture()?->entries() ?? [],
+            Captured::db($collector)?->entries() ?? [],
         );
     }
 }

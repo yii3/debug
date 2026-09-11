@@ -22,7 +22,7 @@
         "composer-runtime-api": "^2.2",
         "php": ">=8.3",
         "php-forge/debug-core": "^0.1@dev",
-        "php-forge/vite": "^0.2.1",
+        "php-forge/vite": "^0.3",
         "psr/event-dispatcher": "^1.0",
         "psr/http-factory": "^1.1",
         "psr/http-message": "^1.1 || ^2.0",
@@ -45,7 +45,8 @@
         "yiisoft/validator": "^2.1",
         "yiisoft/view": "^12.2",
         "yiisoft/yii-dataview": "dev-master",
-        "yiisoft/yii-middleware": "^1.1"
+        "yiisoft/yii-middleware": "^1.1",
+        "php-forge/debug": "^0.1"
     },
     "require-dev": {
         "httpsoft/http-message": "^1.1",
@@ -60,7 +61,8 @@
         "yii2-extensions/scaffold": "^0.2",
         "yiisoft/config": "^1.6",
         "yiisoft/db-sqlite": "^2.0",
-        "yiisoft/router-fastroute": "^4.0"
+        "yiisoft/router-fastroute": "^4.0",
+        "php-forge/inertia": "^0.3"
     },
     "autoload": {
         "psr-4": {

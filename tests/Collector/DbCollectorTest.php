@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Collector\DbCollector;
+use Yii3\Debug\Tests\Support\Captured;
 
 use function array_map;
 
@@ -31,7 +32,7 @@ final class DbCollectorTest extends TestCase
             'A new collector must be inactive.',
         );
         self::assertNull(
-            $collector->capture(),
+            Captured::db($collector),
             'Inactive capture must not produce a payload.'
         );
         self::assertSame(
@@ -46,7 +47,7 @@ final class DbCollectorTest extends TestCase
         $collector->end('unknown', 3.0);
         $collector->end('SELECT 1', 2.25);
         $collector->end('SELECT 1', 3.0);
-        $snapshot = $collector->capture();
+        $snapshot = Captured::db($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -80,7 +81,7 @@ final class DbCollectorTest extends TestCase
         $collector->shutdown();
 
         self::assertNull(
-            $collector->capture(),
+            Captured::db($collector),
             'Shutdown must stop capture.'
         );
 
@@ -89,13 +90,13 @@ final class DbCollectorTest extends TestCase
 
         self::assertSame(
             [],
-            $collector->capture()?->entries(),
+            Captured::db($collector)?->entries(),
             'New requests must not inherit unfinished queries.'
         );
 
         $collector->observe(QueryRow::create('SELECT 2', 1.0, 1000.0)->withSequence(9));
 
-        $row = $collector->capture()?->entries()[0] ?? null;
+        $row = Captured::db($collector)?->entries()[0] ?? null;
 
         self::assertInstanceOf(
             QueryRow::class,
@@ -154,7 +155,7 @@ final class DbCollectorTest extends TestCase
         $collector->reportFailure($failure);
 
         try {
-            $collector->capture();
+            Captured::db($collector);
 
             self::fail(
                 'Capture must surface the instrumentation failure to the coordinator.',
@@ -172,7 +173,7 @@ final class DbCollectorTest extends TestCase
 
         self::assertSame(
             [],
-            $collector->capture()?->entries(),
+            Captured::db($collector)?->entries(),
             'Failures must not contaminate a later request.'
         );
     }
@@ -184,7 +185,7 @@ final class DbCollectorTest extends TestCase
     {
         return array_map(
             static fn(QueryRow $row): int|null => $row->getRows(),
-            $collector->capture()?->entries() ?? [],
+            Captured::db($collector)?->entries() ?? [],
         );
     }
 }

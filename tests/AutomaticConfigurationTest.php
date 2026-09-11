@@ -5,15 +5,17 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use Closure;
+use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
+use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\{EventDispatcherInterface, ListenerProviderInterface};
 use Psr\Log\LoggerInterface;
 use stdClass;
-use Yii3\Debug\Collector\{EventCollector, InertiaCollector, ViteCollector};
+use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\ExtensionRegistry;
 use Yii3\Debug\Log\DebugLogTarget;
-use Yii3\Debug\Panel\{InertiaPanel, VitePanel};
+use Yii3\Debug\Tests\Support\Captured;
 use Yiisoft\Config\{Config, ConfigPaths};
 use Yiisoft\Config\Modifier\RecursiveMerge;
 use Yiisoft\Definitions\Reference;
@@ -79,7 +81,7 @@ final class AutomaticConfigurationTest extends TestCase
             'Dispatch must retain the original event and listener provider.',
         );
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::event($collector);
 
         self::assertNotNull(
             $snapshot,

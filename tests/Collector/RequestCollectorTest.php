@@ -14,6 +14,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\StreamInterface;
 use ReflectionProperty;
 use Yii3\Debug\Collector\RequestCollector;
+use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yiisoft\Router\{CurrentRoute, Route, RouteCollection, RouteCollector};
 
@@ -43,7 +44,7 @@ final class RequestCollectorTest extends TestCase
         $collector->collectRequest(HelperFactory::createRequest(uri: 'https://api.example.test/articles/42'));
         $collector->collectResponse(HelperFactory::createResponse(202));
 
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         self::assertSame(
             [
@@ -109,7 +110,7 @@ final class RequestCollectorTest extends TestCase
             'Collector ID must match the Request panel payload key.',
         );
         self::assertNull(
-            $collector->capture(),
+            Captured::request($collector),
             'An inactive collector must not produce a snapshot.',
         );
 
@@ -117,7 +118,7 @@ final class RequestCollectorTest extends TestCase
         $collector->collectRequest($request);
 
         self::assertNull(
-            $collector->capture(),
+            Captured::request($collector),
             'A request without its response must not build an invalid status-less snapshot.',
         );
 
@@ -134,7 +135,7 @@ final class RequestCollectorTest extends TestCase
             ),
         );
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::request($collector);
 
         self::assertInstanceOf(
             RequestSnapshot::class,
@@ -291,7 +292,7 @@ final class RequestCollectorTest extends TestCase
         $collector->collectRequest(HelperFactory::createRequest());
         $collector->collectResponse(HelperFactory::createResponse());
 
-        $definitionData = $collector->capture()?->data()['routeDefinition'] ?? null;
+        $definitionData = Captured::request($collector)?->data()['routeDefinition'] ?? null;
 
         self::assertIsArray(
             $definitionData,
@@ -341,7 +342,7 @@ final class RequestCollectorTest extends TestCase
         $collector->collectRequest(HelperFactory::createRequest(uri: 'https://api.example.test/articles/42'));
         $collector->collectResponse(HelperFactory::createResponse(200));
 
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         self::assertSame(
             'article/view',
@@ -409,7 +410,7 @@ final class RequestCollectorTest extends TestCase
             ),
         );
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::request($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -554,7 +555,7 @@ final class RequestCollectorTest extends TestCase
         $collector->collectRequest(HelperFactory::createRequest());
         $collector->collectResponse(HelperFactory::createResponse());
 
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         self::assertSame(
             SensitiveDataRedactor::PLACEHOLDER,
@@ -630,7 +631,7 @@ final class RequestCollectorTest extends TestCase
         $collector->startup();
         $collector->collectRequest($request);
         $collector->collectResponse(HelperFactory::createResponse());
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         $requestBody = $data['requestBody'] ?? null;
 
@@ -678,7 +679,7 @@ final class RequestCollectorTest extends TestCase
 
         $collector->collectResponse(HelperFactory::createResponse());
 
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         $requestBody = $data['requestBody'] ?? null;
 
@@ -722,7 +723,7 @@ final class RequestCollectorTest extends TestCase
         );
         self::assertSame(
             [],
-            $collector->capture()?->data()['requestBody'] ?? null,
+            Captured::request($collector)?->data()['requestBody'] ?? null,
             'A body that cannot be read safely must not be captured.',
         );
     }
@@ -766,7 +767,7 @@ final class RequestCollectorTest extends TestCase
         $collector->collectResponse(HelperFactory::createResponse(201, ['X-First' => 'value']));
 
         self::assertNotNull(
-            $collector->capture(),
+            Captured::request($collector),
             'The first lifecycle must produce a snapshot.',
         );
 
@@ -774,7 +775,7 @@ final class RequestCollectorTest extends TestCase
         $collector->shutdown();
 
         self::assertNull(
-            $collector->capture(),
+            Captured::request($collector),
             'Shutdown must deactivate and clear the collector idempotently.',
         );
 
@@ -782,13 +783,13 @@ final class RequestCollectorTest extends TestCase
         $collector->collectRequest(HelperFactory::createRequest(uri: 'https://example.test/second'));
 
         self::assertNull(
-            $collector->capture(),
+            Captured::request($collector),
             'A new request must not inherit the previous response.',
         );
 
         $collector->collectResponse(HelperFactory::createResponse(204));
 
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         self::assertSame(
             [],
@@ -829,7 +830,7 @@ final class RequestCollectorTest extends TestCase
         );
         $collector->collectResponse(HelperFactory::createResponse());
         $collector->startup();
-        $data = $collector->capture()?->data() ?? [];
+        $data = Captured::request($collector)?->data() ?? [];
 
         self::assertSame(
             [

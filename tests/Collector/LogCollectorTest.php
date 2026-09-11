@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\{LogLevel as PsrLogLevel, NullLogger};
 use Yii3\Debug\Collector\LogCollector;
 use Yii3\Debug\Log\DebugLogTarget;
+use Yii3\Debug\Tests\Support\Captured;
 use Yiisoft\Log\{Logger, Message};
 
 use function array_map;
@@ -33,7 +34,7 @@ final class LogCollectorTest extends TestCase
         $collector->startup();
         $target->collect([self::message('already exported')], false);
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::log($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -75,7 +76,7 @@ final class LogCollectorTest extends TestCase
             'The fixture must leave messages buffered in the Yiisoft logger before capture.',
         );
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::log($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -136,7 +137,7 @@ final class LogCollectorTest extends TestCase
             ],
         );
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::log($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -207,7 +208,7 @@ final class LogCollectorTest extends TestCase
             ],
         );
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::log($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -257,7 +258,7 @@ final class LogCollectorTest extends TestCase
         $collector->startup();
         $target->collect([self::message('debug target message')], false);
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::log($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -285,7 +286,7 @@ final class LogCollectorTest extends TestCase
         $collector->startup();
         $logger->info('current request');
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::log($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -302,7 +303,7 @@ final class LogCollectorTest extends TestCase
         $collector->startup();
         $logger->info('next request');
 
-        $nextSnapshot = $collector->capture();
+        $nextSnapshot = Captured::log($collector);
 
         self::assertNotNull(
             $nextSnapshot,
@@ -326,14 +327,14 @@ final class LogCollectorTest extends TestCase
             'Collector ID must match the Log panel payload key.',
         );
         self::assertNull(
-            $collector->capture(),
+            Captured::log($collector),
             'An inactive collector must not produce a snapshot.',
         );
 
         $target->collect([self::message('before startup')], false);
         $collector->startup();
 
-        $emptySnapshot = $collector->capture();
+        $emptySnapshot = Captured::log($collector);
 
         self::assertNotNull(
             $emptySnapshot,
@@ -350,7 +351,7 @@ final class LogCollectorTest extends TestCase
         $target->collect([$currentMessage], false);
         $collector->startup();
 
-        $currentSnapshot = $collector->capture();
+        $currentSnapshot = Captured::log($collector);
 
         self::assertNotNull(
             $currentSnapshot,
@@ -365,7 +366,7 @@ final class LogCollectorTest extends TestCase
         $collector->shutdown();
 
         self::assertNull(
-            $collector->capture(),
+            Captured::log($collector),
             'Shutdown must make the collector inactive.',
         );
         self::assertSame(

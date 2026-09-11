@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Action;
 
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
+use PHPForge\Inertia\Debug\InertiaPanel;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\ToolbarDataAction;
-use Yii3\Debug\Panel\{InertiaPanel, RequestPanel};
+use Yii3\Debug\Panel\{ProviderPanel, RequestPanel};
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
@@ -140,18 +140,19 @@ final class ToolbarDataActionTest extends TestCase
             new DebugSnapshot(
                 RequestSummary::create('request-1'),
                 [
-                    'inertia' => InertiaSnapshot::capture(
-                        null,
-                        [
+                    'inertia' => [
+                        'location' => null,
+                        'page' => [
                             'component' => 'Site/Index',
                             'props' => [],
                             'url' => '/',
                             'version' => 'v1',
                         ],
-                        [],
-                        [],
-                        200,
-                    )->jsonSerialize(),
+                        'requestHeaders' => [],
+                        'sharedKeys' => [],
+                        'statusCode' => 200,
+                        'resultType' => 'page',
+                    ],
                 ],
                 [],
             ),
@@ -259,7 +260,7 @@ final class ToolbarDataActionTest extends TestCase
                 ->withExtensionPanels(
                     [
                         new RequestPanel(),
-                        new InertiaPanel(),
+                        new ProviderPanel(new InertiaPanel()),
                     ],
                 ),
             HelperFactory::createResponseFactory(),

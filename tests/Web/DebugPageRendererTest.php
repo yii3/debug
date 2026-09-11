@@ -8,12 +8,12 @@ use Closure;
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use PHPForge\Debug\Panel\Vite\{ViteComponent, ViteSnapshot};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
+use PHPForge\Inertia\Debug\InertiaPanel;
+use PHPForge\Vite\Debug\VitePanel;
 use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
@@ -22,11 +22,10 @@ use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Panel\{
     EventPanel,
     ExtensionPanelInterface,
-    InertiaPanel,
     LogPanel,
     ProfilingPanel,
+    ProviderPanel,
     RequestPanel,
-    VitePanel,
 };
 use Yii3\Debug\Tests\Provider\UrlPathProvider;
 use Yii3\Debug\Web\DebugPageRenderer;
@@ -97,13 +96,13 @@ final class DebugPageRendererTest extends TestCase
         $snapshot = new DebugSnapshot(
             $manifest['request-1'],
             [
-                'inertia' => InertiaSnapshot::capture(
-                    null,
-                    null,
-                    [],
-                    [],
-                    200,
-                )->jsonSerialize(),
+                'inertia' => [
+                    'location' => null,
+                    'page' => null,
+                    'requestHeaders' => [],
+                    'sharedKeys' => [],
+                    'statusCode' => 200,
+                ],
             ],
             [],
         );
@@ -1915,47 +1914,69 @@ final class DebugPageRendererTest extends TestCase
             <table class="yii-debug-table yii-debug-table-mono">
             <tbody>
             <tr>
-            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Component</th>
-            <td>Site/Index</td>
-            </tr>
-            <tr>
-            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">URL</th>
-            <td>/</td>
-            </tr>
-            <tr>
-            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Version</th>
-            <td>version-1</td>
-            </tr>
-            <tr>
-            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Visit</th>
-            <td>Inertia visit</td>
-            </tr>
-            <tr>
-            <th scope="row" style="max-width: none; overflow-wrap: normal; white-space: nowrap;">Status</th>
-            <td>200</td>
+            <th scope="row">
+            Component
+            </th><td>
+            Site/Index
+            </td>
+            </tr><tr>
+            <th scope="row">
+            URL
+            </th><td>
+            /
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Version
+            </th><td>
+            version-1
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Visit
+            </th><td>
+            Inertia visit
+            </td>
+            </tr><tr>
+            <th scope="row">
+            Status
+            </th><td>
+            200
+            </td>
             </tr>
             </tbody>
             </table>
             </div><h2>
             Props
-            </h2><div class="yii-debug-table-wrap">
+            </h2><div class="yii-debug-table-wrap" role="region" tabindex="0" aria-label="#, Prop, Origin, Type, Value">
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">#</th>
-            <th scope="col">Prop</th>
-            <th scope="col">Origin</th>
-            <th scope="col">Type</th>
-            <th scope="col">Value</th>
+            <th scope="col">
+            #
+            </th><th scope="col">
+            Prop
+            </th><th scope="col">
+            Origin
+            </th><th scope="col">
+            Type
+            </th><th scope="col">
+            Value
+            </th>
             </tr>
-            </thead>
-            <tbody>
+            </thead><tbody>
             <tr>
-            <td>1</td>
-            <td class="yii-debug-cell-mono yii-debug-cell-nowrap"><strong>appName</strong></td>
-            <td class="yii-debug-cell-pill"><span class="yii-debug-badge yii-debug-badge-info">shared</span></td>
-            <td class="yii-debug-cell-mono yii-debug-cell-nowrap">string(16)</td>
-            <td class="yii-debug-cell-mono yii-debug-cell-payload">"Test application"</td>
+            <td>
+            1
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            <strong>appName</strong>
+            </td><td class="yii-debug-cell-pill">
+            <span class="yii-debug-badge yii-debug-badge-info">shared</span>
+            </td><td class="yii-debug-cell-mono yii-debug-cell-nowrap">
+            string(16)
+            </td><td class="yii-debug-cell-mono yii-debug-cell-payload">
+            "Test application"
+            </td>
             </tr>
             </tbody>
             </table>
@@ -2591,18 +2612,19 @@ final class DebugPageRendererTest extends TestCase
      */
     private function inertiaPayload(): array
     {
-        return InertiaSnapshot::capture(
-            null,
-            [
+        return [
+            'location' => null,
+            'page' => [
                 'component' => 'Site/Index',
                 'props' => ['appName' => 'Test application'],
                 'url' => '/',
                 'version' => 'version-1',
             ],
-            ['X-Inertia' => 'true'],
-            ['appName'],
-            200,
-        )->jsonSerialize();
+            'requestHeaders' => ['X-Inertia' => 'true'],
+            'sharedKeys' => ['appName'],
+            'statusCode' => 200,
+            'resultType' => 'page',
+        ];
     }
 
     /**
@@ -2662,7 +2684,7 @@ final class DebugPageRendererTest extends TestCase
     {
         return $this->rendererWithPanels(
             'page-renderer-inertia-assets',
-            [new RequestPanel(), new InertiaPanel()],
+            [new RequestPanel(), new ProviderPanel(new InertiaPanel())],
         );
     }
 
@@ -2704,7 +2726,7 @@ final class DebugPageRendererTest extends TestCase
     {
         return $this->rendererWithPanels(
             'page-renderer-vite-assets',
-            [new RequestPanel(), new VitePanel()],
+            [new RequestPanel(), new ProviderPanel(new VitePanel())],
         );
     }
 
@@ -2763,25 +2785,23 @@ final class DebugPageRendererTest extends TestCase
      */
     private function vitePayload(): array
     {
-        $viteSnapshot = new ViteSnapshot(
-            [
-                new ViteComponent(
-                    id: 'vite',
-                    class: Vite::class,
-                    implementation: ViteComponent::IMPLEMENTATION_MODERN,
-                    inspectionAvailable: true,
-                    mode: ViteComponent::MODE_DEVELOPMENT,
-                    entrypoints: ['resources/js/app.ts'],
-                    baseUrl: '',
-                    devServerUrl: 'http://127.0.0.1:5173',
-                    manifestPath: '',
-                    includeViteClient: true,
-                    modulePreload: null,
-                    chunks: [],
-                ),
+        return [
+            'components' => [
+                [
+                    'id' => 'vite',
+                    'class' => Vite::class,
+                    'implementation' => 'modern',
+                    'inspectionAvailable' => true,
+                    'mode' => 'development',
+                    'entrypoints' => ['resources/js/app.ts'],
+                    'baseUrl' => '',
+                    'devServerUrl' => 'http://127.0.0.1:5173',
+                    'manifestPath' => '',
+                    'includeViteClient' => true,
+                    'modulePreload' => null,
+                    'chunks' => [],
+                ],
             ],
-        );
-
-        return $viteSnapshot->jsonSerialize();
+        ];
     }
 }

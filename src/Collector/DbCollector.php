@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Collector;
 
-use PHPForge\Debug\Collector\CollectorInterface;
+use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
 use Throwable;
 
@@ -51,7 +51,10 @@ final class DbCollector implements CollectorInterface
         }
     }
 
-    public function capture(): DbSnapshot|null
+    /**
+     * @return array<string, mixed>|null Encoded Db panel payload; `null` when the collector never started.
+     */
+    public function capture(): array|null
     {
         if (!$this->started) {
             return null;
@@ -61,7 +64,7 @@ final class DbCollector implements CollectorInterface
             throw $this->failure;
         }
 
-        return DbSnapshot::capture($this->rows);
+        return DbSnapshot::capture($this->rows)->jsonSerialize();
     }
 
     public function end(string $token, float $time): void

@@ -7,7 +7,6 @@ namespace Yii3\Debug\Tests\Middleware;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Db\QueryRow;
-use PHPForge\Debug\Panel\Inertia\InertiaSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\SnapshotStore;
@@ -17,9 +16,10 @@ use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionProperty;
 use Yii3\Debug\Collector\DbCollector;
-use Yii3\Debug\Collector\{InertiaCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{ProfilingCollector, RequestCollector};
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Tests\Support\HelperFactory;
+use Yii3\Debug\Tests\Support\Stubs\RequestObserverCollectorStub;
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -260,130 +260,43 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
-    public function testProcessCapturesResolvedInertiaPageWithoutChangingJsonResponse(): void
+    public function testProcessDispatchesRequestAndResponseToObserverCollectors(): void
     {
         $store = $this->store();
 
-        $collector = new InertiaCollector();
+        $collector = new RequestObserverCollectorStub();
         $coordinator = new CollectorCoordinator([$collector]);
 
         $request = HelperFactory::createRequest(
             'POST',
             'https://example.test/users?page=2',
-            [
-                'X-Inertia' => 'true',
-                'X-Inertia-Partial-Component' => 'Users/Index',
-                'X-Inertia-Partial-Data' => 'users',
-                'X-Inertia-Version' => 'v2',
-            ],
             serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
         );
 
-        $body = '{"component":"Users/Index","props":{"users":[{"id":7}]},"url":"/users?page=2","version":"v2"}';
+        $body = '{"ok":true}';
 
         $response = $this->middleware($store, $coordinator)->process(
             $request,
-            new readonly class ($collector, $body) implements RequestHandlerInterface {
-                public function __construct(
-                    private InertiaCollector $collector,
-                    private string $body,
-                ) {}
-
-                public function handle(ServerRequestInterface $request): ResponseInterface
-                {
-                    $this->collector->observe(
-                        [
-                            'component' => 'Users/Index',
-                            'props' => [
-                                'auth' => ['user' => ['id' => 1]],
-                                'users' => [['id' => 7]],
-                            ],
-                            'url' => '/users?page=2',
-                            'version' => 'v2',
-                        ],
-                        ['auth'],
-                    );
-
-                    return HelperFactory::createResponse(
-                        200,
-                        [
-                            'Content-Type' => 'application/json',
-                            'X-Inertia' => 'true',
-                        ],
-                        $this->body,
-                    );
-                }
-            },
+            $this->handler(
+                HelperFactory::createResponse(201, ['Content-Type' => 'application/json'], $body),
+            ),
         );
 
-        self::assertSame(
-            $body,
-            (string) $response->getBody(),
-            'Inertia JSON response bodies must remain unchanged.',
-        );
-        self::assertSame(
-            'true',
-            $response->getHeaderLine('X-Inertia'),
-            'Existing Inertia response metadata must remain unchanged.',
-        );
+        self::assertSame($body, (string) $response->getBody(), 'JSON bodies must remain unchanged.');
         self::assertStringNotContainsString(
             '<yii-debug-toolbar',
             (string) $response->getBody(),
-            'Inertia JSON responses must not receive toolbar markup.',
+            'JSON responses must not receive toolbar markup.',
         );
 
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
 
-        self::assertNotNull(
-            $snapshot,
-            'Captured Inertia requests must persist a debug snapshot.',
-        );
+        self::assertNotNull($snapshot, 'Observed requests must persist a debug snapshot.');
+        self::assertArrayHasKey('observer', $snapshot->panels, 'The observing collector must persist its panel.');
         self::assertSame(
-            'POST',
-            $snapshot->summary->method,
-            'The request method must be retained.',
-        );
-        self::assertSame(
-            'https://example.test/users?page=2',
-            $snapshot->summary->url,
-            'The request URL must be retained.',
-        );
-        self::assertSame(
-            200,
-            $snapshot->summary->statusCode,
-            'The response status must be retained.',
-        );
-        self::assertArrayHasKey(
-            'inertia',
-            $snapshot->panels,
-            'A resolved Inertia page must persist its panel.',
-        );
-
-        $inertia = InertiaSnapshot::fromArray($snapshot->panels['inertia'], '$.panels.inertia')->data();
-
-        self::assertSame(
-            [
-                'location' => null,
-                'page' => [
-                    'component' => 'Users/Index',
-                    'props' => [
-                        'auth' => ['user' => ['id' => 1]],
-                        'users' => [['id' => 7]],
-                    ],
-                    'url' => '/users?page=2',
-                    'version' => 'v2',
-                ],
-                'requestHeaders' => [
-                    'X-Inertia' => 'true',
-                    'X-Inertia-Partial-Component' => 'Users/Index',
-                    'X-Inertia-Partial-Data' => 'users',
-                    'X-Inertia-Version' => 'v2',
-                ],
-                'sharedKeys' => ['auth'],
-                'statusCode' => 200,
-            ],
-            $inertia,
-            'The Inertia panel must retain the page, shared keys, and request and response metadata.',
+            ['method' => 'POST', 'statusCode' => 201],
+            $snapshot->panels['observer'],
+            'Both request and response must reach the observer by interface, not by provider name.',
         );
     }
 
@@ -680,53 +593,6 @@ final class ToolbarMiddlewareTest extends TestCase
             60.0,
             $profiling->time,
             'Profiling time must remain scoped to the current request.',
-        );
-    }
-
-    public function testProcessRetainsEmptyInertiaSnapshotForPlainResponseDiagnostics(): void
-    {
-        $store = $this->store();
-
-        $coordinator = new CollectorCoordinator([new InertiaCollector()]);
-
-        $request = HelperFactory::createRequest(
-            'GET',
-            'https://example.test/api/status',
-            serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
-        );
-
-        $response = $this->middleware($store, $coordinator)
-            ->process(
-                $request,
-                $this->handler(
-                    HelperFactory::createResponse(
-                        200,
-                        ['Content-Type' => 'application/json'],
-                        '{"ok":true}',
-                    ),
-                ),
-            );
-        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
-
-        self::assertNotNull(
-            $snapshot,
-            'Plain responses must still persist their request summary.',
-        );
-        self::assertArrayHasKey(
-            'inertia',
-            $snapshot->panels,
-            'Plain responses must retain an empty Inertia snapshot for directly addressed diagnostics.',
-        );
-        self::assertSame(
-            [
-                'location' => null,
-                'page' => null,
-                'requestHeaders' => [],
-                'sharedKeys' => [],
-                'statusCode' => 200,
-            ],
-            InertiaSnapshot::fromArray($snapshot->panels['inertia'], '$.panels.inertia')->data(),
-            'Plain responses must not fabricate page or negotiation data.',
         );
     }
 

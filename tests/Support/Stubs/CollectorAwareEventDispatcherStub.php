@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Support\Stubs;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Yii3\Debug\Collector\EventCollector;
+use Yii3\Debug\Tests\Support\Captured;
 
 /**
  * Reports whether event metadata was collected before delegation.
@@ -21,7 +22,7 @@ final class CollectorAwareEventDispatcherStub implements EventDispatcherInterfac
     {
         $this->received = $event;
 
-        $snapshot = $this->collector->capture();
+        $snapshot = Captured::event($this->collector);
 
         $this->wasRecordedBeforeDelegation = $snapshot !== null
             && ($snapshot->entries()[0]->class ?? null) === $event::class;

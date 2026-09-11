@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\{Group, IgnoreDeprecations};
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Yii3\Debug\Collector\ProfilingCollector;
+use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yiisoft\Profiler\Profiler;
 
@@ -38,7 +39,7 @@ final class ProfilingCollectorTest extends TestCase
         $profiler
             ->end('service', ['category' => 'App\\Service::run']);
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::profiling($collector);
 
         $collector->shutdown();
 
@@ -97,7 +98,7 @@ final class ProfilingCollectorTest extends TestCase
         $profiler->begin('current-second');
         $profiler->end('current-second');
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::profiling($collector);
 
         $collector->shutdown();
 
@@ -135,12 +136,12 @@ final class ProfilingCollectorTest extends TestCase
             'The collector ID must match the Profiling panel payload key.',
         );
         self::assertNull(
-            $collector->capture(),
+            Captured::profiling($collector),
             'An inactive collector must not produce a snapshot.',
         );
 
         $collector->startup();
-        $snapshot = $collector->capture();
+        $snapshot = Captured::profiling($collector);
 
         self::assertNotNull(
             $snapshot,
@@ -170,7 +171,7 @@ final class ProfilingCollectorTest extends TestCase
         $collector->shutdown();
 
         self::assertNull(
-            $collector->capture(),
+            Captured::profiling($collector),
             'Shutdown must make the collector inactive.',
         );
     }
@@ -193,7 +194,7 @@ final class ProfilingCollectorTest extends TestCase
                 ),
             );
 
-            $snapshot = $collector->capture();
+            $snapshot = Captured::profiling($collector);
 
             $collector->shutdown();
         } finally {
@@ -234,7 +235,7 @@ final class ProfilingCollectorTest extends TestCase
             $collector->startup();
             $collector->collectRequest(HelperFactory::createRequest());
 
-            $snapshot = $collector->capture();
+            $snapshot = Captured::profiling($collector);
 
             $collector->shutdown();
         } finally {
@@ -268,7 +269,7 @@ final class ProfilingCollectorTest extends TestCase
         $collector->startup();
         $collector->collectRequestStart(microtime(true) - 5.0);
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::profiling($collector);
 
         $collector->shutdown();
 
@@ -301,7 +302,7 @@ final class ProfilingCollectorTest extends TestCase
         $profiler->begin('current');
         $profiler->end('current');
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::profiling($collector);
 
         $collector->shutdown();
 
@@ -337,7 +338,7 @@ final class ProfilingCollectorTest extends TestCase
 
             $collector->startup();
 
-            $snapshot = $collector->capture();
+            $snapshot = Captured::profiling($collector);
 
             $collector->shutdown();
         } finally {
@@ -371,7 +372,7 @@ final class ProfilingCollectorTest extends TestCase
 
         $collector->startup();
 
-        $snapshot = $collector->capture();
+        $snapshot = Captured::profiling($collector);
 
         $collector->shutdown();
 
