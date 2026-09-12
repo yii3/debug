@@ -25,6 +25,7 @@ use Yii3\Debug\Web\{
     GridColumn,
     GridFooter,
     PageWindow,
+    PanelGrid,
     PanelHeading,
     SortState,
     SummaryChip,
@@ -161,7 +162,10 @@ final readonly class ProfilingPanel implements
         ];
 
         foreach (['sort', 'per-page', 'yii_debug_theme'] as $name) {
-            $value = QueryInput::scalar($context->queryParams, $name);
+            $value = QueryInput::scalar(
+                $context->queryParams,
+                $name,
+            );
 
             if ($value !== null && $value !== '') {
                 $params[$name] = $value;
@@ -230,7 +234,9 @@ final readonly class ProfilingPanel implements
         $children = [];
 
         foreach (self::filterHiddenParams($context) as $name => $value) {
-            $children[] = InputHidden::tag()->name($name)->value($value);
+            $children[] = InputHidden::tag()
+                ->name($name)
+                ->value($value);
         }
 
         $children[] = Div::tag()
@@ -306,23 +312,16 @@ final readonly class ProfilingPanel implements
             );
 
         /** @var GridView<ProfileRow> $grid */
-        $grid = GridView::widget();
+        $grid = PanelGrid::filterable($paginator, 'yii-debug-profile-filters')
+            ->columns(...self::columns($maxDuration, $context, $queryParams, $filters, $renderFilters))
+            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
 
-        $grid = $grid
-            ->dataReader($paginator)
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
-            ->filterFormId('yii-debug-profile-filters')
-            ->columns(...self::columns($maxDuration, $context, $queryParams, $filters, $renderFilters));
-
-        if ($context !== null) {
-            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
-        }
-
-        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
+        $footer = GridFooter::renderForPanel(
+            $paginator,
+            $paginator->getCurrentPageSize(),
+            $context,
+            $queryParams,
+        );
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-profile')
@@ -430,7 +429,12 @@ final readonly class ProfilingPanel implements
             );
         }
 
-        $filterBanner = FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::PROFILE);
+        $filterBanner = FilterRemoval::banner(
+            $search->activeFilters,
+            $context,
+            $queryParams,
+            FilterPrefix::PROFILE,
+        );
 
         if ($filteredRows === []) {
             return $content . $filterBanner . self::renderNoMatchState();
@@ -484,7 +488,11 @@ final readonly class ProfilingPanel implements
             return self::renderTimelineUnavailable();
         }
 
-        $spans = TimelineGeometry::spans($rows, $start, $duration);
+        $spans = TimelineGeometry::spans(
+            $rows,
+            $start,
+            $duration,
+        );
 
         $memorySvg = TimelineMemoryRenderer::render(
             self::timelineMemorySamples($profiling, $context),
@@ -545,7 +553,12 @@ final readonly class ProfilingPanel implements
         }
 
         $content .= self::renderFilterForm($context, $search)
-            . FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::PROFILE);
+            . FilterRemoval::banner(
+                $search->activeFilters,
+                $context,
+                $queryParams,
+                FilterPrefix::PROFILE,
+            );
 
         if ($filteredRows === []) {
             return $content . self::renderNoMatchState();
@@ -575,7 +588,10 @@ final readonly class ProfilingPanel implements
      */
     private static function snapshot(array $payload): ProfilingSnapshot
     {
-        return ProfilingSnapshot::fromArray($payload, '$.panels.profiling');
+        return ProfilingSnapshot::fromArray(
+            $payload,
+            '$.panels.profiling',
+        );
     }
 
     /**
@@ -614,7 +630,10 @@ final readonly class ProfilingPanel implements
         }
 
         try {
-            $entries = LogSnapshot::fromArray($logPayload, '$.panels.log')->entries();
+            $entries = LogSnapshot::fromArray(
+                $logPayload,
+                '$.panels.log',
+            )->entries();
         } catch (HydrationException) {
             return $samples;
         }

@@ -304,7 +304,11 @@ final class LogPanelTest extends TestCase
             $html,
             'The unfiltered info count must remain visible.',
         );
-        self::assertStringContainsString('<strong>1</strong> info</a>', $html, 'The info count must remain visible.');
+        self::assertStringContainsString(
+            '<strong>1</strong> info</a>',
+            $html,
+            'The info count must remain visible.',
+        );
         self::assertStringContainsString(
             'class="yii-debug-grid-summary-stat-trace"',
             $html,
@@ -369,6 +373,25 @@ final class LogPanelTest extends TestCase
             'name="Log[message]"',
             $html,
             'The message control must use the shared Log query group.',
+        );
+    }
+
+    public function testRenderWithContextOrdersRowsByEverySortableAttribute(): void
+    {
+        $panel = new LogPanel(Trace::create());
+
+        $byCategory = $panel->renderWithContext(self::payload(), self::context(['sort' => 'category']));
+        $byDelta = $panel->renderWithContext(self::payload(), self::context(['sort' => '-timeSincePrevious']));
+
+        self::assertSame(
+            ['2', '3', '1', '4'],
+            self::entryIds($byCategory),
+            'Ascending category order must group `app.db` first and break ties by capture order.',
+        );
+        self::assertSame(
+            ['2', '3', '4', '1'],
+            self::entryIds($byDelta),
+            'The delta header must order the largest gap first.',
         );
     }
 
@@ -524,6 +547,18 @@ final class LogPanelTest extends TestCase
             'light',
             new DebugUrlGenerator(),
         );
+    }
+
+    /**
+     * Returns the captured entry identifiers in the order the grid rendered their rows.
+     *
+     * @return list<string>
+     */
+    private static function entryIds(string $html): array
+    {
+        preg_match_all('/<tr id="log-(\d+)"/', $html, $matches);
+
+        return $matches[1];
     }
 
     /**

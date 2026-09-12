@@ -49,48 +49,24 @@ final class ProfilingPanelTest extends TestCase
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.000">00:00:01.000</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span>
-            </td>
-            <td>
-            SLOW application
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>SLOW application</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.025">00:00:01.025</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span>
-            </td>
-            <td>
-            <span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div>
-            </td>
+            </div></td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.050">00:00:01.050</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span>
-            </td>
-            <td>
-            MIDDLE view
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
             </tr>
             </tbody>
             </table>
@@ -226,48 +202,24 @@ final class ProfilingPanelTest extends TestCase
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.000">00:00:01.000</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span>
-            </td>
-            <td>
-            &lt;script&gt;alert(1)&lt;/script&gt;
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>&lt;script&gt;alert(1)&lt;/script&gt;</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.025">00:00:01.025</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span>
-            </td>
-            <td>
-            <span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div>
-            </td>
+            </div></td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.050">00:00:01.050</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span>
-            </td>
-            <td>
-            MIDDLE view
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
             </tr>
             </tbody>
             </table>
@@ -391,27 +343,19 @@ final class ProfilingPanelTest extends TestCase
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=category&amp;per-page=1">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=info&amp;per-page=1">Info</a></th>
             </tr>
-            <tr>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[category]" type="text" value="i" aria-label="Filter by Category"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
+            <tr class="filters">
+            <td></td>
+            <td></td>
+            <td><input class="yii-debug-input" name="Profile[category]" type="text" value="i" aria-label="Filter by Category"></td>
+            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.050">00:00:01.050</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span>
-            </td>
-            <td>
-            MIDDLE view
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
             </tr>
             </tbody>
             </table>
@@ -483,29 +427,21 @@ final class ProfilingPanelTest extends TestCase
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=info">Info</a></th>
             </tr>
-            <tr>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[category]" type="text" value="db\command" aria-label="Filter by Category"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[info]" type="text" value="select" aria-label="Filter by Info"></td>
+            <tr class="filters">
+            <td></td>
+            <td></td>
+            <td><input class="yii-debug-input" name="Profile[category]" type="text" value="db\command" aria-label="Filter by Category"></td>
+            <td><input class="yii-debug-input" name="Profile[info]" type="text" value="select" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.025">00:00:01.025</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span>
-            </td>
-            <td>
-            <span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div>
-            </td>
+            </div></td>
             </tr>
             </tbody>
             </table>
@@ -569,57 +505,33 @@ final class ProfilingPanelTest extends TestCase
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category&amp;per-page=all">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info&amp;per-page=all">Info</a></th>
             </tr>
-            <tr>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
+            <tr class="filters">
+            <td></td>
+            <td></td>
+            <td><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
+            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.025">00:00:01.025</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span>
-            </td>
-            <td>
-            <span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div>
-            </td>
+            </div></td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.050">00:00:01.050</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span>
-            </td>
-            <td>
-            MIDDLE view
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.000">00:00:01.000</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span>
-            </td>
-            <td>
-            SLOW application
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>SLOW application</td>
             </tr>
             </tbody>
             </table>
@@ -663,57 +575,33 @@ final class ProfilingPanelTest extends TestCase
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category&amp;per-page=all">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info&amp;per-page=all">Info</a></th>
             </tr>
-            <tr>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
+            <tr class="filters">
+            <td></td>
+            <td></td>
+            <td><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
+            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.000">00:00:01.000</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span>
-            </td>
-            <td>
-            SLOW application
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>SLOW application</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.050">00:00:01.050</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span>
-            </td>
-            <td>
-            MIDDLE view
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.025">00:00:01.025</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span>
-            </td>
-            <td>
-            <span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div>
-            </td>
+            </div></td>
             </tr>
             </tbody>
             </table>
@@ -757,57 +645,33 @@ final class ProfilingPanelTest extends TestCase
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=info">Info</a></th>
             </tr>
-            <tr>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
-            <td class="yii-debug-filter-cell"><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
+            <tr class="filters">
+            <td></td>
+            <td></td>
+            <td><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
+            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.000">00:00:01.000</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span>
-            </td>
-            <td>
-            SLOW application
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>SLOW application</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.050">00:00:01.050</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span>
-            </td>
-            <td>
-            MIDDLE view
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
             </tr>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.025">00:00:01.025</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span>
-            </td>
-            <td>
-            <span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div>
-            </td>
+            </div></td>
             </tr>
             </tbody>
             </table>
@@ -1087,18 +951,10 @@ final class ProfilingPanelTest extends TestCase
             </thead>
             <tbody>
             <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap">
-            <span title="1970-01-01 00:00:01.000">00:00:01.000</span>
-            </td>
-            <td>
-            <span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span>
-            </td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn">
-            <span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span>
-            </td>
-            <td>
-            SLOW application
-            </td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>SLOW application</td>
             </tr>
             </tbody>
             </table>

@@ -26,6 +26,7 @@ use Yii3\Debug\Web\{
     GridColumn,
     GridFooter,
     PageWindow,
+    PanelGrid,
     PanelHeading,
     SortState,
     SummaryChip,
@@ -102,7 +103,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         array $queryParams,
         array $filters,
     ): array {
-        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
+        $state = SortState::fromQuery(
+            QueryInput::scalar($queryParams, 'sort'),
+            self::SORT_ATTRIBUTES,
+            'time',
+        );
 
         unset($queryParams['page']);
 
@@ -186,12 +191,14 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         $sequence = new EventSequence($allRows);
         $queryParams = $context === null
             ? []
-            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
+            : FilterRemoval::withGroup(
+                $context->queryParams,
+                FilterPrefix::EVENT,
+                $filters,
+            );
 
         /** @var GridView<EventRow> $grid */
-        $grid = GridView::widget();
-
-        $grid = $grid
+        $grid = PanelGrid::filterable($paginator, 'yii-debug-event-filters')
             ->afterRow(
                 static fn(EventRow $row): Tr => Html::tr(['class' => 'yii-debug-event-detail-row'])
                     ->cells(
@@ -201,22 +208,17 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
                         )->encode(false),
                     ),
             )
-            ->dataReader($paginator)
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
-            ->filterFormId('yii-debug-event-filters')
-            ->columns(...self::columns($sequence, $context, $queryParams, $filters));
-
-        if ($context !== null) {
-            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
-        }
+            ->columns(...self::columns($sequence, $context, $queryParams, $filters))
+            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
 
         $table = $grid->render();
 
-        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
+        $footer = GridFooter::renderForPanel(
+            $paginator,
+            $paginator->getCurrentPageSize(),
+            $context,
+            $queryParams,
+        );
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-event')
@@ -257,7 +259,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         PanelRenderContext $context,
         array $filters,
     ): string {
-        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
+        $queryParams = FilterRemoval::withGroup(
+            $context->queryParams,
+            FilterPrefix::EVENT,
+            $filters,
+        );
 
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
@@ -287,7 +293,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 
         $queryParams = $context === null
             ? []
-            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $search->activeFilters);
+            : FilterRemoval::withGroup(
+                $context->queryParams,
+                FilterPrefix::EVENT,
+                $search->activeFilters,
+            );
 
         $filteredRows = $search->filter($entries);
 
@@ -299,7 +309,12 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             return $content . self::renderGrid(PageWindow::single($filteredRows), $entries);
         }
 
-        $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::EVENT);
+        $content .= FilterRemoval::banner(
+            $search->activeFilters,
+            $context,
+            $queryParams,
+            FilterPrefix::EVENT,
+        );
 
         if ($filteredRows === []) {
             return $content . EmptyState::card(
@@ -354,7 +369,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'time');
+        $state = SortState::fromQuery(
+            $sort,
+            self::SORT_ATTRIBUTES,
+            'time',
+        );
 
         return $state->apply(
             $rows,

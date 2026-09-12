@@ -17,11 +17,11 @@ use UIAwesome\Html\Sectioning\{Article, Section};
 use Yii3\Debug\Comparison\{HistoryComparison, HistoryMetricComparison, HistoryPanelComparison};
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Data\Reader\Iterable\IterableDataReader;
-use Yiisoft\Html\Html;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
 use function in_array;
+use function max;
 use function rawurlencode;
 use function rtrim;
 
@@ -154,7 +154,11 @@ final class HistoryComparisonRenderer
             $labels[$panel->id] = $panelLabels[$panel->id] ?? $panel->label;
         }
 
-        $comparison = HistoryComparison::fromSnapshots($comparison->baseline, $comparison->target, $labels);
+        $comparison = HistoryComparison::fromSnapshots(
+            $comparison->baseline,
+            $comparison->target,
+            $labels
+        );
 
         $baseline = $comparison->baseline->summary;
         $target = $comparison->target->summary;
@@ -221,22 +225,20 @@ final class HistoryComparisonRenderer
      *
      * @template TRow of object
      *
-     * @param non-empty-list<TRow> $rows
+     * @param list<TRow> $rows
      * @param list<GridColumn<TRow>> $columns
      */
     private static function grid(string $caption, array $rows, array $columns): string
     {
         /** @var GridView<TRow> $grid */
-        $grid = GridView::widget();
+        $grid = PanelGrid::create(
+            (new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(max(1, count($rows))),
+        );
 
         return $grid
-            ->dataReader((new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(count($rows)))
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table', 'yii-debug-compare-grid')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->caption(Html::span($caption, ['class' => 'yii-debug-sr-only']))
+            ->caption($caption, ['class' => 'yii-debug-sr-only'])
             ->columns(...$columns)
+            ->tableClass('yii-debug-table', 'yii-debug-compare-grid')
             ->render();
     }
 
@@ -294,15 +296,9 @@ final class HistoryComparisonRenderer
 
     private static function renderMetrics(HistoryComparison $comparison): string
     {
-        $metrics = $comparison->metrics;
-
-        if ($metrics === []) {
-            return '';
-        }
-
         return self::grid(
             'Request summary comparison',
-            $metrics,
+            $comparison->metrics,
             [
                 new GridColumn(
                     header: 'Metric',

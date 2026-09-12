@@ -8,6 +8,13 @@ parameters:
         - src
         - tests
 
+    excludePaths:
+        # These stubs redeclare package classes for process-isolated tests. Analysing them would make PHPStan
+        # resolve those names to the stub instead of the installed package, project-wide.
+        - tests/Support/Stubs/after-middleware-event.php
+        - tests/Support/Stubs/before-middleware-event.php
+        - tests/Support/Stubs/unavailable-event-capture.php
+
     tmpDir: %currentWorkingDirectory%/runtime
 
     checkImplicitMixed: true

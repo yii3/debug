@@ -7,6 +7,8 @@ namespace Yii3\Debug\Comparison;
 use PHPForge\Debug\Comparison\{PanelComparison, SnapshotComparison, SummaryMetricComparison};
 use PHPForge\Debug\Storage\DebugSnapshot;
 
+use function array_map;
+
 /**
  * Builds a privacy-preserving comparison of two immutable debugger snapshots.
  *
@@ -69,16 +71,13 @@ final readonly class HistoryComparison
      */
     private static function buildMetrics(array $metrics): array
     {
-        $presentation = [];
-
-        foreach ($metrics as $metric) {
-            $presentation[] = HistoryMetricComparison::create(
+        return array_map(
+            static fn(SummaryMetricComparison $metric): HistoryMetricComparison => HistoryMetricComparison::create(
                 $metric->label,
                 new HistoryMetricValues($metric->baseline, $metric->target, $metric->delta, $metric->trend),
-            )->withPanelId($metric->panelId);
-        }
-
-        return $presentation;
+            )->withPanelId($metric->panelId),
+            $metrics,
+        );
     }
 
     /**

@@ -72,7 +72,12 @@
     "autoload-dev": {
         "psr-4": {
             "Yii3\\Debug\\Tests\\": "tests"
-        }
+        },
+        "exclude-from-classmap": [
+            "tests/Support/Stubs/after-middleware-event.php",
+            "tests/Support/Stubs/before-middleware-event.php",
+            "tests/Support/Stubs/unavailable-event-capture.php"
+        ]
     },
     "extra": {
         "branch-alias": {

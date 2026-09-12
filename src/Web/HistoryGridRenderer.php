@@ -56,8 +56,15 @@ final class HistoryGridRenderer
 
         $filteredRows = self::sortRows($search->filter($rows), QueryInput::scalar($queryParams, 'sort'));
 
-        $perPageRaw = QueryInput::scalar($queryParams, 'per-page');
-        $paginator = PageWindow::paginate($filteredRows, $perPageRaw, QueryInput::scalar($queryParams, 'page'));
+        $perPageRaw = QueryInput::scalar(
+            $queryParams,
+            'per-page',
+        );
+        $paginator = PageWindow::paginate(
+            $filteredRows,
+            $perPageRaw,
+            QueryInput::scalar($queryParams, 'page'),
+        );
         $summary = HistorySummary::fromManifest($summaries);
 
         $bucketUrls = [];
@@ -79,7 +86,10 @@ final class HistoryGridRenderer
                 $bucketUrls,
                 PageSize::selectorFor($queryParams),
             )
-            . HistoryComparisonRenderer::renderHistoryForm($summaries, $routePrefix)
+            . HistoryComparisonRenderer::renderHistoryForm(
+                $summaries,
+                $routePrefix,
+            )
             . ActiveFilterBanner::render(
                 $search->activeFilters,
                 static fn(array $without): string => self::url(
@@ -186,7 +196,13 @@ final class HistoryGridRenderer
                     'COMMAND' => 'COMMAND',
                 ],
             ),
-            'ajax' => FilterInput::select(FilterPrefix::DEBUG, 'ajax', 'AJAX', $filters, ['0' => 'No', '1' => 'Yes']),
+            'ajax' => FilterInput::select(
+                FilterPrefix::DEBUG,
+                'ajax',
+                'AJAX',
+                $filters,
+                ['0' => 'No', '1' => 'Yes'],
+            ),
             default => '',
         };
     }
@@ -206,8 +222,14 @@ final class HistoryGridRenderer
                 "{$routePrefix}/view?tag=" . rawurlencode($row->tag) . '&panel=auto',
             ),
             'time' => HistoryCellRenderer::renderTimeCell($row),
-            'processingTime' => HistoryCellRenderer::renderDurationCell($row, $scale->maxProcessingTime),
-            'peakMemory' => HistoryCellRenderer::renderMemoryCell($row, $scale->maxPeakMemory),
+            'processingTime' => HistoryCellRenderer::renderDurationCell(
+                $row,
+                $scale->maxProcessingTime,
+            ),
+            'peakMemory' => HistoryCellRenderer::renderMemoryCell(
+                $row,
+                $scale->maxPeakMemory,
+            ),
             'ip' => $row->ip,
             'method' => HistoryCellRenderer::renderMethodCell($row),
             'ajax' => HistoryCellRenderer::renderAjaxCell($row),
@@ -229,7 +251,10 @@ final class HistoryGridRenderer
         $rows = iterator_to_array($paginator->read(), false);
 
         /** @var GridView<HistoryRow> $grid */
-        $grid = GridView::widget();
+        $grid = PanelGrid::filterable(
+            $paginator,
+            'yii-debug-history-filters',
+        );
 
         $table = $grid
             ->bodyRowAttributes(
@@ -238,13 +263,6 @@ final class HistoryGridRenderer
                     static fn(mixed $value): bool => $value !== '',
                 ),
             )
-            ->dataReader($paginator)
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
-            ->filterFormId('yii-debug-history-filters')
             ->urlCreator(static fn(): string => $routePrefix)
             ->noResultsCellAttributes(['class' => 'yii-debug-muted'])
             ->noResultsText($filters === [] ? 'No requests have been captured.' : 'No requests match the current filters.')
@@ -279,7 +297,12 @@ final class HistoryGridRenderer
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        $state = SortState::fromQuery($sort, array_keys(self::HEADERS), 'time', 'desc');
+        $state = SortState::fromQuery(
+            $sort,
+            array_keys(self::HEADERS),
+            'time',
+            'desc',
+        );
 
         usort(
             $rows,
