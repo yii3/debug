@@ -9,12 +9,10 @@ use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
-use Yii3\Debug\Collector\DbCollector;
-use Yii3\Debug\Collector\ProfilingCollector;
+use Yii3\Debug\Collector\{DbCollector, ProfilingCollector};
 use Yii3\Debug\Db\DebugDbProfiler;
 use Yii3\Debug\Tests\Provider\DebugDbProfilerProvider;
-use Yii3\Debug\Tests\Support\Captured;
-use Yii3\Debug\Tests\Support\DatabaseFixture;
+use Yii3\Debug\Tests\Support\{Captured, DatabaseFixture};
 use Yiisoft\Db\Exception\Exception;
 use Yiisoft\Db\Profiler\Context\{CommandContext, ConnectionContext};
 use Yiisoft\Db\Profiler\ContextInterface;
@@ -76,6 +74,30 @@ final class DebugDbProfilerTest extends TestCase
             [],
             array_intersect_key($forwarded, $context->asArray()),
             'Native context fields must not leak into the application profiler.',
+        );
+    }
+
+    public function testArrayContextsAreIgnoredByCaptureAndForwarding(): void
+    {
+        $collector = new DbCollector();
+
+        $collector->startup();
+
+        $applicationProfiler = new Profiler(new NullLogger());
+        $profiler = new DebugDbProfiler($collector, $applicationProfiler);
+
+        $profiler->begin('SELECT 1', ['category' => 'ignored']);
+        $profiler->end('SELECT 1', ['category' => 'ignored']);
+
+        self::assertSame(
+            [],
+            Captured::db($collector)?->entries() ?? [],
+            'A context without diagnostics must capture no query.',
+        );
+        self::assertSame(
+            [],
+            $applicationProfiler->getMessages(),
+            'A context without diagnostics must reach no profiler.',
         );
     }
 

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use PHPForge\Debug\Storage\RequestSummary;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
+use Yii3\Debug\Tests\Provider\HistoryGridRendererProvider;
 use Yii3\Debug\Web\{GridFooter, HistoryGridRenderer};
 
 use function preg_match_all;
@@ -13,36 +15,11 @@ use function substr_count;
 
 /**
  * Tests accessible History controls and stable sorting before pagination.
+ *
+ * {@see HistoryGridRendererProvider} for sort attribute and malformed query cases.
  */
 final class HistoryGridRendererTest extends TestCase
 {
-    public function testDefaultAndMalformedSortKeepNewestFirstAndEmptyFiltersExplainResults(): void
-    {
-        foreach ([[], ['sort' => 'unknown'], ['sort' => ['invalid']]] as $query) {
-            self::assertSame(
-                ['missing', 'long', 'short'],
-                self::tags(HistoryGridRenderer::render($this->summaries(), $query, '/debug')),
-                'Invalid sort input must safely use newest-first order.',
-            );
-        }
-
-        $html = HistoryGridRenderer::render(
-            $this->summaries(),
-            ['Debug' => ['method' => 'POST']],
-            '/debug',
-        );
-
-        self::assertSame(
-            [],
-            self::tags($html),
-            'Unmatched filters must not display unrelated captures.',
-        );
-        self::assertStringContainsString(
-            'No requests match the current filters.',
-            $html,
-            'An empty result must be explained.',
-        );
-    }
     public function testFiltersAndCurrentPageHaveAccessibleNames(): void
     {
         $html = HistoryGridRenderer::render(
@@ -51,14 +28,13 @@ final class HistoryGridRendererTest extends TestCase
             '/debug',
         );
 
-        foreach (['ID', 'IP', 'Method', 'AJAX', 'URL'] as $label) {
-            self::assertStringContainsString(
-                "aria-label=\"Filter by $label\"",
-                $html,
-                'Every History filter must expose an accessible name.',
-            );
-        }
+        preg_match_all('/aria-label="Filter by ([^"]+)"/', $html, $matches);
 
+        self::assertSame(
+            ['ID', 'IP', 'Method', 'AJAX', 'URL'],
+            $matches[1],
+            'Every History filter must expose an accessible name.',
+        );
         self::assertStringContainsString(
             '<nav aria-label="Pagination">',
             $html,
@@ -81,32 +57,43 @@ final class HistoryGridRendererTest extends TestCase
         );
     }
 
-    public function testNumericSortRunsBeforePaginationAndKeepsUnknownValuesLast(): void
+    /**
+     * @param array<string, mixed> $query Query naming no sortable attribute.
+     */
+    #[DataProviderExternal(HistoryGridRendererProvider::class, 'malformedSortQueries')]
+    public function testMalformedSortKeepsNewestFirstOrder(array $query): void
     {
-        foreach (['processingTime', 'peakMemory'] as $attribute) {
-            $ascending = HistoryGridRenderer::render(
-                $this->summaries(),
-                ['sort' => $attribute, 'per-page' => 'all'],
-                '/debug',
-            );
-            $descending = HistoryGridRenderer::render(
-                $this->summaries(),
-                ['sort' => "-{$attribute}", 'per-page' => 'all'],
-                '/debug',
-            );
+        self::assertSame(
+            ['missing', 'long', 'short'],
+            self::tags(HistoryGridRenderer::render($this->summaries(), $query, '/debug')),
+            'Invalid sort input must safely use newest-first order.',
+        );
+    }
 
-            self::assertSame(
-                ['short', 'long', 'missing'],
-                self::tags($ascending),
-                'Ascending metrics must keep unavailable values last.',
-            );
-            self::assertSame(
-                ['long', 'short', 'missing'],
-                self::tags($descending),
-                'Descending metrics must keep unavailable values last.',
-            );
-        }
+    /**
+     * @param string $attribute Metric the captures are ordered by.
+     */
+    #[DataProviderExternal(HistoryGridRendererProvider::class, 'numericSortAttributes')]
+    public function testNumericAttributesKeepUnreportedMetricsLast(string $attribute): void
+    {
+        $summaries = $this->summaries();
 
+        self::assertSame(
+            ['short', 'long', 'missing'],
+            self::tags(HistoryGridRenderer::render($summaries, ['sort' => $attribute, 'per-page' => 'all'], '/debug')),
+            'Ascending metrics must keep unavailable values last.',
+        );
+        self::assertSame(
+            ['long', 'short', 'missing'],
+            self::tags(
+                HistoryGridRenderer::render($summaries, ['sort' => "-{$attribute}", 'per-page' => 'all'], '/debug'),
+            ),
+            'Descending metrics must keep unavailable values last.',
+        );
+    }
+
+    public function testSortRunsBeforePaginationAndPreservesFilterStateInLinks(): void
+    {
         $page = HistoryGridRenderer::render(
             $this->summaries(),
             [
@@ -126,13 +113,68 @@ final class HistoryGridRendererTest extends TestCase
         self::assertStringContainsString(
             'sort=-processingTime&amp;per-page=1&amp;Debug%5Bmethod%5D=GET',
             $page,
-            'Sort toggles must retain filters and page size while resetting the page.'
+            'Sort toggles must retain filters and page size while resetting the page.',
         );
         self::assertStringContainsString(
             'aria-sort="ascending"',
             $page,
-            'The active sort direction must be accessible.'
+            'The active sort direction must be accessible.',
         );
+    }
+
+    /**
+     * @param string $attribute Attribute the captures are ordered by.
+     */
+    #[DataProviderExternal(HistoryGridRendererProvider::class, 'textualSortAttributes')]
+    public function testTextualAttributesOrderTheCapturedRequests(string $attribute): void
+    {
+        $summaries = $this->comparableSummaries();
+
+        self::assertSame(
+            ['alpha', 'beta'],
+            self::tags(HistoryGridRenderer::render($summaries, ['sort' => $attribute], '/debug')),
+            'Ascending order must lead with the lower value.',
+        );
+        self::assertSame(
+            ['beta', 'alpha'],
+            self::tags(HistoryGridRenderer::render($summaries, ['sort' => "-{$attribute}"], '/debug')),
+            'Descending order must lead with the higher value.',
+        );
+    }
+
+    public function testUnmatchedFiltersExplainTheEmptyResult(): void
+    {
+        $html = HistoryGridRenderer::render(
+            $this->summaries(),
+            ['Debug' => ['method' => 'POST']],
+            '/debug',
+        );
+
+        self::assertSame(
+            [],
+            self::tags($html),
+            'Unmatched filters must not display unrelated captures.',
+        );
+        self::assertStringContainsString(
+            'No requests match the current filters.',
+            $html,
+            'An empty result must be explained.',
+        );
+    }
+
+    /**
+     * Returns two captures whose tag, IP, method, AJAX flag, and URL all order `alpha` before `beta`.
+     *
+     * @return array<string, RequestSummary>
+     */
+    private function comparableSummaries(): array
+    {
+        return [
+            'beta' => RequestSummary::create('beta')
+                ->withRequest('/zulu', 'POST', '10.0.0.2', 1.0, true),
+            'alpha' => RequestSummary::create('alpha')
+                ->withRequest('/alpha', 'GET', '10.0.0.1', 2.0),
+        ];
     }
 
     /**

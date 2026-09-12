@@ -274,6 +274,51 @@ final class RequestCollectorTest extends TestCase
         );
     }
 
+    public function testCapturePreservesRouteDefinitionShapeWhenPluralRouteKeysAreRedacted(): void
+    {
+        $route = Route::get('/')
+            ->name('home')
+            ->host('private.example.test')
+            ->middleware('App\Middleware\Authentication')
+            ->action('App\Web\HomeAction');
+
+        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
+
+        $collector = new RequestCollector(
+            self::currentRoute($route, []),
+            $routes,
+            new CapturePolicy(sensitiveKeys: ['hosts', 'methods', 'middlewares']),
+        );
+
+        $collector->startup();
+
+        $collector->collectRequest(HelperFactory::createRequest());
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $definitionData = Captured::request($collector)?->data()['routeDefinition'] ?? null;
+
+        self::assertIsArray(
+            $definitionData,
+            'Redaction must retain the route-definition object shape.',
+        );
+
+        $keys = ['hosts', 'methods', 'middlewares'];
+
+        foreach ($keys as $key) {
+            self::assertSame(
+                [SensitiveDataRedactor::PLACEHOLDER],
+                $definitionData[$key] ?? null,
+                "A scalar redaction of `{$key}` must be restored as a string list.",
+            );
+        }
+
+        self::assertSame(
+            $definitionData,
+            RouteDefinition::fromArray($definitionData)->toArray(),
+            'A redacted definition must remain hydratable by the Request panel.',
+        );
+    }
+
     public function testCapturePreservesRouteDefinitionShapeWhenRouteFieldsAreRedacted(): void
     {
         $route = Route::get('/')
@@ -281,6 +326,7 @@ final class RequestCollectorTest extends TestCase
             ->host('private.example.test')
             ->middleware('App\Middleware\Authentication')
             ->action('App\Web\HomeAction');
+
         $routes = new RouteCollection((new RouteCollector())->addRoute($route));
 
         $collector = new RequestCollector(
@@ -338,6 +384,7 @@ final class RequestCollectorTest extends TestCase
         $currentRoute = self::currentRoute($route, ['id' => '42']);
 
         $collector = new RequestCollector($currentRoute, $routes);
+
         $collector->startup();
         $collector->collectRequest(HelperFactory::createRequest(uri: 'https://api.example.test/articles/42'));
         $collector->collectResponse(HelperFactory::createResponse(200));
@@ -544,13 +591,14 @@ final class RequestCollectorTest extends TestCase
         $route = Route::get('/')
             ->name('private/home')
             ->action('App\Web\PrivateHomeAction');
-        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
 
+        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
         $collector = new RequestCollector(
             self::currentRoute($route, []),
             $routes,
             new CapturePolicy(sensitiveKeys: ['route']),
         );
+
         $collector->startup();
         $collector->collectRequest(HelperFactory::createRequest());
         $collector->collectResponse(HelperFactory::createResponse());
@@ -631,6 +679,7 @@ final class RequestCollectorTest extends TestCase
         $collector->startup();
         $collector->collectRequest($request);
         $collector->collectResponse(HelperFactory::createResponse());
+
         $data = Captured::request($collector)?->data() ?? [];
 
         $requestBody = $data['requestBody'] ?? null;

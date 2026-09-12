@@ -60,6 +60,12 @@ final class BrandPageActionsTest extends TestCase
                 '/debug/view?tag=request-1&panel=unknown',
             ),
         );
+        $arrayPanel = $action(
+            HelperFactory::createRequest(
+                'GET',
+                '/debug/view?tag=request-1&panel[]=config',
+            ),
+        );
 
         self::assertSame(
             400,
@@ -80,6 +86,16 @@ final class BrandPageActionsTest extends TestCase
             'The requested debug panel is not available.',
             (string) $wrongPanel->getBody(),
             'Unsupported panel must identify the available panel.',
+        );
+        self::assertSame(
+            400,
+            $arrayPanel->getStatusCode(),
+            'Non-scalar panel must produce a bad request response.',
+        );
+        self::assertSame(
+            'The requested debug panel is not available.',
+            (string) $arrayPanel->getBody(),
+            'Non-scalar panel must reuse the unavailable-panel message.',
         );
     }
 

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Collector;
 
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
-use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Server\MiddlewareInterface;
 use RuntimeException;
 use Yii3\Debug\Collector\EventCollector;
+use Yii3\Debug\Tests\Provider\EventCollectorProvider;
 use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Tests\Support\Stubs\{
@@ -106,6 +108,33 @@ final class EventCollectorTest extends TestCase
             $event->secret,
             json_encode($snapshot->jsonSerialize(), JSON_THROW_ON_ERROR),
             'The serialized snapshot must not contain event properties.',
+        );
+    }
+
+    #[DataProviderExternal(EventCollectorProvider::class, 'unsupportedActionWrappers')]
+    public function testCaptureFallsBackForEveryUnsupportedActionWrapperShape(MiddlewareInterface $middleware): void
+    {
+        $beforeMiddleware = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+
+        $collector = new EventCollector();
+
+        $collector->startup();
+
+        $collector->record(
+            new $beforeMiddleware($middleware, HelperFactory::createRequest()),
+            'AnonymousMiddlewareStack',
+        );
+
+        $snapshot = Captured::event($collector);
+
+        self::assertNotNull(
+            $snapshot,
+            'An active collector must expose its Event snapshot.',
+        );
+        self::assertSame(
+            [get_debug_type($middleware)],
+            array_map(static fn(EventRow $row): string => $row->senderClass, $snapshot->entries()),
+            'An unsupported wrapper shape must fall back to the anonymous middleware class.',
         );
     }
 
