@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Collector;
 
-use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
+use PHPForge\Debug\Panel\Event\{EventInspection, EventRow, EventSnapshot};
 use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\MiddlewareInterface;
 use RuntimeException;
 use Yii3\Debug\Collector\EventCollector;
@@ -185,6 +186,54 @@ final class EventCollectorTest extends TestCase
         }
     }
 
+    public function testCaptureMarksEnterContextAsFailedWhenTheRequestCannotBeRead(): void
+    {
+        $request = self::createStub(ServerRequestInterface::class);
+
+        $request
+            ->method('getMethod')
+            ->willThrowException(new RuntimeException('Request method is unavailable.'));
+
+        $beforeMiddleware = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+
+        $inspection = self::inspectLifecycleEvent(new $beforeMiddleware(new MiddlewareStub(), $request));
+
+        self::assertSame(
+            'failed',
+            $inspection->getContextStatus(),
+            'An unreadable request must report a failed capture.',
+        );
+        self::assertSame(
+            [],
+            $inspection->getContext(),
+            'A failed capture must expose no partial context.',
+        );
+    }
+
+    public function testCaptureMarksLeaveContextAsFailedWhenTheResponseCannotBeRead(): void
+    {
+        $response = self::createStub(ResponseInterface::class);
+
+        $response
+            ->method('getStatusCode')
+            ->willThrowException(new RuntimeException('Status is unavailable.'));
+
+        $afterMiddleware = 'Yiisoft\\Middleware\\Dispatcher\\Event\\AfterMiddleware';
+
+        $inspection = self::inspectLifecycleEvent(new $afterMiddleware(new MiddlewareStub(), $response));
+
+        self::assertSame(
+            'failed',
+            $inspection->getContextStatus(),
+            'An unreadable response must report a failed capture.',
+        );
+        self::assertSame(
+            [],
+            $inspection->getContext(),
+            'A failed capture must expose no partial context.',
+        );
+    }
+
     public function testCaptureNormalizesAnonymousEventClassWithoutExposingItsDeclarationPath(): void
     {
         $event = AnonymousEventStubFactory::create();
@@ -239,6 +288,7 @@ final class EventCollectorTest extends TestCase
         $before = microtime(true);
 
         $collector->startup();
+
         $collector->record($first, 'App\\Service\\FirstDispatcher');
         $collector->record($second, 'App\\Service\\SecondDispatcher');
 
@@ -351,6 +401,7 @@ final class EventCollectorTest extends TestCase
         $collector = new EventCollector();
 
         $collector->startup();
+
         $collector->record(new $beforeMiddleware($middleware, $request), 'AnonymousMiddlewareStack');
         $collector->record(new $afterMiddleware($middleware, null), 'AnonymousMiddlewareStack');
 
@@ -390,6 +441,7 @@ final class EventCollectorTest extends TestCase
         $collector = new EventCollector();
 
         $collector->startup();
+
         $collector->record(new $beforeMiddleware($middleware, $request), 'AnonymousMiddlewareStack');
 
         $snapshot = Captured::event($collector);
@@ -443,6 +495,7 @@ final class EventCollectorTest extends TestCase
         );
 
         $collector->record($beforeStartup);
+
         $collector->startup();
 
         $emptySnapshot = Captured::event($collector);
@@ -458,6 +511,7 @@ final class EventCollectorTest extends TestCase
         );
 
         $collector->record($firstRequest);
+
         $collector->startup();
 
         $firstSnapshot = Captured::event($collector);
@@ -480,6 +534,7 @@ final class EventCollectorTest extends TestCase
         );
 
         $collector->record($outsideLifecycle);
+
         $collector->shutdown();
         $collector->startup();
 
@@ -533,6 +588,7 @@ final class EventCollectorTest extends TestCase
 
         $collector->shutdown();
         $collector->startup();
+
         $collector->record(new $after($middleware, null));
 
         self::assertNull(
@@ -571,7 +627,8 @@ final class EventCollectorTest extends TestCase
             'Same-class middleware instances must not be treated as the same invocation.',
         );
         self::assertNull(
-            (new \PHPForge\Debug\Panel\Event\EventSequence($rows))->interval(($rows[0] ?? self::fail('Expected row 0.'))),
+            (new \PHPForge\Debug\Panel\Event\EventSequence($rows))
+                ->interval(($rows[0] ?? self::fail('Expected row 0.'))),
             'An unrelated leave must not complete an observed interval.',
         );
     }
@@ -600,6 +657,7 @@ final class EventCollectorTest extends TestCase
         $collector->record(new $before($middleware, $request));
         $collector->record(new $after($middleware, null));
         $collector->record(new SensitiveEventStub());
+
         $snapshot = Captured::event($collector);
 
         self::assertNotNull(
@@ -633,5 +691,37 @@ final class EventCollectorTest extends TestCase
             json_encode($snapshot->jsonSerialize(), JSON_THROW_ON_ERROR),
             'Query values must never enter lifecycle context or traces.',
         );
+    }
+
+    /**
+     * Records one lifecycle event with context capture enabled and returns its inspection.
+     */
+    private static function inspectLifecycleEvent(object $event): EventInspection
+    {
+        $collector = new EventCollector();
+
+        $collector->captureContext = true;
+
+        $collector->startup();
+
+        $collector->record($event);
+
+        $entry = Captured::event($collector)?->entries()[0] ?? null;
+
+        self::assertInstanceOf(
+            EventRow::class,
+            $entry,
+            'A lifecycle event must produce one typed row.',
+        );
+
+        $inspection = $entry->inspection();
+
+        self::assertInstanceOf(
+            EventInspection::class,
+            $inspection,
+            'A lifecycle event must carry an inspection.',
+        );
+
+        return $inspection;
     }
 }
