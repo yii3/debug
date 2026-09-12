@@ -75,7 +75,8 @@
         },
         "exclude-from-classmap": [
             "tests/Support/Stubs/after-middleware-event.php",
-            "tests/Support/Stubs/before-middleware-event.php"
+            "tests/Support/Stubs/before-middleware-event.php",
+            "tests/Support/Stubs/unavailable-event-capture.php"
         ]
     },
     "extra": {
