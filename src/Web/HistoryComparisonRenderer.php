@@ -21,6 +21,7 @@ use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
 use function in_array;
+use function max;
 use function rawurlencode;
 use function rtrim;
 
@@ -224,13 +225,15 @@ final class HistoryComparisonRenderer
      *
      * @template TRow of object
      *
-     * @param non-empty-list<TRow> $rows
+     * @param list<TRow> $rows
      * @param list<GridColumn<TRow>> $columns
      */
     private static function grid(string $caption, array $rows, array $columns): string
     {
         /** @var GridView<TRow> $grid */
-        $grid = PanelGrid::create((new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(count($rows)));
+        $grid = PanelGrid::create(
+            (new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(max(1, count($rows))),
+        );
 
         return $grid
             ->caption($caption, ['class' => 'yii-debug-sr-only'])

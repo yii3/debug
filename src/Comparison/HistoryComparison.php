@@ -28,7 +28,7 @@ final readonly class HistoryComparison
 
     /**
      * @param SnapshotComparison $comparison Shared comparison the presentation models are derived from.
-     * @param non-empty-list<HistoryMetricComparison> $metrics Request-summary metric comparisons.
+     * @param list<HistoryMetricComparison> $metrics Request-summary metric comparisons.
      * @param list<HistoryPanelComparison> $panels Per-panel structural comparisons.
      */
     private function __construct(
@@ -65,9 +65,9 @@ final readonly class HistoryComparison
     }
 
     /**
-     * @param non-empty-list<SummaryMetricComparison> $metrics
+     * @param list<SummaryMetricComparison> $metrics
      *
-     * @return non-empty-list<HistoryMetricComparison>
+     * @return list<HistoryMetricComparison>
      */
     private static function buildMetrics(array $metrics): array
     {
