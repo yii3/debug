@@ -30,6 +30,7 @@ use Yii3\Debug\Web\{
     GridColumn,
     GridFooter,
     PageWindow,
+    PanelGrid,
     PanelHeading,
     SortState
 };
@@ -252,21 +253,9 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
         $bySequence = NPlusOneDetector::bySequence($findings);
 
         /** @var GridView<QueryRow> $grid */
-        $grid = GridView::widget();
-
-        $grid = $grid
-            ->dataReader($paginator)
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
-            ->filterFormId('yii-debug-db-filters')
-            ->columns(...$this->columns($summary, $bySequence, $context, $queryParams, $filters));
-
-        if ($context !== null) {
-            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
-        }
+        $grid = PanelGrid::filterable($paginator, 'yii-debug-db-filters')
+            ->columns(...$this->columns($summary, $bySequence, $context, $queryParams, $filters))
+            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
 
         $explainAll = $context !== null && $this->explain->available()
             ? Div::tag()->class('yii-debug-db-explain-all')->html(

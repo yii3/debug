@@ -17,7 +17,6 @@ use UIAwesome\Html\Sectioning\{Article, Section};
 use Yii3\Debug\Comparison\{HistoryComparison, HistoryMetricComparison, HistoryPanelComparison};
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Data\Reader\Iterable\IterableDataReader;
-use Yiisoft\Html\Html;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
@@ -154,7 +153,11 @@ final class HistoryComparisonRenderer
             $labels[$panel->id] = $panelLabels[$panel->id] ?? $panel->label;
         }
 
-        $comparison = HistoryComparison::fromSnapshots($comparison->baseline, $comparison->target, $labels);
+        $comparison = HistoryComparison::fromSnapshots(
+            $comparison->baseline,
+            $comparison->target,
+            $labels
+        );
 
         $baseline = $comparison->baseline->summary;
         $target = $comparison->target->summary;
@@ -227,16 +230,12 @@ final class HistoryComparisonRenderer
     private static function grid(string $caption, array $rows, array $columns): string
     {
         /** @var GridView<TRow> $grid */
-        $grid = GridView::widget();
+        $grid = PanelGrid::create((new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(count($rows)));
 
         return $grid
-            ->dataReader((new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(count($rows)))
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table', 'yii-debug-compare-grid')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->caption(Html::span($caption, ['class' => 'yii-debug-sr-only']))
+            ->caption($caption, ['class' => 'yii-debug-sr-only'])
             ->columns(...$columns)
+            ->tableClass('yii-debug-table', 'yii-debug-compare-grid')
             ->render();
     }
 

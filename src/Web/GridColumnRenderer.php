@@ -25,14 +25,10 @@ final class GridColumnRenderer implements FilterableColumnRendererInterface
 
     public function renderBody(ColumnInterface $column, Cell $cell, DataContext $context): Cell
     {
-        $content = ($column->content)($context->data, $context);
-
-        // Single, centralized workaround: the newline padding keeps GridView from taking its empty-cell branch, which
-        // discards column attributes (see `docs/experiments/dataview-history.md`), and matches the reference renderer.
         return $cell
             ->addClass($column->class)
             ->addClass($column->bodyClass)
-            ->content("\n{$content}\n")
+            ->content(($column->content)($context->data, $context))
             ->encode($column->encodeContent);
     }
 

@@ -20,6 +20,7 @@ use Yii3\Debug\Web\{
     GridColumn,
     GridFooter,
     PageWindow,
+    PanelGrid,
     PanelHeading,
     SortState,
     SummaryChip,
@@ -120,7 +121,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         array $queryParams,
         array $filters,
     ): array {
-        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
+        $state = SortState::fromQuery(
+            QueryInput::scalar($queryParams, 'sort'),
+            self::SORT_ATTRIBUTES,
+            'time',
+        );
 
         unset($queryParams['page']);
 
@@ -228,27 +233,24 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     ): string {
         $queryParams = $context === null
             ? []
-            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
+            : FilterRemoval::withGroup(
+                $context->queryParams,
+                FilterPrefix::LOG,
+                $filters,
+            );
 
         /** @var GridView<LogRow> $grid */
-        $grid = GridView::widget();
-
-        $grid = $grid
+        $grid = PanelGrid::filterable($paginator, 'yii-debug-log-filters')
             ->bodyRowAttributes(static fn(LogRow $row): array => LogCellRenderer::buildRowOptions($row))
-            ->dataReader($paginator)
-            ->layout('{items}')
-            ->containerClass('yii-debug-table-wrap')
-            ->tableClass('yii-debug-table')
-            ->headerCellAttributes(['scope' => 'col'])
-            ->filterCellAttributes(['class' => 'yii-debug-filter-cell'])
-            ->filterFormId('yii-debug-log-filters')
-            ->columns(...$this->columns($context, $queryParams, $filters));
+            ->columns(...$this->columns($context, $queryParams, $filters))
+            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
 
-        if ($context !== null) {
-            $grid = $grid->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
-        }
-
-        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
+        $footer = GridFooter::renderForPanel(
+            $paginator,
+            $paginator->getCurrentPageSize(),
+            $context,
+            $queryParams,
+        );
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-log')
@@ -265,7 +267,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         PanelRenderContext $context,
         array $filters,
     ): string {
-        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
+        $queryParams = FilterRemoval::withGroup(
+            $context->queryParams,
+            FilterPrefix::LOG,
+            $filters,
+        );
 
         $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
 
@@ -295,7 +301,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
 
         $queryParams = $context === null
             ? []
-            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $search->activeFilters);
+            : FilterRemoval::withGroup(
+                $context->queryParams,
+                FilterPrefix::LOG,
+                $search->activeFilters,
+            );
 
         $filteredRows = $search->filter($entries);
 
@@ -312,7 +322,12 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             return $content . $this->renderGrid(PageWindow::single($filteredRows));
         }
 
-        $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::LOG);
+        $content .= FilterRemoval::banner(
+            $search->activeFilters,
+            $context,
+            $queryParams,
+            FilterPrefix::LOG,
+        );
 
         if ($filteredRows === []) {
             return $content . EmptyState::card(
@@ -435,7 +450,10 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      */
     private static function snapshot(array $payload): LogSnapshot
     {
-        return LogSnapshot::fromArray($payload, '$.panels.log');
+        return LogSnapshot::fromArray(
+            $payload,
+            '$.panels.log',
+        );
     }
 
     /**
@@ -445,7 +463,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      */
     private static function sortRows(array $rows, string|null $sort): array
     {
-        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'time');
+        $state = SortState::fromQuery(
+            $sort,
+            self::SORT_ATTRIBUTES,
+            'time',
+        );
 
         return $state->apply(
             $rows,
