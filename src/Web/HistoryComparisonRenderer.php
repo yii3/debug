@@ -293,15 +293,9 @@ final class HistoryComparisonRenderer
 
     private static function renderMetrics(HistoryComparison $comparison): string
     {
-        $metrics = $comparison->metrics;
-
-        if ($metrics === []) {
-            return '';
-        }
-
         return self::grid(
             'Request summary comparison',
-            $metrics,
+            $comparison->metrics,
             [
                 new GridColumn(
                     header: 'Metric',
