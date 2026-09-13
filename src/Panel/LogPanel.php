@@ -51,6 +51,13 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      */
     public function __construct(private Trace $trace) {}
 
+    /**
+     * Reports whether the capture recorded log messages worth opening the panel for.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return bool `true` when the capture carried data; `false` otherwise.
+     */
     public function hasContent(array $payload): bool
     {
         if ($payload === []) {
@@ -62,31 +69,68 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         return true;
     }
 
+    /**
+     * Returns the icon key shared with the built-in Logs navigation entry.
+     *
+     * @return string Shared Debug Core icon key.
+     */
     public function icon(): string
     {
         return PanelIcon::LOGS->value;
     }
 
+    /**
+     * Returns the identifier associating the panel with its slice of the captured payload.
+     *
+     * @return string Stable panel identifier.
+     */
     public function id(): string
     {
         return 'log';
     }
 
+    /**
+     * Returns the panel title shown in the debugger navigation.
+     *
+     * @return string Human-readable panel name.
+     */
     public function name(): string
     {
         return PanelTitle::LOGS->value;
     }
 
+    /**
+     * Renders the detail view for a capture opened without page context.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return string Rendered panel markup.
+     */
     public function render(array $payload): string
     {
         return $this->renderPanel($payload);
     }
 
+    /**
+     * Renders the detail view, letting the page context drive filtering, sorting, and paging.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderContext $context Query parameters and theme of the page being rendered.
+     *
+     * @return string Rendered panel markup.
+     */
     public function renderWithContext(array $payload, PanelRenderContext $context): string
     {
         return $this->renderPanel($payload, $context);
     }
 
+    /**
+     * Builds the toolbar metrics: the total message count plus the error and warning counts.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return list<ToolbarItem> Toolbar metrics in display order.
+     */
     public function toolbarItems(array $payload): array
     {
         $counts = LogCounts::fromRows(self::snapshot($payload)->entries());
@@ -214,6 +258,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         ];
     }
 
+    /**
+     * Renders the card shown when the request logged no message.
+     *
+     * @return string Rendered empty-state card.
+     */
     private static function renderEmptyState(): string
     {
         return EmptyState::card(
@@ -430,7 +479,10 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         $text = " {$label}";
 
         if ($context === null) {
-            $item = SummaryChip::render($value, $text);
+            $item = SummaryChip::render(
+                $value,
+                $text,
+            );
 
             return $level === LogLevel::INFO ? $item : $item->class($class);
         }

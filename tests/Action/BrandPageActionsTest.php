@@ -159,9 +159,9 @@ final class BrandPageActionsTest extends TestCase
             'Sidebar must expose history navigation.',
         );
         self::assertStringContainsString(
-            'yii-debug-readout',
+            'Installed extensions (',
             (string) $response->getBody(),
-            'Configuration page must include runtime readouts.',
+            'Configuration page must include the installed-package roster.',
         );
     }
 

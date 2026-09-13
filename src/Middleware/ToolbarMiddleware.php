@@ -43,6 +43,10 @@ final class ToolbarMiddleware implements MiddlewareInterface
      */
     private CollectorCoordinator|null $collectorCoordinator = null;
     /**
+     * Defines the statements per call site that flag it as excessive, or `null` to disable the check.
+     */
+    private int|null $excessiveCallerThreshold = null;
+    /**
      * Defines the toolbar height in pixels.
      */
     private int $height = 50;
@@ -101,6 +105,19 @@ final class ToolbarMiddleware implements MiddlewareInterface
     {
         $new = clone $this;
         $new->collectorCoordinator = $collectorCoordinator;
+
+        return $new;
+    }
+
+    /**
+     * Returns a new instance with the threshold that flags a call site as issuing too many statements.
+     *
+     * @param int|null $excessiveCallerThreshold Statements per call site that flag it, or `null` to disable.
+     */
+    public function withExcessiveCallerThreshold(int|null $excessiveCallerThreshold): self
+    {
+        $new = clone $this;
+        $new->excessiveCallerThreshold = $excessiveCallerThreshold;
 
         return $new;
     }
@@ -207,7 +224,10 @@ final class ToolbarMiddleware implements MiddlewareInterface
         if (isset($snapshot->panels['db'])) {
             $database = new DbSummary(DbSnapshot::fromArray($snapshot->panels['db'], '$.panels.db')->entries());
             $snapshot = new DebugSnapshot(
-                $snapshot->summary->withDatabase($database->count),
+                $snapshot->summary->withDatabase(
+                    $database->count,
+                    $database->excessiveCallerCount($this->excessiveCallerThreshold),
+                ),
                 $snapshot->panels,
                 $snapshot->failures,
             );

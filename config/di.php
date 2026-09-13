@@ -158,6 +158,7 @@ return [
     ->withCapturePolicy($capturePolicy)
     ->withRoutePrefix($config['routePrefix'])
     ->withHistorySize($config['historySize'])
+    ->withExcessiveCallerThreshold($config['database']['excessiveCallerThreshold'])
     ->withSkipUrls($config['toolbar']['skipUrls'])
     ->withPresentation($config['toolbar']['position'], $config['toolbar']['height']),
     ToolbarRenderer::class => static fn(

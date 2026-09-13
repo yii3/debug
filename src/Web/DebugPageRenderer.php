@@ -6,8 +6,8 @@ namespace Yii3\Debug\Web;
 
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\{Format, Icon, Text, Vocabulary};
-use PHPForge\Debug\Panel\Config\ConfigCardRenderer;
-use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Panel\Config\ConfigPanel;
+use PHPForge\Debug\Panel\{PanelRenderContext, PanelRenderer};
 use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
@@ -21,6 +21,7 @@ use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Panel\{
     ContextAndSummaryAwarePanelInterface,
     ContextAwarePanelInterface,
+    DbPanel,
     ExtensionPanelInterface,
     ProviderPanel,
     SummaryAwarePanelInterface,
@@ -70,7 +71,9 @@ final class DebugPageRenderer
      * @var array<string, ExtensionPanelInterface>
      */
     private array $extensionPanels = [];
-
+    /**
+     * Indicates whether the renderer has been prepared.
+     */
     private bool $prepared = false;
     /**
      * Base route used to generate debugger URLs.
@@ -105,7 +108,12 @@ final class DebugPageRenderer
 
         return $this->page(
             PanelTitle::COMPARE->value,
-            HistoryComparisonRenderer::renderWithPanels($comparison, $manifest, $this->routePrefix, $panelLabels),
+            HistoryComparisonRenderer::renderWithPanels(
+                $comparison,
+                $manifest,
+                $this->routePrefix,
+                $panelLabels,
+            ),
             $theme,
             $this->viewUrl($target->tag),
             $this->viewSidebar($target, $manifest, $comparison->target),
@@ -122,26 +130,13 @@ final class DebugPageRenderer
         array $manifest = [],
         DebugSnapshot|null $snapshot = null,
     ): string {
-        $summary = $this->configDataFactory->create();
+        $view = (new ConfigPanel())
+            ->phpInfoUrl($this->routePrefix . '/php-info')
+            ->present($this->configDataFactory->create());
 
         $content = Div::tag()
             ->class('yii-debug-page')
-            ->html(
-                H1::tag()
-                    ->class('yii-debug-sr-only')
-                    ->content(PanelTitle::CONFIGURATION),
-                ConfigCardRenderer::renderReadoutGrid($summary),
-                ConfigCardRenderer::renderPhpExtensionsSection($summary->php),
-                ConfigCardRenderer::renderApplicationDetailsSection($summary->application),
-            );
-        $installedExtensions = ConfigCardRenderer::renderInstalledExtensionsSection($summary);
-
-        if ($installedExtensions !== null) {
-            $content = $content->html($installedExtensions);
-        }
-
-        $content = $content
-            ->html(ConfigCardRenderer::renderPhpInfoCta($this->routePrefix . '/php-info'))
+            ->html(PanelRenderer::render(PanelTitle::CONFIGURATION->value, $view))
             ->render();
 
         $configUrl = $this->viewUrl($tag);
@@ -174,7 +169,11 @@ final class DebugPageRenderer
         }
         $panel = $this->extensionPanels[$panelId] ?? null;
 
-        if ($panel === null && !array_key_exists($panelId, $snapshot->panels) && !array_key_exists($panelId, $snapshot->failures)) {
+        if (
+            $panel === null
+            && !array_key_exists($panelId, $snapshot->panels)
+            && !array_key_exists($panelId, $snapshot->failures)
+        ) {
             throw new InvalidArgumentException(
                 Message::EXTENSION_PANEL_UNKNOWN->getMessage($panelId),
             );
@@ -268,9 +267,16 @@ final class DebugPageRenderer
     ): string {
         $newestTag = array_key_first($manifest);
 
+        $dbPanel = $this->extensionPanels['db'] ?? null;
+
         return $this->page(
             PanelTitle::REQUEST_HISTORY->value,
-            HistoryGridRenderer::render($manifest, $queryParams, $this->routePrefix),
+            HistoryGridRenderer::render(
+                $manifest,
+                $queryParams,
+                $this->routePrefix,
+                $dbPanel instanceof DbPanel ? $dbPanel : null,
+            ),
             $theme,
             $newestTag === null ? null : $this->viewUrl($newestTag),
             $this->historySidebar($manifest, $queryParams, $snapshot),

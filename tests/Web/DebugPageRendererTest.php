@@ -7,8 +7,10 @@ namespace Yii3\Debug\Tests\Web;
 use Closure;
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
+use PHPForge\Debug\Panel\Config\ConfigPanel;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
+use PHPForge\Debug\Panel\{PanelRenderer, PanelTitle};
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
@@ -33,11 +35,9 @@ use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\View\WebView;
 
-use function count;
 use function date;
 use function explode;
 use function html_entity_decode;
-use function implode;
 use function ini_get;
 use function php_uname;
 use function preg_match;
@@ -109,7 +109,7 @@ final class DebugPageRendererTest extends TestCase
 
         $renderer = $this->rendererWithInertia();
 
-        [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+        $configContent = self::expectedConfigContent('/debug/php-info');
 
         $phpVersion = PHP_VERSION;
 
@@ -183,33 +183,7 @@ final class DebugPageRendererTest extends TestCase
             </nav>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContent}
             </div>
             </main>
             </div>
@@ -219,6 +193,27 @@ final class DebugPageRendererTest extends TestCase
             HTML,
             $html,
             'An empty Inertia capture must match the complete Configuration document.',
+        );
+    }
+
+    public function testConfigPageEmbedsTheConfigurationPanelAndTheAdapterPhpInfoRoute(): void
+    {
+        $html = $this->renderer()->config('request-1', 'light');
+
+        self::assertStringContainsString(
+            '<a href="/debug/php-info" rel="noopener" target="_blank">View full phpinfo</a>',
+            $html,
+            'The call to action must point at the adapter-resolved phpinfo route.',
+        );
+        self::assertStringContainsString(
+            '<h1 class="yii-debug-sr-only">' . "\n" . 'Configuration' . "\n" . '</h1>',
+            $html,
+            'The page must embed the Configuration panel.',
+        );
+        self::assertStringContainsString(
+            'Installed extensions (',
+            $html,
+            'The page must embed the installed-package roster.',
         );
     }
 
@@ -236,7 +231,7 @@ final class DebugPageRendererTest extends TestCase
 
         $renderer = $this->rendererWithInertia();
 
-        [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+        $configContent = self::expectedConfigContent('/debug/php-info');
 
         $phpVersion = PHP_VERSION;
 
@@ -327,33 +322,7 @@ final class DebugPageRendererTest extends TestCase
             </section>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContent}
             </div>
             </main>
             </div>
@@ -380,7 +349,7 @@ final class DebugPageRendererTest extends TestCase
 
         $renderer = $this->rendererWithVite();
 
-        [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+        $configContent = self::expectedConfigContent('/debug/php-info');
 
         $phpVersion = PHP_VERSION;
 
@@ -471,33 +440,7 @@ final class DebugPageRendererTest extends TestCase
             </section>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContent}
             </div>
             </main>
             </div>
@@ -529,7 +472,7 @@ final class DebugPageRendererTest extends TestCase
 
         $renderer = $this->rendererWithInertia();
 
-        [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+        $configContent = self::expectedConfigContent('/debug/php-info');
 
         $phpVersion = PHP_VERSION;
 
@@ -620,33 +563,7 @@ final class DebugPageRendererTest extends TestCase
             </section>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContent}
             </div>
             </main>
             </div>
@@ -690,7 +607,8 @@ final class DebugPageRendererTest extends TestCase
             'Route configuration must retain registered extension panels.',
         );
 
-        [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+        $configContent = self::expectedConfigContent('/debug/php-info');
+        $configContentPrefixed = self::expectedConfigContent('/developer/debug/php-info');
 
         $phpVersion = PHP_VERSION;
 
@@ -774,33 +692,7 @@ final class DebugPageRendererTest extends TestCase
             </nav>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContent}
             </div>
             </main>
             </div>
@@ -890,33 +782,7 @@ final class DebugPageRendererTest extends TestCase
             </nav>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/developer/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContentPrefixed}
             </div>
             </main>
             </div>
@@ -1006,33 +872,7 @@ final class DebugPageRendererTest extends TestCase
             </nav>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/developer/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContentPrefixed}
             </div>
             </main>
             </div>
@@ -1052,7 +892,7 @@ final class DebugPageRendererTest extends TestCase
         $manifest = $this->manifest();
         $renderer = $this->renderer();
 
-        [$readoutGrid, $phpExtensions, $installedExtensions] = self::expectedConfigFragments();
+        $configContent = self::expectedConfigContent('/debug/php-info');
 
         $phpVersion = PHP_VERSION;
 
@@ -1126,33 +966,7 @@ final class DebugPageRendererTest extends TestCase
             </nav>
             </aside><main class="yii-debug-main yii-debug-card" id="yii-debug-main" tabindex="-1">
             <div class="yii-debug-page">
-            <h1 class="yii-debug-sr-only">
-            Configuration
-            </h1>{$readoutGrid}{$phpExtensions}<section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">//</span> Application details
-            </h2><dl class="yii-debug-dl">
-            <div class="yii-debug-dl-row">
-            <dt>
-            Charset
-            </dt><dd>
-            UTF-8
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Current language
-            </dt><dd>
-            —
-            </dd>
-            </div><div class="yii-debug-dl-row">
-            <dt>
-            Source language
-            </dt><dd>
-            —
-            </dd>
-            </div>
-            </dl>
-            </section>{$installedExtensions}<a class="yii-debug-cta" href="/debug/php-info" rel="noopener" target="_blank"><span class="yii-debug-cta-prompt" aria-hidden="true">→</span><span>View full phpinfo</span><span class="yii-debug-cta-external" aria-hidden="true">↗</span></a>
+            {$configContent}
             </div>
             </main>
             </div>
@@ -2348,9 +2162,9 @@ final class DebugPageRendererTest extends TestCase
             'Request must remain the active primary panel.',
         );
         self::assertStringContainsString(
-            'class="yii-debug-request-overview yii-debug-verb-get"',
+            'yii-debug-request-overview',
             $html,
-            'The shared Request and routing overview must be rendered.',
+            'The shared Request identity overview must be rendered.',
         );
         self::assertStringContainsString(
             'title="https://example.test/?page=2">https://example.test/?page=2</span>',
@@ -2463,94 +2277,25 @@ final class DebugPageRendererTest extends TestCase
     }
 
     /**
-     * @return array{string, string, string}
+     * Builds the Configuration panel fragment the page embeds.
+     *
+     * The panel markup itself is covered by the shared presenter's own tests; this helper pins only that the page
+     * embeds it for the adapter-resolved phpinfo route.
+     *
+     * @param string $phpInfoUrl Adapter-resolved phpinfo URL.
+     *
+     * @return string Rendered Configuration panel fragment.
      */
-    private static function expectedConfigFragments(): array
+    private static function expectedConfigContent(string $phpInfoUrl): string
     {
-        $summary = (new ConfigDataFactory(['name' => 'Test application']))->create();
+        $view = (new ConfigPanel())
+            ->phpInfoUrl($phpInfoUrl)
+            ->present((new ConfigDataFactory(['name' => 'Test application']))->create());
 
-        $phpVersion = $summary->php->version;
-
-        [$xdebugVariant, $xdebugState] = self::extensionState($summary->php->xdebug);
-        [$apcuVariant, $apcuState] = self::extensionState($summary->php->apcu);
-        [$memcacheVariant, $memcacheState] = self::extensionState($summary->php->memcache);
-        [$memcachedVariant, $memcachedState] = self::extensionState($summary->php->memcached);
-
-        $packageRows = [];
-
-        foreach ($summary->extensions as $name => $version) {
-            $nameParts = explode('/', $name, 2);
-            $package = $nameParts[1] ?? $nameParts[0];
-            $packageRows[] = <<<HTML
-                <div class="yii-debug-package-row">
-                <dt class="yii-debug-package-name">
-                {$package}
-                </dt><dd class="yii-debug-package-version">
-                v{$version}
-                </dd>
-                </div>
-                HTML;
-        }
-
-        $packageCount = count($packageRows);
-
-        $packageLabel = $packageCount === 1 ? 'package' : 'packages';
-
-        $packageRows = implode('', $packageRows);
-
-        $installedExtensions = $packageCount === 0
-            ? ''
-            : <<<HTML
-                <section class="yii-debug-section">
-                <h2 class="yii-debug-section-title">
-                <span class="yii-debug-section-mark">::</span> Installed extensions <span class="yii-debug-section-count">{$packageCount}</span>
-                </h2><div class="yii-debug-package-groups">
-                <article class="yii-debug-package-group">
-                <header class="yii-debug-package-group-header">
-                <h3 class="yii-debug-package-vendor">
-                yiisoft/
-                </h3><span class="yii-debug-package-group-count">{$packageCount} {$packageLabel}</span>
-                </header><dl class="yii-debug-package-list">
-                {$packageRows}
-                </dl>
-                </article>
-                </div>
-                </section>
-                HTML;
-
-        return [
-            <<<HTML
-            <div class="yii-debug-readout">
-            <article class="yii-debug-readout-card">
-            <span class="yii-debug-readout-corner" data-corner="tl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="tr" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="bl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="br" aria-hidden="true"></span><span class="yii-debug-readout-label">Yii</span><span class="yii-debug-readout-value">3</span><span class="yii-debug-readout-meta">framework</span>
-            </article><article class="yii-debug-readout-card">
-            <span class="yii-debug-readout-corner" data-corner="tl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="tr" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="bl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="br" aria-hidden="true"></span><span class="yii-debug-readout-label">PHP</span><span class="yii-debug-readout-value">{$phpVersion}</span><span class="yii-debug-readout-meta">runtime</span>
-            </article><article class="yii-debug-readout-card">
-            <span class="yii-debug-readout-corner" data-corner="tl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="tr" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="bl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="br" aria-hidden="true"></span><span class="yii-debug-readout-label">Environment</span><span class="yii-debug-readout-value"></span><span class="yii-debug-readout-meta"><span class="yii-debug-readout-chip yii-debug-readout-chip-muted">debug off</span></span>
-            </article><article class="yii-debug-readout-card">
-            <span class="yii-debug-readout-corner" data-corner="tl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="tr" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="bl" aria-hidden="true"></span><span class="yii-debug-readout-corner" data-corner="br" aria-hidden="true"></span><span class="yii-debug-readout-label">Application</span><span class="yii-debug-readout-value">Test application</span><span class="yii-debug-readout-meta">instance</span>
-            </article>
-            </div>
-            HTML,
-            <<<HTML
-            <section class="yii-debug-section">
-            <h2 class="yii-debug-section-title">
-            <span class="yii-debug-section-mark">::</span> PHP extensions
-            </h2><div class="yii-debug-ext-strip">
-            <span class="yii-debug-ext-pill {$xdebugVariant}"><span class="yii-debug-ext-pill-dot" aria-hidden="true"></span><span class="yii-debug-ext-pill-label">Xdebug</span><span class="yii-debug-ext-pill-state">{$xdebugState}</span></span><span class="yii-debug-ext-pill {$apcuVariant}"><span class="yii-debug-ext-pill-dot" aria-hidden="true"></span><span class="yii-debug-ext-pill-label">APCu</span><span class="yii-debug-ext-pill-state">{$apcuState}</span></span><span class="yii-debug-ext-pill {$memcacheVariant}"><span class="yii-debug-ext-pill-dot" aria-hidden="true"></span><span class="yii-debug-ext-pill-label">Memcache</span><span class="yii-debug-ext-pill-state">{$memcacheState}</span></span><span class="yii-debug-ext-pill {$memcachedVariant}"><span class="yii-debug-ext-pill-dot" aria-hidden="true"></span><span class="yii-debug-ext-pill-label">Memcached</span><span class="yii-debug-ext-pill-state">{$memcachedState}</span></span>
-            </div>
-            </section>
-            HTML,
-            $installedExtensions,
-        ];
-    }
-
-    /**
-     * @return array{string, string}
-     */
-    private static function extensionState(bool $enabled): array
-    {
-        return $enabled ? ['is-on', 'on'] : ['is-off', 'off'];
+        return PanelRenderer::render(
+            PanelTitle::CONFIGURATION->value,
+            $view,
+        );
     }
 
     /**

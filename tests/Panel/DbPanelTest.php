@@ -45,6 +45,37 @@ final class DbPanelTest extends TestCase
         );
     }
 
+    public function testCriticalQueryThresholdIsExclusiveAndDefaultsToDisabled(): void
+    {
+        $panel = new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create());
+
+        self::assertSame(
+            0,
+            $panel->criticalQueryThreshold(),
+            'An unconfigured threshold must read as disabled.',
+        );
+        self::assertFalse(
+            $panel->isQueryCountCritical(500),
+            'An unconfigured threshold must never flag a count.',
+        );
+
+        $configured = $panel->withThresholds(10, null);
+
+        self::assertSame(
+            10,
+            $configured->criticalQueryThreshold(),
+            'The configured limit must be readable.',
+        );
+        self::assertFalse(
+            $configured->isQueryCountCritical(10),
+            'A count at the limit must stay unflagged.',
+        );
+        self::assertTrue(
+            $configured->isQueryCountCritical(11),
+            'A count above the limit must be flagged.',
+        );
+    }
+
     public function testExplainLinksUseConfiguredPrefixAndStoredSequenceOnly(): void
     {
         $panel = new DbPanel(

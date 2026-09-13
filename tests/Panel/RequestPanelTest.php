@@ -25,8 +25,7 @@ final class RequestPanelTest extends TestCase
             'Invalid debug snapshot',
         );
 
-        (new RequestPanel())
-            ->render(['statusCode' => '200']);
+        (new RequestPanel())->render(['statusCode' => '200']);
     }
 
     public function testMetadataAndVisibilityMatchTheBuiltInRequestPanel(): void
@@ -73,8 +72,7 @@ final class RequestPanelTest extends TestCase
             'middlewares' => ['App\\Middleware\\<Authentication>'],
         ];
 
-        $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)->jsonSerialize());
+        $html = (new RequestPanel())->render(RequestSnapshot::capture($data)->jsonSerialize());
 
         self::assertStringContainsString(
             '&lt;script&gt;alert(1)&lt;/script&gt;',
@@ -115,8 +113,7 @@ final class RequestPanelTest extends TestCase
 
     public function testRenderLegacySnapshotUsesCanonicalOverviewWithoutInventingAnInventory(): void
     {
-        $html = (new RequestPanel())
-            ->render($this->payload());
+        $html = (new RequestPanel())->render($this->payload());
 
         self::assertStringContainsString(
             'yii-debug-request-overview',
@@ -150,80 +147,26 @@ final class RequestPanelTest extends TestCase
         );
     }
 
-    public function testRenderListsFiltersAndMarksTheMatchedCurrentApplicationRoute(): void
+    public function testRenderLiftsTheLiveRouteInventoryIntoTheOverviewWithoutOpeningATab(): void
     {
         $route = Route::methods(['GET', 'HEAD'], '/orders/<script>')
             ->name('orders/view')
             ->hosts('api.example.test', 'www.example.test')
             ->middleware('App\\Middleware\\Authentication')
             ->action('App\\Web\\<OrderAction>');
-        $secondRoute = Route::post('/health')
-            ->name('health')
-            ->action('App\\Web\\HealthAction');
 
-        $routes = new RouteCollection(
-            (new RouteCollector())
-                ->addRoute($route)
-                ->addRoute($secondRoute),
-        );
+        $routes = new RouteCollection((new RouteCollector())->addRoute($route));
+        $html = (new RequestPanel($routes))->render($this->payload());
 
-        $html = (new RequestPanel($routes))
-            ->render($this->payload());
-
-        self::assertStringContainsString(
-            '>Routes (2)</a>',
+        self::assertStringNotContainsString(
+            '>Routes (',
             $html,
-            'The tab must expose the inventory count.',
+            'The inventory must not reopen a tab that repeats the overview.',
         );
-        self::assertStringContainsString(
-            'class="yii-debug-route-inventory-provenance"',
+        self::assertStringNotContainsString(
+            'yii-debug-route-ledger',
             $html,
-            'The route inventory must identify the source and lifetime of its data.',
-        );
-        self::assertStringContainsString(
-            'Source: Current application configuration. Live configuration may differ from this capture.',
-            $html,
-            'The route inventory must distinguish live configuration from captured request data.',
-        );
-        self::assertStringContainsString(
-            'aria-label="Filter routes" data-yii-debug-filter="true"',
-            $html,
-            'Registered routes must remain searchable through the shared filter contract.',
-        );
-        self::assertStringContainsString(
-            'class="yii-debug-route-ledger"',
-            $html,
-            'Registered routes must use the shared disclosure ledger.',
-        );
-        self::assertStringContainsString(
-            'data-yii-debug-filter-target="true"',
-            $html,
-            'The route table wrapper must expose a filter target.',
-        );
-        self::assertStringContainsString(
-            'class="yii-debug-row-success"',
-            $html,
-            'The route matching the selected request must be visually distinguished.',
-        );
-        self::assertStringContainsString(
-            'class="yii-debug-badge yii-debug-badge-success yii-debug-route-match">Matched</span>',
-            $html,
-            'The matched row must include a visible non-color-only marker.',
-        );
-        self::assertStringContainsString(
-            '/orders/&lt;script&gt;',
-            $html,
-            'Live route patterns must be HTML escaped.',
-        );
-        self::assertStringContainsString(
-            'App\\Web\\&lt;OrderAction&gt;',
-            $html,
-            'Live route action descriptors must be HTML escaped.',
-        );
-        self::assertStringContainsString(
-            'App\\Web\\HealthAction',
-            $html,
-            'Every route in the current collection must be rendered.',
+            'The route ledger must not survive the removal of its tab.',
         );
         self::assertStringNotContainsString(
             '<script>',
@@ -233,33 +176,14 @@ final class RequestPanelTest extends TestCase
 
         $input = strpos($html, '>Input</a>');
         $headers = strpos($html, '>Headers</a>');
-        $session = strpos($html, '>Session</a>');
-        $inventory = strpos($html, '>Routes (2)</a>');
         $server = strpos($html, '>Server</a>');
 
-        self::assertNotFalse(
-            $input,
-            'Input must be present.',
-        );
-        self::assertNotFalse(
-            $headers,
-            'Headers must be present.',
-        );
-        self::assertNotFalse(
-            $session,
-            'Session must be present for a captured session bucket.',
-        );
-        self::assertNotFalse(
-            $inventory,
-            'Routes must be present when the collection is available.',
-        );
-        self::assertNotFalse(
-            $server,
-            'Server must be present when server data was captured.',
-        );
+        self::assertNotFalse($input, 'Input must be present.');
+        self::assertNotFalse($headers, 'Headers must be present.');
+        self::assertNotFalse($server, 'Server must be present.');
         self::assertTrue(
-            $input < $headers && $headers < $session && $session < $inventory && $inventory < $server,
-            'Canonical Request tabs must render as Input, Headers, Session, Routes, then Server.',
+            $input < $headers && $headers < $server,
+            'Canonical Request tabs must keep their order.',
         );
     }
 
@@ -411,13 +335,12 @@ final class RequestPanelTest extends TestCase
             ->method('getRoutes')
             ->willThrowException(new RuntimeException('Unable to load <routes>.'));
 
-        $html = (new RequestPanel($routes))
-            ->render($this->payload());
+        $html = (new RequestPanel($routes))->render($this->payload());
 
         self::assertStringContainsString(
-            'yii-debug-route-inventory-error',
+            'class="yii-debug-callout yii-debug-callout-danger yii-debug-request-routing-error"',
             $html,
-            'A live route collection failure must use the explicit inventory error treatment.',
+            'A live route collection failure must open its own overview callout.',
         );
         self::assertStringContainsString(
             'Current route configuration could not be read: RuntimeException: Unable to load &lt;routes&gt;.',
@@ -549,20 +472,20 @@ final class RequestPanelTest extends TestCase
             $html,
             'An unmatched request must retain the request execution overview.',
         );
-        self::assertStringContainsString(
-            '>Routes (0)</a>',
+        self::assertStringNotContainsString(
+            '>Routes (',
             $html,
-            'An empty available collection must retain a zero-count Routes tab.',
-        );
-        self::assertStringContainsString(
-            'No application routes registered',
-            $html,
-            'An empty current route collection must render a dedicated inventory state.',
+            'An empty collection must not reopen an inventory tab.',
         );
         self::assertStringNotContainsString(
-            'yii-debug-route-match',
+            'No application routes registered',
             $html,
-            'An unmatched request must not fabricate a matched-route marker.',
+            'An empty collection must not render an empty inventory state.',
+        );
+        self::assertStringContainsString(
+            'Unresolved',
+            $html,
+            'An unmatched request must say so in the overview.',
         );
         self::assertStringNotContainsString(
             'Captured route metadata must be an array or null.',
@@ -669,8 +592,7 @@ final class RequestPanelTest extends TestCase
             ->withResponse(200)
             ->withProfiling(0.009, 1_145_324);
 
-        $html = (new RequestPanel())
-            ->renderWithSummary($this->payload(), $summary);
+        $html = (new RequestPanel())->renderWithSummary($this->payload(), $summary);
 
         $overview = strpos($html, 'yii-debug-request-overview');
         $tabs = strpos($html, 'yii-debug-request-tabs');

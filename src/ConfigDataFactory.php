@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug;
 
 use Composer\InstalledVersions;
-use PHPForge\Debug\Panel\Config\{ConfigDataNormalizer, ConfigSummary};
+use PHPForge\Debug\Panel\Config\ConfigSnapshot;
 
 use function extension_loaded;
 use function is_bool;
@@ -25,9 +25,14 @@ final readonly class ConfigDataFactory
      */
     public function __construct(private array $application = []) {}
 
-    public function create(): ConfigSummary
+    /**
+     * Builds the Configuration panel payload from the live application and PHP runtime.
+     *
+     * @return array<string, mixed> Payload accepted by the shared Configuration presenter.
+     */
+    public function create(): array
     {
-        return (new ConfigDataNormalizer())->normalize(
+        return ConfigSnapshot::capture(
             [
                 'application' => [
                     'yii' => '3',
@@ -46,9 +51,9 @@ final readonly class ConfigDataFactory
                     'memcache' => extension_loaded('memcache'),
                     'memcached' => extension_loaded('memcached'),
                 ],
+                'extensions' => self::installedPackages(),
             ],
-            self::installedPackages(),
-        );
+        )->jsonSerialize();
     }
 
     private function bool(string $key): bool
@@ -59,7 +64,7 @@ final readonly class ConfigDataFactory
     }
 
     /**
-     * @return array<string, string> Installed Yii package versions keyed by package name.
+     * @return array<string, array{name: string, version: string}> Installed Yii packages keyed by package name.
      */
     private static function installedPackages(): array
     {
@@ -73,7 +78,7 @@ final readonly class ConfigDataFactory
             $version = InstalledVersions::getPrettyVersion($package);
 
             if (is_string($version)) {
-                $packages[$package] = $version;
+                $packages[$package] = ['name' => $package, 'version' => $version];
             }
         }
 
