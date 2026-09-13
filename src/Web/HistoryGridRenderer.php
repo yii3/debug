@@ -12,6 +12,7 @@ use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, 
 use Stringable;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Palpable\A;
+use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Search\HistorySearch;
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\Column\Base\DataContext;
@@ -35,17 +36,26 @@ final class HistoryGridRenderer
         'processingTime' => 'Duration',
         'peakMemory' => 'Memory',
         'ip' => 'IP',
+        'sqlCount' => 'Query',
         'method' => 'Method',
         'ajax' => 'Ajax',
         'url' => 'URL',
     ];
 
     /**
-     * @param array<string, RequestSummary> $summaries
-     * @param array<array-key, mixed> $queryParams
+     * Renders the history grid, including the Query column only when the Database panel is registered.
+     *
+     * @param array<string, RequestSummary> $summaries Manifest entries in capture order.
+     * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
+     * @param string $routePrefix Base route used to generate debugger URLs.
+     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
      */
-    public static function render(array $summaries, array $queryParams, string $routePrefix): string
-    {
+    public static function render(
+        array $summaries,
+        array $queryParams,
+        string $routePrefix,
+        DbPanel|null $dbPanel = null,
+    ): string {
         $search = HistorySearch::fromQueryParams($queryParams);
 
         $rows = [];
@@ -54,7 +64,11 @@ final class HistoryGridRenderer
             $rows[] = HistoryRow::fromSummary($requestSummary);
         }
 
-        $filteredRows = self::sortRows($search->filter($rows), QueryInput::scalar($queryParams, 'sort'));
+        $filteredRows = self::sortRows(
+            $search->filter($rows),
+            QueryInput::scalar($queryParams, 'sort'),
+            $dbPanel,
+        );
 
         $perPageRaw = QueryInput::scalar(
             $queryParams,
@@ -103,6 +117,7 @@ final class HistoryGridRenderer
                 $search->activeFilters,
                 $routePrefix,
                 $queryParams,
+                $dbPanel,
             );
     }
 
@@ -118,10 +133,13 @@ final class HistoryGridRenderer
         string $routePrefix,
         array $queryParams,
         int $offset,
+        DbPanel|null $dbPanel,
     ): array {
+        $headers = self::headers($dbPanel);
+
         $state = SortState::fromQuery(
             QueryInput::scalar($queryParams, 'sort'),
-            array_keys(self::HEADERS),
+            array_keys($headers),
             'time',
             'desc',
         );
@@ -137,10 +155,11 @@ final class HistoryGridRenderer
             ),
         ];
 
-        foreach (self::HEADERS as $attribute => $label) {
+        foreach ($headers as $attribute => $label) {
             $class = match ($attribute) {
                 'tag' => 'yii-debug-col-id',
                 'ip' => 'yii-debug-col-ip',
+                'sqlCount' => 'yii-debug-col-num',
                 default => null,
             };
 
@@ -154,7 +173,13 @@ final class HistoryGridRenderer
 
             $columns[] = new GridColumn(
                 header: $link->render(),
-                content: static fn(HistoryRow $row): string => self::renderCell($row, $attribute, $scale, $routePrefix),
+                content: static fn(HistoryRow $row): string => self::renderCell(
+                    $row,
+                    $attribute,
+                    $scale,
+                    $routePrefix,
+                    $dbPanel,
+                ),
                 filter: self::filter($attribute, $filters),
                 encodeContent: $attribute === 'ip' || $attribute === 'ajax',
                 class: $class,
@@ -178,8 +203,24 @@ final class HistoryGridRenderer
                 $filters,
                 'yii-debug-input yii-debug-col-id-input',
             ),
-            'ip' => FilterInput::text(FilterPrefix::DEBUG, 'ip', 'IP', $filters),
-            'url' => FilterInput::text(FilterPrefix::DEBUG, 'url', 'URL', $filters),
+            'ip' => FilterInput::text(
+                FilterPrefix::DEBUG,
+                'ip',
+                'IP',
+                $filters,
+            ),
+            'sqlCount' => FilterInput::text(
+                FilterPrefix::DEBUG,
+                'sqlCount',
+                'Query count',
+                $filters,
+            ),
+            'url' => FilterInput::text(
+                FilterPrefix::DEBUG,
+                'url',
+                'URL',
+                $filters,
+            ),
             'method' => FilterInput::select(
                 FilterPrefix::DEBUG,
                 'method',
@@ -208,6 +249,24 @@ final class HistoryGridRenderer
     }
 
     /**
+     * Returns the header map for the rendered columns, dropping Query when no Database panel is registered.
+     *
+     * @param DbPanel|null $dbPanel Registered Database panel, or `null`.
+     *
+     * @return array<key-of<self::HEADERS>, string> Sortable attribute mapped to its column label, in display order.
+     */
+    private static function headers(DbPanel|null $dbPanel): array
+    {
+        $headers = self::HEADERS;
+
+        if ($dbPanel === null) {
+            unset($headers['sqlCount']);
+        }
+
+        return $headers;
+    }
+
+    /**
      * @param key-of<self::HEADERS> $attribute
      */
     private static function renderCell(
@@ -215,6 +274,7 @@ final class HistoryGridRenderer
         string $attribute,
         HistoryScale $scale,
         string $routePrefix,
+        DbPanel|null $dbPanel,
     ): string {
         return match ($attribute) {
             'tag' => HistoryCellRenderer::renderTagCell(
@@ -231,6 +291,12 @@ final class HistoryGridRenderer
                 $scale->maxPeakMemory,
             ),
             'ip' => $row->ip,
+            'sqlCount' => HistoryCellRenderer::renderSqlCountCell(
+                $row,
+                "{$routePrefix}/view?tag=" . rawurlencode($row->tag) . '&panel=db',
+                $dbPanel?->isQueryCountCritical($row->sqlCount) ?? false,
+                $dbPanel?->criticalQueryThreshold() ?? 0,
+            ),
             'method' => HistoryCellRenderer::renderMethodCell($row),
             'ajax' => HistoryCellRenderer::renderAjaxCell($row),
             'url' => HistoryCellRenderer::renderUrlCell($row),
@@ -247,6 +313,7 @@ final class HistoryGridRenderer
         array $filters,
         string $routePrefix,
         array $queryParams,
+        DbPanel|null $dbPanel,
     ): string {
         $rows = iterator_to_array($paginator->read(), false);
 
@@ -272,6 +339,7 @@ final class HistoryGridRenderer
                 $routePrefix,
                 $queryParams,
                 $paginator->getOffset(),
+                $dbPanel,
             ))
             ->render();
 
@@ -295,11 +363,11 @@ final class HistoryGridRenderer
      *
      * @return list<HistoryRow>
      */
-    private static function sortRows(array $rows, string|null $sort): array
+    private static function sortRows(array $rows, string|null $sort, DbPanel|null $dbPanel): array
     {
         $state = SortState::fromQuery(
             $sort,
-            array_keys(self::HEADERS),
+            array_keys(self::headers($dbPanel)),
             'time',
             'desc',
         );
@@ -328,6 +396,7 @@ final class HistoryGridRenderer
             'processingTime' => $row->processingTime,
             'peakMemory' => $row->peakMemory,
             'ip' => $row->ip,
+            'sqlCount' => $row->sqlCount,
             'method' => $row->method,
             'ajax' => $row->ajax,
             'url' => $row->url,

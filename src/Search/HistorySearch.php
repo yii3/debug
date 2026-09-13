@@ -43,6 +43,7 @@ final readonly class HistorySearch
         $engine->addCondition('url', $this->activeFilters['url'] ?? null, partial: true);
         $engine->addCondition('method', $this->activeFilters['method'] ?? null);
         $engine->addCondition('statusCode', $this->activeFilters['statusCode'] ?? null);
+        $engine->addCondition('sqlCount', $this->activeFilters['sqlCount'] ?? null);
 
         return $engine->filter($rows);
     }

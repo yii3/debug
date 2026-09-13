@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Web;
 
+use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Storage\RequestSummary;
 use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
+use Yii3\Debug\Db\DbExplain;
+use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Tests\Provider\HistoryGridRendererProvider;
-use Yii3\Debug\Web\{GridFooter, HistoryGridRenderer};
+use Yii3\Debug\Web\{DebugUrlGenerator, GridFooter, HistoryGridRenderer};
 
 use function preg_match_all;
 use function substr_count;
@@ -89,6 +92,121 @@ final class HistoryGridRendererTest extends TestCase
                 HistoryGridRenderer::render($summaries, ['sort' => "-{$attribute}", 'per-page' => 'all'], '/debug'),
             ),
             'Descending metrics must keep unavailable values last.',
+        );
+    }
+
+    public function testQueryColumnAppearsOnlyWhenTheDatabasePanelIsRegistered(): void
+    {
+        $summaries = $this->databaseSummaries();
+
+        $without = HistoryGridRenderer::render(
+            $summaries,
+            ['per-page' => 'all'],
+            '/debug',
+        );
+
+        self::assertStringNotContainsString(
+            '>Query</a>',
+            $without,
+            'A debugger without the Database panel must not offer the column.',
+        );
+        self::assertStringNotContainsString(
+            'panel=db',
+            $without,
+            'A debugger without the Database panel must not link to it.',
+        );
+
+        $with = HistoryGridRenderer::render(
+            $summaries,
+            ['per-page' => 'all'],
+            '/debug',
+            $this->dbPanel(),
+        );
+
+        self::assertStringContainsString(
+            '<th scope="col" class="yii-debug-col-num"><a href="/debug?per-page=all&amp;sort=sqlCount">Query</a></th>',
+            $with,
+            'The column must be sortable from its header.',
+        );
+        self::assertStringContainsString(
+            '<a href="/debug/view?tag=calm&amp;panel=db" title="Executed 3 database queries.">3</a>',
+            $with,
+            'Each count must deep-link to the Database panel of its capture.',
+        );
+        self::assertStringContainsString(
+            'name="Debug[sqlCount]" type="text" aria-label="Filter by Query count"',
+            $with,
+            'The column must expose a named filter.',
+        );
+    }
+
+    public function testQueryColumnFlagsCriticalCountsAndExcessiveCallers(): void
+    {
+        $html = HistoryGridRenderer::render(
+            $this->databaseSummaries(),
+            ['per-page' => 'all'],
+            '/debug',
+            $this->dbPanel(),
+        );
+
+        self::assertStringContainsString(
+            '<a href="/debug/view?tag=busy&amp;panel=db" title="Executed 12 database queries.">12 '
+            . '<span title="Too many queries. Allowed count is 10',
+            $html,
+            'A count above the threshold must carry the warning.',
+        );
+        self::assertStringContainsString(
+            '2 callers are making too many calls.">⚠</span></a>',
+            $html,
+            'Excessive callers must stack under the query warning.',
+        );
+        self::assertStringNotContainsString(
+            'Executed 3 database queries.">3 <span',
+            $html,
+            'A count below the threshold must stay unflagged.',
+        );
+    }
+
+    public function testQueryCountFiltersAndSortsTheCapturedRequests(): void
+    {
+        $summaries = $this->databaseSummaries();
+        $dbPanel = $this->dbPanel();
+
+        self::assertSame(
+            ['busy'],
+            self::tags(
+                HistoryGridRenderer::render(
+                    $summaries,
+                    ['per-page' => 'all', 'Debug' => ['sqlCount' => '>5']],
+                    '/debug',
+                    $dbPanel,
+                ),
+            ),
+            'A numeric comparison must narrow the captures.',
+        );
+        self::assertSame(
+            ['calm', 'busy'],
+            self::tags(
+                HistoryGridRenderer::render(
+                    $summaries,
+                    ['per-page' => 'all', 'sort' => 'sqlCount'],
+                    '/debug',
+                    $dbPanel,
+                ),
+            ),
+            'Ascending order must lead with the lower count.',
+        );
+        self::assertSame(
+            ['busy', 'calm'],
+            self::tags(
+                HistoryGridRenderer::render(
+                    $summaries,
+                    ['per-page' => 'all', 'sort' => '-sqlCount'],
+                    '/debug',
+                    $dbPanel,
+                ),
+            ),
+            'Descending order must lead with the higher count.',
         );
     }
 
@@ -175,6 +293,28 @@ final class HistoryGridRendererTest extends TestCase
             'alpha' => RequestSummary::create('alpha')
                 ->withRequest('/alpha', 'GET', '10.0.0.1', 2.0),
         ];
+    }
+
+    /**
+     * Returns two captures whose query counts straddle the critical threshold.
+     *
+     * @return array<string, RequestSummary>
+     */
+    private function databaseSummaries(): array
+    {
+        return [
+            'busy' => RequestSummary::create('busy')
+                ->withRequest('/busy', 'GET', '', 2.0)
+                ->withDatabase(12, 2),
+            'calm' => RequestSummary::create('calm')
+                ->withRequest('/calm', 'GET', '', 1.0)
+                ->withDatabase(3),
+        ];
+    }
+
+    private function dbPanel(): DbPanel
+    {
+        return (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))->withThresholds(10, 5);
     }
 
     /**

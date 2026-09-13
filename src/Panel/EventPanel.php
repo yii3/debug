@@ -46,6 +46,13 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
 {
     private const array SORT_ATTRIBUTES = ['time', 'class', 'senderClass'];
 
+    /**
+     * Reports whether the capture recorded dispatched events worth opening the panel for.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return bool `true` when the capture carried data; `false` otherwise.
+     */
     public function hasContent(array $payload): bool
     {
         if ($payload === []) {
@@ -57,31 +64,68 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         return true;
     }
 
+    /**
+     * Returns the icon key shared with the built-in Events navigation entry.
+     *
+     * @return string Shared Debug Core icon key.
+     */
     public function icon(): string
     {
         return PanelIcon::EVENTS->value;
     }
 
+    /**
+     * Returns the identifier associating the panel with its slice of the captured payload.
+     *
+     * @return string Stable panel identifier.
+     */
     public function id(): string
     {
         return 'event';
     }
 
+    /**
+     * Returns the panel title shown in the debugger navigation.
+     *
+     * @return string Human-readable panel name.
+     */
     public function name(): string
     {
         return PanelTitle::EVENTS->value;
     }
 
+    /**
+     * Renders the detail view for a capture opened without page context.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return string Rendered panel markup.
+     */
     public function render(array $payload): string
     {
         return $this->renderPanel($payload);
     }
 
+    /**
+     * Renders the detail view, letting the page context drive filtering, sorting, and paging.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderContext $context Query parameters and theme of the page being rendered.
+     *
+     * @return string Rendered panel markup.
+     */
     public function renderWithContext(array $payload, PanelRenderContext $context): string
     {
         return $this->renderPanel($payload, $context);
     }
 
+    /**
+     * Builds the toolbar metric: the number of events the request dispatched.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return list<ToolbarItem> Toolbar metrics, or an empty list when the capture dispatched no event.
+     */
     public function toolbarItems(array $payload): array
     {
         $total = count(self::snapshot($payload)->entries());
@@ -165,6 +209,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
         ];
     }
 
+    /**
+     * Renders the card shown when the request dispatched no event at all.
+     *
+     * @return string Rendered empty-state card.
+     */
     private static function renderEmptyCaptureState(): string
     {
         return EmptyState::card(

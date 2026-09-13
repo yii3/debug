@@ -128,8 +128,11 @@ final class ToolbarMiddlewareTest extends TestCase
     public function testDatabaseTotalsReachHistoryAndCollectorStopsAfterTheRequest(): void
     {
         $store = $this->store();
+
         $collector = new DbCollector();
+
         $middleware = $this->middleware($store, new CollectorCoordinator([$collector]));
+
         $handler = new readonly class ($collector) implements RequestHandlerInterface {
             public function __construct(private DbCollector $collector) {}
 
@@ -141,15 +144,78 @@ final class ToolbarMiddlewareTest extends TestCase
                 return HelperFactory::createResponse(204);
             }
         };
+
         $response = $middleware->process(
             HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
             $handler,
         );
+
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
-        self::assertNotNull($snapshot, 'Database requests must be persisted.');
-        self::assertSame(2, $snapshot->summary->sqlCount, 'History must receive the captured query total.');
-        self::assertArrayHasKey('db', $snapshot->panels, 'The canonical Database payload must be stored.');
-        self::assertNull($collector->capture(), 'Request completion must stop Database capture.');
+
+        self::assertNotNull(
+            $snapshot,
+            'Database requests must be persisted.',
+        );
+        self::assertSame(
+            2,
+            $snapshot->summary->sqlCount,
+            'History must receive the captured query total.',
+        );
+        self::assertArrayHasKey(
+            'db',
+            $snapshot->panels,
+            'The canonical Database payload must be stored.',
+        );
+        self::assertNull(
+            $collector->capture(),
+            'Request completion must stop Database capture.',
+        );
+    }
+
+    public function testExcessiveCallerThresholdOnlyCountsCallersOnTheConfiguredCopy(): void
+    {
+        $store = $this->store();
+
+        $collector = new DbCollector();
+
+        $base = $this->middleware($store, new CollectorCoordinator([$collector]));
+
+        $configured = $base->withExcessiveCallerThreshold(2);
+
+        $handler = new readonly class ($collector) implements RequestHandlerInterface {
+            public function __construct(private DbCollector $collector) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->observe(QueryRow::create('SELECT 1', 1.0, 1000.0)->withTraceHash('site-a'));
+                $this->collector->observe(QueryRow::create('SELECT 2', 2.0, 2000.0)->withTraceHash('site-a'));
+
+                return HelperFactory::createResponse(204);
+            }
+        };
+
+        $counts = [];
+
+        foreach (['configured' => $configured, 'default' => $base] as $key => $middleware) {
+            $response = $middleware->process(
+                HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                $handler,
+            );
+            $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+            self::assertNotNull(
+                $snapshot,
+                'Database requests must be persisted.',
+            );
+
+            $counts[$key] = $snapshot->summary->excessiveCallersCount;
+        }
+
+        self::assertSame(
+            ['configured' => 1, 'default' => 0],
+            $counts,
+            'Configuring a copy must never flag the call site on the original.',
+        );
     }
 
     public function testProcessAddsAjaxMetadataWithoutInjectingMarkup(): void
@@ -282,7 +348,11 @@ final class ToolbarMiddlewareTest extends TestCase
             ),
         );
 
-        self::assertSame($body, (string) $response->getBody(), 'JSON bodies must remain unchanged.');
+        self::assertSame(
+            $body,
+            (string) $response->getBody(),
+            'JSON bodies must remain unchanged.',
+        );
         self::assertStringNotContainsString(
             '<yii-debug-toolbar',
             (string) $response->getBody(),
@@ -291,8 +361,15 @@ final class ToolbarMiddlewareTest extends TestCase
 
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
 
-        self::assertNotNull($snapshot, 'Observed requests must persist a debug snapshot.');
-        self::assertArrayHasKey('observer', $snapshot->panels, 'The observing collector must persist its panel.');
+        self::assertNotNull(
+            $snapshot,
+            'Observed requests must persist a debug snapshot.',
+        );
+        self::assertArrayHasKey(
+            'observer',
+            $snapshot->panels,
+            'The observing collector must persist its panel.',
+        );
         self::assertSame(
             ['method' => 'POST', 'statusCode' => 201],
             $snapshot->panels['observer'],
@@ -483,6 +560,7 @@ final class ToolbarMiddlewareTest extends TestCase
                     ),
                 ),
             );
+
         $tag = $response->getHeaderLine('X-Debug-Tag');
         $snapshot = $store->readSnapshot($tag);
 
