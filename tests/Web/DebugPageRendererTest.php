@@ -92,9 +92,9 @@ final class DebugPageRendererTest extends TestCase
         $html = $this->renderer()->config('request-1', 'light');
 
         self::assertStringContainsString(
-            '<a href="/debug/php-info" rel="noopener" target="_blank">View full phpinfo</a>',
+            '<a href="/debug/php-info">View full phpinfo</a>',
             $html,
-            'The call to action must point at the adapter-resolved phpinfo route.',
+            'The call to action must open the adapter-resolved phpinfo route in place.',
         );
         self::assertStringContainsString(
             '<h1 class="yii-debug-sr-only">' . "\n" . 'Configuration' . "\n" . '</h1>',
@@ -102,7 +102,7 @@ final class DebugPageRendererTest extends TestCase
             'The page must embed the Configuration panel.',
         );
         self::assertStringContainsString(
-            'Installed extensions (',
+            '<span class="yii-debug-section-mark">::</span>Installed extensions',
             $html,
             'The page must embed the installed-package roster.',
         );
