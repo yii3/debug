@@ -25,11 +25,7 @@ final readonly class ToolbarRenderer
      * @param AssetManager $assetManager Yii3 asset publisher.
      * @param string $viewPath Resolved path containing the shared debugger templates.
      */
-    public function __construct(
-        private WebView $view,
-        private AssetManager $assetManager,
-        private string $viewPath,
-    ) {}
+    public function __construct(private WebView $view, private AssetManager $assetManager, private string $viewPath) {}
 
     /**
      * Injects toolbar markup immediately before the final closing body tag.

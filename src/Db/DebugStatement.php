@@ -17,6 +17,9 @@ use Yii3\Debug\Collector\DbCollector;
  */
 final class DebugStatement extends PDOStatement
 {
+    /**
+     * @param DbCollector $collector Collector receiving the row count of every execution.
+     */
     protected function __construct(private readonly DbCollector $collector) {}
 
     /**
@@ -26,6 +29,8 @@ final class DebugStatement extends PDOStatement
      * the count of an earlier attempt.
      *
      * @param array<array-key, mixed>|null $params Values bound to the statement placeholders, if any.
+     *
+     * @return bool `true` when the driver accepted the statement; `false` otherwise.
      */
     public function execute(array|null $params = null): bool
     {

@@ -26,13 +26,28 @@ use const E_DEPRECATED;
  */
 final class ProfilingCollector implements CollectorInterface
 {
+    /**
+     * Last profiler message already consumed, so each read resumes where the previous one stopped.
+     */
     private Message|null $messageCursor = null;
+    /**
+     * Request start, in seconds, shared with the summary so both use one origin.
+     */
     private float $start = 0.0;
+    /**
+     * Whether the collector is capturing for the current request.
+     */
     private bool $started = false;
 
+    /**
+     * @param ProfilerInterface|null $profiler Application profiler supplying the spans, or `null` when none is
+     * configured.
+     */
     public function __construct(private readonly ProfilerInterface|null $profiler = null) {}
 
     /**
+     * Encodes the captured spans into the Profiling panel payload.
+     *
      * @return array<string, mixed>|null Encoded Profiling panel payload; `null` when the collector never started.
      */
     public function capture(): array|null
@@ -43,13 +58,15 @@ final class ProfilingCollector implements CollectorInterface
 
         $end = microtime(true);
 
-        return ProfilingSnapshot::captureCompleted(
-            memory_get_peak_usage(),
-            $end - $this->start,
-            $this->messages(),
-        )->jsonSerialize();
+        return ProfilingSnapshot::captureCompleted(memory_get_peak_usage(), $end - $this->start, $this->messages())
+            ->jsonSerialize();
     }
 
+    /**
+     * Records the request start when the middleware did not already supply it.
+     *
+     * @param ServerRequestInterface $request Request reaching the debugger middleware.
+     */
     public function collectRequest(ServerRequestInterface $request): void
     {
         $start = $request->getServerParams()['REQUEST_TIME_FLOAT'] ?? null;
@@ -61,17 +78,27 @@ final class ProfilingCollector implements CollectorInterface
 
     /**
      * Uses the request start already resolved by the middleware so summary and profiler timing share one origin.
+     *
+     * @param float $start Request start, in seconds.
      */
     public function collectRequestStart(float $start): void
     {
         $this->start = $start;
     }
 
+    /**
+     * Returns the stable identifier of this collector.
+     *
+     * @return string Stable ID pairing this collector with its panel.
+     */
     public function id(): string
     {
         return 'profiling';
     }
 
+    /**
+     * Stops capturing and clears the spans accumulated for the request.
+     */
     public function shutdown(): void
     {
         $this->started = false;
@@ -79,6 +106,9 @@ final class ProfilingCollector implements CollectorInterface
         $this->start = 0.0;
     }
 
+    /**
+     * Starts capturing and resets the cursor into the profiler message list.
+     */
     public function startup(): void
     {
         if ($this->started) {
@@ -120,7 +150,8 @@ final class ProfilingCollector implements CollectorInterface
     /**
      * Returns completed profiler messages ordered by their begin timestamp.
      *
-     * @return list<array{token: string, category: string, context: array<array-key, mixed>}>
+     * @return list<array{token: string, category: string, context: array<array-key, mixed>}> Completed messages
+     * in begin-timestamp order.
      */
     private function messages(): array
     {

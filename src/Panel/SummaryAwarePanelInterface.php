@@ -15,6 +15,9 @@ interface SummaryAwarePanelInterface extends ExtensionPanelInterface
      * Renders a captured panel payload with its request summary.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
+     * @param RequestSummary $summary Summary of the capture being rendered.
+     *
+     * @return string Rendered detail content.
      */
     public function renderWithSummary(array $payload, RequestSummary $summary): string;
 }

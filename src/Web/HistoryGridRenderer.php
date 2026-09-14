@@ -9,11 +9,13 @@ use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
 use PHPForge\Debug\View\Grid\ActiveFilterBanner;
 use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, HistorySummary};
+use PHPForge\Debug\View\ViewMessage;
 use Stringable;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Palpable\A;
 use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Search\HistorySearch;
+use Yii3\Debug\View\ViewMessage as AdapterMessage;
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\Column\Base\DataContext;
 use Yiisoft\Yii\DataView\GridView\GridView;
@@ -30,16 +32,19 @@ use function usort;
  */
 final class HistoryGridRenderer
 {
+    /**
+     * Column headings keyed by the attribute each column renders.
+     */
     private const array HEADERS = [
-        'tag' => 'ID',
-        'time' => 'Time',
-        'processingTime' => 'Duration',
-        'peakMemory' => 'Memory',
-        'ip' => 'IP',
-        'sqlCount' => 'Query',
-        'method' => 'Method',
+        'tag' => ViewMessage::ID->value,
+        'time' => ViewMessage::TIME->value,
+        'processingTime' => ViewMessage::DURATION->value,
+        'peakMemory' => ViewMessage::MEMORY->value,
+        'ip' => ViewMessage::IP->value,
+        'sqlCount' => ViewMessage::QUERY->value,
+        'method' => ViewMessage::METHOD->value,
         'ajax' => 'Ajax',
-        'url' => 'URL',
+        'url' => ViewMessage::URL->value,
     ];
 
     /**
@@ -49,6 +54,8 @@ final class HistoryGridRenderer
      * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
      * @param string $routePrefix Base route used to generate debugger URLs.
      * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     *
+     * @return string Rendered history grid.
      */
     public static function render(
         array $summaries,
@@ -122,10 +129,16 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param array<string, string> $filters
-     * @param array<array-key, mixed> $queryParams
+     * Builds the grid columns, including the Query column only when the Database panel is registered.
      *
-     * @return list<GridColumn<HistoryRow>>
+     * @param HistoryScale $scale Page maxima scaling the duration and memory gauges.
+     * @param array<string, string> $filters Active filter values keyed by attribute.
+     * @param string $routePrefix Base route used to generate debugger URLs.
+     * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
+     * @param int $offset Index of the first row on the visible page, numbering the rows.
+     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     *
+     * @return list<GridColumn<HistoryRow>> Columns in display order.
      */
     private static function columns(
         HistoryScale $scale,
@@ -191,7 +204,12 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param array<string, string> $filters
+     * Renders the filter input of one column, carrying its submitted value.
+     *
+     * @param string $attribute Attribute the column filters on.
+     * @param array<string, string> $filters Active filter values keyed by attribute.
+     *
+     * @return string|Stringable Rendered filter input.
      */
     private static function filter(string $attribute, array $filters): string|Stringable
     {
@@ -218,13 +236,13 @@ final class HistoryGridRenderer
             'url' => FilterInput::text(
                 FilterPrefix::DEBUG,
                 'url',
-                'URL',
+                ViewMessage::URL->value,
                 $filters,
             ),
             'method' => FilterInput::select(
                 FilterPrefix::DEBUG,
                 'method',
-                'Method',
+                ViewMessage::METHOD->value,
                 $filters,
                 [
                     'GET' => 'GET',
@@ -234,13 +252,13 @@ final class HistoryGridRenderer
                     'DELETE' => 'DELETE',
                     'HEAD' => 'HEAD',
                     'OPTIONS' => 'OPTIONS',
-                    'COMMAND' => 'COMMAND',
+                    'COMMAND' => ViewMessage::COMMAND->value,
                 ],
             ),
             'ajax' => FilterInput::select(
                 FilterPrefix::DEBUG,
                 'ajax',
-                'AJAX',
+                ViewMessage::AJAX->value,
                 $filters,
                 ['0' => 'No', '1' => 'Yes'],
             ),
@@ -267,7 +285,15 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param key-of<self::HEADERS> $attribute
+     * Renders one body cell, dispatching on the attribute the column shows.
+     *
+     * @param HistoryRow $row Capture the row describes.
+     * @param key-of<self::HEADERS> $attribute Attribute the column renders.
+     * @param HistoryScale $scale Page maxima scaling the duration and memory gauges.
+     * @param string $routePrefix Base route used to generate debugger URLs.
+     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     *
+     * @return string Rendered cell.
      */
     private static function renderCell(
         HistoryRow $row,
@@ -304,9 +330,15 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param OffsetPaginator<int, HistoryRow> $paginator
-     * @param array<string, string> $filters
-     * @param array<array-key, mixed> $queryParams
+     * Renders the grid for the visible page.
+     *
+     * @param OffsetPaginator<int, HistoryRow> $paginator Paginator clamped to the visible page.
+     * @param array<string, string> $filters Active filter values keyed by attribute.
+     * @param string $routePrefix Base route used to generate debugger URLs.
+     * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
+     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     *
+     * @return string Rendered grid.
      */
     private static function renderGrid(
         OffsetPaginator $paginator,
@@ -332,7 +364,11 @@ final class HistoryGridRenderer
             )
             ->urlCreator(static fn(): string => $routePrefix)
             ->noResultsCellAttributes(['class' => 'yii-debug-muted'])
-            ->noResultsText($filters === [] ? 'No requests have been captured.' : 'No requests match the current filters.')
+            ->noResultsText(
+                $filters === []
+                    ? AdapterMessage::HISTORY_EMPTY->value
+                    : AdapterMessage::HISTORY_NO_MATCH->value,
+            )
             ->columns(...self::columns(
                 HistoryScale::fromModels($rows),
                 $filters,
@@ -359,9 +395,13 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param list<HistoryRow> $rows
+     * Orders the captures by the submitted sort expression.
      *
-     * @return list<HistoryRow>
+     * @param list<HistoryRow> $rows Captures to order.
+     * @param string|null $sort Submitted sort expression, or `null` to keep capture order.
+     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     *
+     * @return list<HistoryRow> Captures in display order.
      */
     private static function sortRows(array $rows, string|null $sort, DbPanel|null $dbPanel): array
     {
@@ -389,6 +429,14 @@ final class HistoryGridRenderer
         return $rows;
     }
 
+    /**
+     * Reads the comparable value one attribute sorts on.
+     *
+     * @param HistoryRow $row Capture the value is read from.
+     * @param string $attribute Attribute being sorted on.
+     *
+     * @return string|float|int|bool|null Comparable value, or `null` when the attribute is unknown.
+     */
     private static function sortValue(HistoryRow $row, string $attribute): string|float|int|bool|null
     {
         return match ($attribute) {
@@ -405,8 +453,13 @@ final class HistoryGridRenderer
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
-     * @param array<array-key, mixed> $changes
+     * Builds a history URL from the current query parameters, applying the given changes.
+     *
+     * @param string $routePrefix Base route used to generate debugger URLs.
+     * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
+     * @param array<array-key, mixed> $changes Parameters to set; a `null` value removes the parameter.
+     *
+     * @return string History URL carrying the merged parameters.
      */
     private static function url(string $routePrefix, array $queryParams, array $changes): string
     {

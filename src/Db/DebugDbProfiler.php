@@ -40,6 +40,11 @@ final class DebugDbProfiler implements ProfilerInterface
      */
     private readonly InstrumentationGuard $guard;
 
+    /**
+     * @param DbCollector $collector Collector receiving the captured statements and failures.
+     * @param ApplicationProfilerInterface|null $profiler Application profiler to keep feeding, or `null` when the
+     * debugger is the only observer.
+     */
     public function __construct(
         private readonly DbCollector $collector,
         private readonly ApplicationProfilerInterface|null $profiler = null,
@@ -48,46 +53,57 @@ final class DebugDbProfiler implements ProfilerInterface
     }
 
     /**
-     * @param array<array-key, mixed>|ContextInterface $context
+     * Opens a profiling block for one statement.
+     *
+     * @param string $token Statement text identifying the block.
+     * @param array<array-key, mixed>|ContextInterface $context Profiling context supplied by the connection.
      */
     public function begin(string $token, array|ContextInterface $context = []): void
     {
-        $this->guard->observe(function () use ($token, $context): void {
-            if (!$this->collector->isStarted()) {
-                return;
-            }
-
-            if (!$context instanceof ContextInterface) {
-                return;
-            }
-
-            $this->profiler?->begin($token, ['category' => Coerce::string($context->asArray()['method'] ?? $context->getType())]);
-
-            if ($context->getType() !== 'command') {
-                return;
-            }
-
-            $trace = [];
-
-            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 24) as $frame) {
-                $file = $frame['file'] ?? '';
-
-                if (($frame['class'] ?? '') === self::class
-                    || ($frame['class'] ?? '') === InstrumentationGuard::class
-                    || $file === ''
-                    || str_contains($file, '/vendor/yiisoft/db')) {
-                    continue;
+        $this->guard->observe(
+            function () use ($token, $context): void {
+                if (!$this->collector->isStarted()) {
+                    return;
                 }
 
-                $trace[] = array_intersect_key($frame, array_flip(['file', 'line', 'class', 'function', 'type']));
-            }
+                if (!$context instanceof ContextInterface) {
+                    return;
+                }
 
-            $this->collector->begin($token, microtime(true), $trace);
-        });
+                $this->profiler?->begin(
+                    $token,
+                    ['category' => Coerce::string($context->asArray()['method'] ?? $context->getType())],
+                );
+
+                if ($context->getType() !== 'command') {
+                    return;
+                }
+
+                $trace = [];
+
+                foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 24) as $frame) {
+                    $file = $frame['file'] ?? '';
+
+                    if (($frame['class'] ?? '') === self::class
+                        || ($frame['class'] ?? '') === InstrumentationGuard::class
+                        || $file === ''
+                        || str_contains($file, '/vendor/yiisoft/db')) {
+                        continue;
+                    }
+
+                    $trace[] = array_intersect_key($frame, array_flip(['file', 'line', 'class', 'function', 'type']));
+                }
+
+                $this->collector->begin($token, microtime(true), $trace);
+            }
+        );
     }
 
     /**
-     * @param array<array-key, mixed>|ContextInterface $context
+     * Closes the profiling block opened for the same token and records the statement.
+     *
+     * @param string $token Statement text identifying the block.
+     * @param array<array-key, mixed>|ContextInterface $context Profiling context supplied by the connection.
      */
     public function end(string $token, array|ContextInterface $context = []): void
     {
@@ -104,7 +120,10 @@ final class DebugDbProfiler implements ProfilerInterface
                 return;
             }
 
-            $this->profiler?->end($token, ['category' => Coerce::string($context->asArray()['method'] ?? $context->getType())]);
+            $this->profiler?->end(
+                $token,
+                ['category' => Coerce::string($context->asArray()['method'] ?? $context->getType())],
+            );
 
             if ($context->getType() !== 'command') {
                 return;
@@ -138,6 +157,9 @@ final class DebugDbProfiler implements ProfilerInterface
         $this->installStatementClass();
     }
 
+    /**
+     * Points the live PDO instance at {@see DebugStatement}, so every prepared statement reports its row count.
+     */
     private function installStatementClass(): void
     {
         $this->connection?->getPdo()?->setAttribute(

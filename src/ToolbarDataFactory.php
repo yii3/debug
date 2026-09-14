@@ -9,6 +9,7 @@ use PHPForge\Debug\Data\FilterPrefix;
 use PHPForge\Debug\Helper\LogLevel;
 use PHPForge\Debug\Storage\{DebugSnapshot, ExceptionSnapshot};
 use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
+use PHPForge\Debug\View\ViewMessage;
 use Throwable;
 use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Panel\{ExtensionPanelInterface, LogPanel, ToolbarPanelProviderInterface, ToolbarTitleProviderInterface};
@@ -34,12 +35,31 @@ final class ToolbarDataFactory
      * @var array<string, ExtensionPanelInterface>
      */
     private array $extensionPanels = [];
+    /**
+     * Collapsed toolbar height, in pixels.
+     */
     private int $height = 50;
+    /**
+     * Edge the toolbar docks to.
+     */
     private string $position = 'bottom';
+    /**
+     * Base path every debugger URL is built on, without a trailing slash.
+     */
     private string $routePrefix = '/debug';
 
+    /**
+     * @param AssetManager $assetManager Manager resolving the published URLs of the toolbar assets.
+     */
     public function __construct(private readonly AssetManager $assetManager) {}
 
+    /**
+     * Builds the toolbar chrome for a capture, without its panels.
+     *
+     * @param string $tag Tag of the capture the toolbar links to.
+     *
+     * @return ToolbarData Toolbar payload carrying navigation, presentation, and branding.
+     */
     public function create(string $tag): ToolbarData
     {
         $logo = $this->assetManager->getUrl(ToolbarAsset::class, 'svg/yii.svg');
@@ -47,7 +67,7 @@ final class ToolbarDataFactory
 
         $iconBaseUrl = substr($iconBaseUrl, 0, -strlen('ajax.svg'));
 
-        return ToolbarData::create($tag, 'Yii Debugger')
+        return ToolbarData::create($tag, ViewMessage::TITLE->value)
             ->withNavigation(
                 $this->routePrefix,
                 "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=config',
@@ -57,6 +77,13 @@ final class ToolbarDataFactory
             ->withBranding($logo, $logo, PHP_VERSION, '3');
     }
 
+    /**
+     * Builds the complete toolbar payload for a capture, panels included.
+     *
+     * @param DebugSnapshot $snapshot Capture the toolbar describes.
+     *
+     * @return ToolbarData Toolbar payload including every registered extension panel.
+     */
     public function createForSnapshot(DebugSnapshot $snapshot): ToolbarData
     {
         return $this->create($snapshot->summary->tag)
@@ -64,7 +91,13 @@ final class ToolbarDataFactory
     }
 
     /**
+     * Returns a copy carrying the extension panels shown on the toolbar.
+     *
      * @param iterable<ExtensionPanelInterface> $extensionPanels Optional extension presenters in toolbar order.
+     *
+     * @throws InvalidArgumentException when a panel ID is empty or duplicated.
+     *
+     * @return self Factory with the panels applied.
      */
     public function withExtensionPanels(iterable $extensionPanels): self
     {
@@ -94,6 +127,14 @@ final class ToolbarDataFactory
         return $new;
     }
 
+    /**
+     * Returns a copy carrying the drawer presentation settings.
+     *
+     * @param string $position Edge the toolbar docks to.
+     * @param int $height Collapsed toolbar height, in pixels.
+     *
+     * @return self Factory with the presentation applied.
+     */
     public function withPresentation(string $position, int $height): self
     {
         $new = clone $this;
@@ -103,6 +144,13 @@ final class ToolbarDataFactory
         return $new;
     }
 
+    /**
+     * Returns a copy building every debugger URL on another base path.
+     *
+     * @param string $routePrefix Base path; a trailing slash is trimmed.
+     *
+     * @return self Factory with the prefix applied.
+     */
     public function withRoutePrefix(string $routePrefix): self
     {
         $new = clone $this;
@@ -112,7 +160,12 @@ final class ToolbarDataFactory
     }
 
     /**
-     * @param array<array-key, mixed> $items
+     * Rejects a toolbar payload whose items are not a plain list of {@see ToolbarItem}.
+     *
+     * @param string $panelId Panel that produced the items.
+     * @param array<array-key, mixed> $items Items as returned by the panel.
+     *
+     * @throws InvalidArgumentException when the payload is not a list of toolbar items.
      */
     private static function assertToolbarItems(string $panelId, array $items): void
     {
@@ -138,6 +191,8 @@ final class ToolbarDataFactory
      * @param string $title Panel display name.
      * @param string $url Debug page URL.
      * @param string $message Failure diagnostic shown as the metric tooltip.
+     *
+     * @return ToolbarPanel Panel representing the failure.
      */
     private static function failedPanel(string $id, string $title, string $url, string $message): ToolbarPanel
     {
@@ -156,13 +211,15 @@ final class ToolbarDataFactory
     /**
      * Adds Logs panel filter URLs to its error and warning toolbar metrics.
      *
-     * @param list<ToolbarItem> $items
+     * @param string $tag Tag of the capture the toolbar links to.
+     * @param list<ToolbarItem> $items Toolbar metrics declared by the Logs panel.
      *
-     * @return list<ToolbarItem>
+     * @return list<ToolbarItem> Metrics with the error and warning entries linked to a filtered grid.
      */
     private function logFilterLinks(string $tag, array $items): array
     {
         $linked = [];
+
         $urls = new DebugUrlGenerator($this->routePrefix);
 
         foreach ($items as $item) {
@@ -187,7 +244,12 @@ final class ToolbarDataFactory
     }
 
     /**
-     * @return list<ToolbarPanel>
+     * Builds the toolbar panel list for a capture, surfacing hydration failures as panel errors.
+     *
+     * @param string $tag Tag of the capture the toolbar links to.
+     * @param DebugSnapshot $snapshot Capture the panels describe.
+     *
+     * @return list<ToolbarPanel> Panels in navigation order.
      */
     private function panels(string $tag, DebugSnapshot $snapshot): array
     {
@@ -252,6 +314,14 @@ final class ToolbarDataFactory
         return $toolbarPanels;
     }
 
+    /**
+     * Builds the URL opening one panel of a capture.
+     *
+     * @param string $tag Capture to open.
+     * @param string $panelId Panel to open within that capture.
+     *
+     * @return string URL of the panel view.
+     */
     private function viewUrl(string $tag, string $panelId): string
     {
         return "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);

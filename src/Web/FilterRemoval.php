@@ -27,6 +27,8 @@ final class FilterRemoval
      * @param PanelRenderContext $context Context resolving the panel URL and exposing the submitted query.
      * @param array<array-key, mixed> $queryParams Query parameters already normalized by the panel.
      * @param string $prefix Filter group the removed attributes belong to.
+     *
+     * @return string Rendered banner, or `''` when no filter is active.
      */
     public static function banner(
         array $activeFilters,
@@ -44,11 +46,13 @@ final class FilterRemoval
     }
 
     /**
+     * Returns the query parameters with the named filter removed.
+     *
      * @param array<array-key, mixed> $queryParams Query parameters already normalized by the panel.
      * @param string $prefix Filter group to update.
      * @param list<string> $without Attributes to remove from that group.
      *
-     * @return array<array-key, mixed>
+     * @return array<array-key, mixed> Query parameters without those attributes.
      */
     public static function queryParams(array $queryParams, string $prefix, array $without): array
     {
@@ -71,7 +75,7 @@ final class FilterRemoval
      * @param array<string, string> $filters Active filters; an empty set removes the group.
      * @param list<string> $drop Unrelated parameters to remove, such as `view`.
      *
-     * @return array<array-key, mixed>
+     * @return array<array-key, mixed> Query parameters carrying the replaced group.
      */
     public static function withGroup(array $queryParams, string $prefix, array $filters, array $drop = []): array
     {

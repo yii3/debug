@@ -7,6 +7,7 @@ namespace Yii3\Debug\Action;
 use PHPForge\Debug\Data\QueryInput;
 use PHPForge\Debug\Storage\SnapshotStore;
 use PHPForge\Debug\Theme\ThemeResolver;
+use PHPForge\Debug\View\ViewMessage;
 use Psr\Http\Message\{ResponseFactoryInterface, ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\Web\DebugPageRenderer;
@@ -19,6 +20,12 @@ use function count;
  */
 final readonly class CompareAction
 {
+    /**
+     * @param SnapshotStore $store Store the captured snapshots are read from.
+     * @param DebugPageRenderer $renderer Renderer producing the debugger page markup.
+     * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.
+     * @param StreamFactoryInterface $streamFactory Factory building the PSR-7 response body.
+     */
     public function __construct(
         private SnapshotStore $store,
         private DebugPageRenderer $renderer,
@@ -26,6 +33,13 @@ final readonly class CompareAction
         private StreamFactoryInterface $streamFactory,
     ) {}
 
+    /**
+     * Renders the comparison page for the two captures the query parameters select.
+     *
+     * @param ServerRequestInterface $request Incoming request carrying the query parameters.
+     *
+     * @return ResponseInterface Rendered page, or a `404` response when the capture is missing.
+     */
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $query = $request->getQueryParams();
@@ -38,11 +52,7 @@ final readonly class CompareAction
         $target = QueryInput::scalar($query, 'target');
 
         if (($baseline === null || $target === null) && count($tags) < 2) {
-            return $this->response(
-                'At least two captured requests are required for comparison.',
-                'text/plain; charset=UTF-8',
-                404,
-            );
+            return $this->response(ViewMessage::COMPARISON_REQUIRES_TWO->value, 'text/plain; charset=UTF-8', 404);
         }
 
         $target ??= $tags[0] ?? '';
@@ -74,15 +84,27 @@ final readonly class CompareAction
         );
     }
 
+    /**
+     * Builds the response shown when a requested capture is no longer retained.
+     *
+     * @param string $tag Capture that could not be read.
+     *
+     * @return ResponseInterface `404` response naming the missing capture.
+     */
     private function notFound(string $tag): ResponseInterface
     {
-        return $this->response(
-            "Unable to find debug data tagged with '{$tag}'.",
-            'text/plain; charset=UTF-8',
-            404,
-        );
+        return $this->response("Unable to find debug data tagged with '{$tag}'.", 'text/plain; charset=UTF-8', 404);
     }
 
+    /**
+     * Builds the PSR-7 response carrying the given body.
+     *
+     * @param string $content Response body.
+     * @param string $contentType Media type of the body.
+     * @param int $status HTTP status code.
+     *
+     * @return ResponseInterface Response carrying the body and its media type.
+     */
     private function response(string $content, string $contentType, int $status = 200): ResponseInterface
     {
         return $this->responseFactory

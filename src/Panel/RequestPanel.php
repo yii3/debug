@@ -123,15 +123,9 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
     {
         $data = self::snapshot($payload)->data();
 
-        $routing = RequestRoutingViewFactory::fromRequestData(
-            $data,
-            $this->routes,
-        );
+        $routing = RequestRoutingViewFactory::fromRequestData($data, $this->routes);
 
-        return RequestRenderer::render(
-            RequestDataNormalizer::fromPanelData($data, $summary),
-            $routing,
-        );
+        return RequestRenderer::render(RequestDataNormalizer::fromPanelData($data, $summary), $routing);
     }
 
     /**
@@ -143,9 +137,6 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
      */
     private static function snapshot(array $payload): RequestSnapshot
     {
-        return RequestSnapshot::fromArray(
-            $payload,
-            '$.panels.request',
-        );
+        return RequestSnapshot::fromArray($payload, '$.panels.request');
     }
 }

@@ -56,6 +56,13 @@ final readonly class ConfigDataFactory
         )->jsonSerialize();
     }
 
+    /**
+     * Reads an application metadata key as a boolean.
+     *
+     * @param string $key Application metadata key to read.
+     *
+     * @return bool Value when it is a `bool`; `false` otherwise.
+     */
     private function bool(string $key): bool
     {
         $value = $this->application[$key] ?? null;
@@ -64,6 +71,8 @@ final readonly class ConfigDataFactory
     }
 
     /**
+     * Lists the installed Yii packages with their resolved versions.
+     *
      * @return array<string, array{name: string, version: string}> Installed Yii packages keyed by package name.
      */
     private static function installedPackages(): array
@@ -87,6 +96,14 @@ final readonly class ConfigDataFactory
         return $packages;
     }
 
+    /**
+     * Reads an application metadata key as a string.
+     *
+     * @param string $key Application metadata key to read.
+     * @param string $default Value returned when the key is absent or not a `string`.
+     *
+     * @return string Value when it is a `string`; the default otherwise.
+     */
     private function string(string $key, string $default = ''): string
     {
         $value = $this->application[$key] ?? null;

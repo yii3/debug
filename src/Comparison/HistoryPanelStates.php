@@ -9,5 +9,9 @@ namespace Yii3\Debug\Comparison;
  */
 final readonly class HistoryPanelStates
 {
+    /**
+     * @param string $baseline State of the panel in the baseline capture.
+     * @param string $target State of the panel in the target capture.
+     */
     public function __construct(public string $baseline, public string $target) {}
 }

@@ -21,6 +21,7 @@
     "require": {
         "composer-runtime-api": "^2.2",
         "php": ">=8.3",
+        "php-forge/debug": "^0.1",
         "php-forge/debug-core": "^0.1@dev",
         "php-forge/vite": "^0.3",
         "psr/event-dispatcher": "^1.0",
@@ -30,6 +31,7 @@
         "psr/http-server-middleware": "^1.0",
         "psr/log": "^3.0",
         "ui-awesome/html": "^0.6",
+        "ui-awesome/html-core-component": "^0.5@dev",
         "yiisoft/aliases": "^3.1",
         "yiisoft/assets": "^5.1",
         "yiisoft/data": "^2.0",
@@ -45,8 +47,7 @@
         "yiisoft/validator": "^2.1",
         "yiisoft/view": "^12.2",
         "yiisoft/yii-dataview": "dev-master",
-        "yiisoft/yii-middleware": "^1.1",
-        "php-forge/debug": "^0.1"
+        "yiisoft/yii-middleware": "^1.1"
     },
     "require-dev": {
         "httpsoft/http-message": "^1.1",

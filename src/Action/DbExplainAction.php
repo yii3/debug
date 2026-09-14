@@ -17,6 +17,12 @@ use function is_string;
  */
 final readonly class DbExplainAction
 {
+    /**
+     * @param SnapshotStore $store Store the captured snapshots are read from.
+     * @param DbExplain $explain Runner producing the plan for a stored statement.
+     * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.
+     * @param StreamFactoryInterface $streamFactory Factory building the PSR-7 response body.
+     */
     public function __construct(
         private SnapshotStore $store,
         private DbExplain $explain,
@@ -24,6 +30,13 @@ final readonly class DbExplainAction
         private StreamFactoryInterface $streamFactory,
     ) {}
 
+    /**
+     * Renders the plan for the stored statement the tag and sequence select.
+     *
+     * @param ServerRequestInterface $request Incoming request carrying the query parameters.
+     *
+     * @return ResponseInterface Rendered page, or a `404` response when the capture is missing.
+     */
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $query = $request->getQueryParams();
@@ -51,6 +64,14 @@ final readonly class DbExplainAction
         return $this->response($this->explain->render($row));
     }
 
+    /**
+     * Builds the PSR-7 response carrying the given body.
+     *
+     * @param string $body Response body.
+     * @param int $status HTTP status code.
+     *
+     * @return ResponseInterface HTML response carrying the body.
+     */
     private function response(string $body, int $status = 200): ResponseInterface
     {
         return $this->responseFactory->createResponse($status)

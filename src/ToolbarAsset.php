@@ -11,6 +11,9 @@ use Yiisoft\Assets\AssetBundle;
  */
 final class ToolbarAsset extends AssetBundle
 {
+    /**
+     * Published source directory of the packaged debugger assets.
+     */
     public const string SOURCE_PATH = '@vendor/php-forge/debug-core/resources/assets';
 
     public function __construct()

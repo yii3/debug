@@ -16,6 +16,8 @@ final class PanelHeading
      * Returns the screen-reader-only heading carrying the panel title.
      *
      * @param PanelTitle $title Title announced as the page heading.
+     *
+     * @return string Rendered heading.
      */
     public static function render(PanelTitle $title): string
     {

@@ -15,24 +15,36 @@ use function trim;
 final readonly class ProfileSearch
 {
     /**
-     * @param array<string, string> $activeFilters
+     * @param array<string, string> $activeFilters Submitted filter values kept for this group, keyed by attribute.
      */
     private function __construct(public array $activeFilters) {}
 
+    /**
+     * Returns the submitted `category` filter value.
+     *
+     * @return string Submitted `category` filter value, or `''` when the filter is not active.
+     */
     public function category(): string
     {
         return $this->activeFilters['category'] ?? '';
     }
 
+    /**
+     * Returns the submitted `duration` filter value.
+     *
+     * @return string Submitted `duration` filter value, or `''` when the filter is not active.
+     */
     public function duration(): string
     {
         return $this->activeFilters['duration'] ?? '';
     }
 
     /**
-     * @param list<ProfileRow> $rows
+     * Keeps only the spans matching every active filter.
      *
-     * @return list<ProfileRow>
+     * @param list<ProfileRow> $rows Captured spans to filter.
+     *
+     * @return list<ProfileRow> Rows matching every active filter, reindexed.
      */
     public function filter(array $rows): array
     {
@@ -49,7 +61,11 @@ final readonly class ProfileSearch
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
+     * Builds the search model from the submitted filter values.
+     *
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     *
+     * @return self Search model holding the active span filters.
      */
     public static function fromQueryParams(array $queryParams): self
     {
@@ -72,6 +88,11 @@ final readonly class ProfileSearch
         return new self($filters);
     }
 
+    /**
+     * Returns the submitted `info` filter value.
+     *
+     * @return string Submitted `info` filter value, or `''` when the filter is not active.
+     */
     public function info(): string
     {
         return $this->activeFilters['info'] ?? '';

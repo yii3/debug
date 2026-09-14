@@ -16,14 +16,16 @@ use function array_values;
 final readonly class HistorySearch
 {
     /**
-     * @param array<string, string> $activeFilters
+     * @param array<string, string> $activeFilters Submitted filter values kept for this group, keyed by attribute.
      */
     private function __construct(public array $activeFilters) {}
 
     /**
-     * @param list<HistoryRow> $rows
+     * Keeps only the captures matching every active filter.
      *
-     * @return list<HistoryRow>
+     * @param list<HistoryRow> $rows Captured captures to filter.
+     *
+     * @return list<HistoryRow> Rows matching every active filter, reindexed.
      */
     public function filter(array $rows): array
     {
@@ -49,7 +51,11 @@ final readonly class HistorySearch
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
+     * Builds the search model from the submitted filter values.
+     *
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     *
+     * @return self Search model holding the active capture filters.
      */
     public static function fromQueryParams(array $queryParams): self
     {

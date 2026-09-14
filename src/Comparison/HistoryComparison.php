@@ -31,11 +31,8 @@ final readonly class HistoryComparison
      * @param list<HistoryMetricComparison> $metrics Request-summary metric comparisons.
      * @param list<HistoryPanelComparison> $panels Per-panel structural comparisons.
      */
-    private function __construct(
-        private SnapshotComparison $comparison,
-        public array $metrics,
-        public array $panels,
-    ) {
+    private function __construct(private SnapshotComparison $comparison, public array $metrics, public array $panels)
+    {
         $this->baseline = $comparison->baseline;
         $this->target = $comparison->target;
     }
@@ -43,7 +40,11 @@ final readonly class HistoryComparison
     /**
      * Creates a comparison from two snapshots.
      *
+     * @param DebugSnapshot $baseline Capture used as the reference side of the comparison.
+     * @param DebugSnapshot $target Capture compared against the baseline.
      * @param array<string, string> $panelLabels Display names indexed by stable panel ID.
+     *
+     * @return self Comparison holding the metric and panel differences between both captures.
      */
     public static function fromSnapshots(DebugSnapshot $baseline, DebugSnapshot $target, array $panelLabels = []): self
     {
@@ -58,6 +59,8 @@ final readonly class HistoryComparison
 
     /**
      * Returns whether either summary metrics or panel payloads differ.
+     *
+     * @return bool `true` when metrics or panel payloads differ; `false` when the captures match.
      */
     public function hasDifferences(): bool
     {
@@ -65,9 +68,11 @@ final readonly class HistoryComparison
     }
 
     /**
-     * @param list<SummaryMetricComparison> $metrics
+     * Maps the shared metric comparisons to their presentation models.
      *
-     * @return list<HistoryMetricComparison>
+     * @param list<SummaryMetricComparison> $metrics Shared metric comparisons.
+     *
+     * @return list<HistoryMetricComparison> Presentation models in metric order.
      */
     private static function buildMetrics(array $metrics): array
     {
@@ -81,9 +86,11 @@ final readonly class HistoryComparison
     }
 
     /**
-     * @param list<PanelComparison> $panels
+     * Maps the shared panel comparisons to their presentation models.
      *
-     * @return list<HistoryPanelComparison>
+     * @param list<PanelComparison> $panels Shared panel comparisons.
+     *
+     * @return list<HistoryPanelComparison> Presentation models in panel order.
      */
     private static function buildPanels(array $panels): array
     {

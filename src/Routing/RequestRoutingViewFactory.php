@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Routing;
 
-use PHPForge\Debug\Panel\Request\Routing\{
-    CurrentRouteView,
-    RequestRoutingView,
-    RouteDefinition,
-    RouteInventoryView,
-};
+use PHPForge\Debug\Panel\Request\Routing\{CurrentRouteView, RequestRoutingView, RouteDefinition, RouteInventoryView};
 use Throwable;
+use Yii3\Debug\Exception\Message;
 use Yiisoft\Router\RouteCollectionInterface;
 
 use function array_filter;
@@ -26,12 +22,15 @@ use function str_starts_with;
 final class RequestRoutingViewFactory
 {
     /**
+     * Composes the Request routing view from the captured payload and the live route collection.
+     *
      * @param array<array-key, mixed> $data Captured Request panel data.
+     * @param RouteCollectionInterface|null $routes Live route collection, or `null` when it cannot be resolved.
+     *
+     * @return RequestRoutingView Composed view of the current route and the application route inventory.
      */
-    public static function fromRequestData(
-        array $data,
-        RouteCollectionInterface|null $routes,
-    ): RequestRoutingView {
+    public static function fromRequestData(array $data, RouteCollectionInterface|null $routes): RequestRoutingView
+    {
         [$definition, $definitionError] = self::capturedDefinition($data);
 
         $route = is_string($data['route'] ?? null) ? $data['route'] : '';
@@ -51,16 +50,16 @@ final class RequestRoutingViewFactory
             ->withDefinition($definition)
             ->withError($definitionError);
 
-        return new RequestRoutingView(
-            current: $current,
-            inventory: self::inventory($routes),
-        );
+        return new RequestRoutingView(current: $current, inventory: self::inventory($routes));
     }
 
     /**
+     * Rebuilds the route definition stored in the capture, reporting why it could not be read.
+     *
      * @param array<array-key, mixed> $data Captured Request panel data.
      *
-     * @return array{RouteDefinition|null, string|null}
+     * @return array{RouteDefinition|null, string|null} Definition and the failure message, either of which may be
+     * `null`.
      */
     private static function capturedDefinition(array $data): array
     {
@@ -74,7 +73,7 @@ final class RequestRoutingViewFactory
         if (!is_array($data['routeDefinition'])) {
             return [
                 null,
-                'Captured route metadata must be an array or null.',
+                Message::ROUTE_METADATA_INVALID->value,
             ];
         }
 
@@ -88,6 +87,13 @@ final class RequestRoutingViewFactory
         }
     }
 
+    /**
+     * Builds the route inventory, omitting it when the collection is unavailable or cannot be read.
+     *
+     * @param RouteCollectionInterface|null $routes Live route collection, or `null` when it cannot be resolved.
+     *
+     * @return RouteInventoryView|null Inventory of declared routes, or `null` when none can be listed.
+     */
     private static function inventory(RouteCollectionInterface|null $routes): RouteInventoryView|null
     {
         if ($routes === null) {
@@ -111,7 +117,6 @@ final class RequestRoutingViewFactory
                 . $throwable->getMessage();
         }
 
-        return RouteInventoryView::create(routes: $definitions)
-            ->withError($error);
+        return RouteInventoryView::create(routes: $definitions)->withError($error);
     }
 }

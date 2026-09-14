@@ -34,7 +34,14 @@ final class GridFooter
      * Renders the item count summary followed by a bounded window of page links around the current page, adding first
      * and last page links, separated by an ellipsis, whenever the window leaves them out.
      *
+     * @param int $total Rows in the collection.
+     * @param int $offset Index of the first row on the current page.
+     * @param int $visible Rows rendered on the current page.
+     * @param int $page Current page number.
+     * @param int $pageCount Total number of pages.
      * @param (Closure(int): string)|null $pageUrl Omit for context-free rendering without navigation.
+     *
+     * @return Div Rendered footer.
      */
     public static function render(
         int $total,
@@ -100,6 +107,8 @@ final class GridFooter
      * @param int $visible Number of rows rendered on the current page.
      * @param PanelRenderContext|null $context Omit for context-free rendering without navigation.
      * @param array<array-key, mixed> $queryParams Query parameters the page links are built from.
+     *
+     * @return Div Rendered footer.
      */
     public static function renderForPanel(
         OffsetPaginator $paginator,
@@ -121,6 +130,8 @@ final class GridFooter
 
     /**
      * Returns the hidden, inert item marking the pages the window leaves out.
+     *
+     * @return Li Inert ellipsis item.
      */
     private static function ellipsis(): Li
     {
@@ -134,7 +145,11 @@ final class GridFooter
     /**
      * Returns the item linking to the given page, marked as current when it matches the active one.
      *
+     * @param int $number Page the item links to.
+     * @param int $page Current page, deciding whether the item is marked as current.
      * @param Closure(int): string $pageUrl Builds the target URL of the page.
+     *
+     * @return Li Rendered page item.
      */
     private static function pageLink(int $number, int $page, Closure $pageUrl): Li
     {

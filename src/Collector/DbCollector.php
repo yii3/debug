@@ -42,7 +42,11 @@ final class DbCollector implements CollectorInterface
     private bool $started = false;
 
     /**
-     * @param list<array<string, mixed>> $trace
+     * Opens a block for one statement.
+     *
+     * @param string $token Statement text identifying the block.
+     * @param float $time Start timestamp, in seconds.
+     * @param list<array<string, mixed>> $trace Backtrace frames of the call site.
      */
     public function begin(string $token, float $time, array $trace): void
     {
@@ -52,6 +56,8 @@ final class DbCollector implements CollectorInterface
     }
 
     /**
+     * Encodes the captured statements into the Database panel payload.
+     *
      * @return array<string, mixed>|null Encoded Db panel payload; `null` when the collector never started.
      */
     public function capture(): array|null
@@ -67,6 +73,12 @@ final class DbCollector implements CollectorInterface
         return DbSnapshot::capture($this->rows)->jsonSerialize();
     }
 
+    /**
+     * Closes the block opened for the same token and records the completed statement.
+     *
+     * @param string $token Statement text identifying the block.
+     * @param float $time Completion timestamp, in seconds.
+     */
     public function end(string $token, float $time): void
     {
         if (!$this->started || ($this->pending[$token] ?? []) === []) {
@@ -86,16 +98,31 @@ final class DbCollector implements CollectorInterface
         );
     }
 
+    /**
+     * Returns the stable identifier of this collector.
+     *
+     * @return string Stable ID pairing this collector with its panel.
+     */
     public function id(): string
     {
         return 'db';
     }
 
+    /**
+     * Returns whether the collector is capturing for the current request.
+     *
+     * @return bool `true` while the collector is capturing; `false` otherwise.
+     */
     public function isStarted(): bool
     {
         return $this->started;
     }
 
+    /**
+     * Records a statement already assembled elsewhere.
+     *
+     * @param QueryRow $row Statement to append to the capture.
+     */
     public function observe(QueryRow $row): void
     {
         if ($this->started) {
@@ -103,6 +130,12 @@ final class DbCollector implements CollectorInterface
         }
     }
 
+    /**
+     * Records an instrumentation failure, so a broken profiler surfaces in the panel instead of silently
+     * dropping data.
+     *
+     * @param Throwable $failure failure raised while instrumenting the connection.
+     */
     public function reportFailure(Throwable $failure): void
     {
         $this->failure = $failure;
@@ -121,6 +154,9 @@ final class DbCollector implements CollectorInterface
         $this->rowCount = $rows;
     }
 
+    /**
+     * Stops capturing and clears the statements accumulated for the request.
+     */
     public function shutdown(): void
     {
         $this->started = false;
@@ -130,6 +166,9 @@ final class DbCollector implements CollectorInterface
         $this->failure = null;
     }
 
+    /**
+     * Starts capturing, discarding anything left from a previous request.
+     */
     public function startup(): void
     {
         if ($this->started) {

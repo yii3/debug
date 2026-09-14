@@ -13,7 +13,13 @@ use PHPForge\Debug\Storage\RequestSummary;
 interface ContextAndSummaryAwarePanelInterface extends ExtensionPanelInterface
 {
     /**
+     * Renders a captured panel payload with the debugger request context and its request summary.
+     *
      * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
+     * @param RequestSummary $summary Summary of the capture being rendered.
+     *
+     * @return string Rendered detail content.
      */
     public function renderWithContextAndSummary(
         array $payload,

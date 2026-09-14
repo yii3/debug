@@ -8,7 +8,7 @@ use LogicException;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Helper\SensitiveDataRedactor;
-use PHPForge\Debug\Panel\Request\RequestSnapshot;
+use PHPForge\Debug\Panel\Request\{RequestMessage, RequestSnapshot};
 use PHPForge\Debug\Panel\Request\Routing\RouteDefinition;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, UploadedFileInterface};
 use Yii3\Debug\Exception\Message;
@@ -50,14 +50,20 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
      * @var array<string, mixed>|null
      */
     private array|null $request = null;
-
     /**
      * @var array<string, mixed>|null
      */
     private array|null $response = null;
-
+    /**
+     * Whether the collector is capturing for the current request.
+     */
     private bool $started = false;
 
+    /**
+     * @param CurrentRoute|null $currentRoute Route matched for the request, or `null` when routing did not run.
+     * @param RouteCollectionInterface|null $routes Live route collection, or `null` when it cannot be resolved.
+     * @param CapturePolicy $capturePolicy Policy deciding which values are persisted and which are redacted.
+     */
     public function __construct(
         private readonly CurrentRoute|null $currentRoute = null,
         private readonly RouteCollectionInterface|null $routes = null,
@@ -65,6 +71,8 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     ) {}
 
     /**
+     * Encodes the captured request and response into the Request panel payload.
+     *
      * @return array<string, mixed>|null Encoded Request panel payload; `null` when the request was not observed.
      */
     public function capture(): array|null
@@ -76,6 +84,11 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
         return RequestSnapshot::capture([...$this->request, ...$this->response])->jsonSerialize();
     }
 
+    /**
+     * Records the request line, headers, body, and matched route, applying the capture policy.
+     *
+     * @param ServerRequestInterface $request Request reaching the debugger middleware.
+     */
     public function collectRequest(ServerRequestInterface $request): void
     {
         if ($this->started === false) {
@@ -103,8 +116,8 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
                 'method' => $request->getMethod(),
             ],
             'requestBody' => $requestBody === [] ? [] : [
-                'Content Type' => $request->getHeaderLine('Content-Type'),
-                'Decoded' => $requestBody['decoded'],
+                RequestMessage::CONTENT_TYPE->value => $request->getHeaderLine('Content-Type'),
+                RequestMessage::DECODED->value => $requestBody['decoded'],
                 'Raw' => $requestBody['raw'],
             ],
             'requestHeaders' => $this->collapseHeaders($request->getHeaders()),
@@ -118,6 +131,11 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
         ]);
     }
 
+    /**
+     * Records the response status and headers, applying the capture policy.
+     *
+     * @param ResponseInterface $response Response produced for the captured request.
+     */
     public function collectResponse(ResponseInterface $response): void
     {
         if ($this->started === false) {
@@ -143,11 +161,19 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
         $this->response['routeDefinition'] = $this->redactRouteDefinition($routeDefinition);
     }
 
+    /**
+     * Returns the stable identifier of this collector.
+     *
+     * @return string Stable ID pairing this collector with its panel.
+     */
     public function id(): string
     {
         return 'request';
     }
 
+    /**
+     * Stops capturing and clears the data accumulated for the request.
+     */
     public function shutdown(): void
     {
         $this->started = false;
@@ -155,6 +181,9 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
         $this->response = null;
     }
 
+    /**
+     * Starts capturing, discarding anything left from a previous request.
+     */
     public function startup(): void
     {
         if ($this->started) {
@@ -167,9 +196,11 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     }
 
     /**
-     * @param array<array-key, array<array-key, string>> $headers
+     * Redacts every header value and collapses single-value headers to a plain string.
      *
-     * @return array<array-key, array<array-key, string>|string>
+     * @param array<array-key, array<array-key, string>> $headers Header values keyed by header name.
+     *
+     * @return array<array-key, array<array-key, string>|string> Redacted headers, single values unwrapped.
      */
     private function collapseHeaders(array $headers): array
     {
@@ -188,6 +219,10 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
 
     /**
      * Reads a seekable request body without changing its cursor and never consumes a non-seekable stream.
+     *
+     * @param ServerRequestInterface $request Request whose body is read.
+     *
+     * @return string Body contents, or `''` when the stream cannot be read without consuming it.
      */
     private function rawBody(ServerRequestInterface $request): string
     {
@@ -226,6 +261,14 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
         return $raw;
     }
 
+    /**
+     * Redacts one header value, rewriting the URLs inside a `Link` header instead of masking it whole.
+     *
+     * @param string $name Header name deciding whether the value is sensitive.
+     * @param string $value Raw header value.
+     *
+     * @return string Value as captured, redacted when the policy marks the header sensitive.
+     */
     private function redactHeaderValue(string $name, string $value): string
     {
         $name = strtolower($name);
@@ -253,6 +296,8 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     /**
      * Redacts route fields while retaining the persisted definition's scalar schema.
      *
+     * @param RouteDefinition|null $definition Route matched for the request, or `null` when none was.
+     *
      * @return array{
      *     name: string,
      *     pattern: string,
@@ -264,7 +309,7 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
      *     suffix?: string,
      *     mode?: string,
      *     type?: string
-     * }|null
+     * }|null Redacted definition, or `null` when no route was matched.
      */
     private function redactRouteDefinition(RouteDefinition|null $definition): array|null
     {
@@ -290,9 +335,11 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     }
 
     /**
-     * @param array<array-key, mixed> $server
+     * Redacts the URLs carried by the `QUERY_STRING`, `REQUEST_URI`, and `HTTP_REFERER` server entries.
      *
-     * @return array<array-key, mixed>
+     * @param array<array-key, mixed> $server Captured server entries.
+     *
+     * @return array<array-key, mixed> Server entries with their URLs redacted.
      */
     private function redactServerUrls(array $server): array
     {
@@ -318,9 +365,11 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     }
 
     /**
-     * @param array<array-key, mixed> $uploadedFiles
+     * Summarizes the uploaded files by name, media type, size, and error, without retaining their contents.
      *
-     * @return array<array-key, mixed>
+     * @param array<array-key, mixed> $uploadedFiles Uploaded files, nested as the request exposes them.
+     *
+     * @return array<array-key, mixed> Metadata mirroring the uploaded-file tree.
      */
     private static function uploadedFiles(array $uploadedFiles): array
     {
