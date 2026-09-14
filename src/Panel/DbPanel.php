@@ -21,7 +21,7 @@ use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Form\Button;
 use UIAwesome\Html\Palpable\A;
-use Yii3\Debug\Db\DbExplain;
+use Yii3\Debug\Db\{DbExplain, DebugDbProfiler};
 use Yii3\Debug\Search\DbSearch;
 use Yii3\Debug\Web\{
     DebugUrlGenerator,
@@ -38,6 +38,7 @@ use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function iterator_to_array;
+use function sprintf;
 use function strcasecmp;
 
 /**
@@ -45,12 +46,6 @@ use function strcasecmp;
  */
 final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderInterface
 {
-    /**
-     * Guidance shown in the empty state, describing how to instrument a Yii3 connection so queries are captured.
-     */
-    private const string CAPTURE_GUIDANCE = 'Configure the development connection with '
-        . 'Yii3\\Debug\\Db\\DebugDbProfiler. Rows are shown only when the driver reports them. '
-        . 'After a redirect, open the previous request from History.';
     /**
      * Defines the sortable attributes for the database grid.
      */
@@ -84,6 +79,8 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
 
     /**
      * Returns the query count above which a request is critical, or `0` when the check is disabled.
+     *
+     * @return int Threshold in statements; `0` when the check is disabled.
      */
     public function criticalQueryThreshold(): int
     {
@@ -132,6 +129,8 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
      * Returns whether the given query count exceeds the configured critical threshold.
      *
      * @param int $count Statements executed during the captured request.
+     *
+     * @return bool `true` when the count exceeds the threshold; `false` otherwise.
      */
     public function isQueryCountCritical(int $count): bool
     {
@@ -224,10 +223,16 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     }
 
     /**
-     * @param array<int, NPlusOneFinding> $findings
-     * @param array<array-key, mixed> $queryParams
-     * @param array<string, string> $filters
-     * @return list<GridColumn<QueryRow>>
+     * Builds the grid columns for the captured statements.
+     *
+     * @param DbSummary $summary Query metrics of the capture.
+     * @param array<int, NPlusOneFinding> $findings N+1 groups detected on the visible page.
+     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
+     * standalone.
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     * @param array<string, string> $filters Active filter values keyed by attribute.
+     *
+     * @return list<GridColumn<QueryRow>> Columns in display order.
      */
     private function columns(
         DbSummary $summary,
@@ -236,11 +241,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
         array $queryParams,
         array $filters,
     ): array {
-        $state = SortState::fromQuery(
-            QueryInput::scalar($queryParams, 'sort'),
-            self::SORT_ATTRIBUTES,
-            'seq',
-        );
+        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'seq');
 
         unset($queryParams['page']);
 
@@ -267,19 +268,8 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
             }
 
             $filter = match ($attribute) {
-                'type' => FilterInput::select(
-                    FilterPrefix::DB,
-                    'type',
-                    $label,
-                    $filters,
-                    $summary->types,
-                ),
-                'query' => FilterInput::text(
-                    FilterPrefix::DB,
-                    'query',
-                    $label,
-                    $filters,
-                ),
+                'type' => FilterInput::select(FilterPrefix::DB, 'type', $label, $filters, $summary->types),
+                'query' => FilterInput::text(FilterPrefix::DB, 'query', $label, $filters),
                 default => '',
             };
 
@@ -310,9 +300,16 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     }
 
     /**
-     * @param OffsetPaginator<int, QueryRow> $paginator
-     * @param array<string, string> $filters
-     * @param array<array-key, mixed> $queryParams
+     * Renders the statements grid for the visible page.
+     *
+     * @param OffsetPaginator<int, QueryRow> $paginator Paginator clamped to the visible page.
+     * @param DbSummary $summary Query metrics of the capture.
+     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
+     * standalone.
+     * @param array<string, string> $filters Active filter values keyed by attribute.
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     *
+     * @return string Rendered grid.
      */
     private function renderGrid(
         OffsetPaginator $paginator,
@@ -356,7 +353,13 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * Renders the complete Database panel for a capture.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
+     * standalone.
+     *
+     * @return string Rendered detail content.
      */
     private function renderPanel(array $payload, PanelRenderContext|null $context = null): string
     {
@@ -368,11 +371,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
 
         $queryParams = $context === null
             ? []
-            : FilterRemoval::withGroup(
-                $context->queryParams,
-                FilterPrefix::DB,
-                $search->activeFilters,
-            );
+            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::DB, $search->activeFilters);
         $content = PanelHeading::render(PanelTitle::DATABASE)
             . DbSummaryRenderer::render(
                 $summary,
@@ -383,26 +382,22 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
             return $content . EmptyState::card(
                 DbMessage::EMPTY_HEADLINE->value,
                 P::tag()->content(DbMessage::EMPTY_EXPLANATION),
-                P::tag()->content(self::CAPTURE_GUIDANCE),
+                P::tag()->content(sprintf(DbMessage::CAPTURE_GUIDANCE->value, DebugDbProfiler::class)),
             );
         }
 
         $filtered = $search->filter($entries);
 
         if ($context !== null) {
-            $content .= FilterRemoval::banner(
-                $search->activeFilters,
-                $context,
-                $queryParams,
-                FilterPrefix::DB,
-            );
+            $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::DB);
         }
 
         if ($filtered === []) {
-            return $content . EmptyState::card(
-                DbMessage::NO_MATCH_HEADLINE->value,
-                P::tag()->content(DbMessage::NO_MATCH_EXPLANATION),
-            );
+            return $content
+                . EmptyState::card(
+                    DbMessage::NO_MATCH_HEADLINE->value,
+                    P::tag()->content(DbMessage::NO_MATCH_EXPLANATION),
+                );
         }
 
         $state = SortState::fromQuery(
@@ -436,13 +431,14 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * Decodes the captured payload into its typed snapshot.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return DbSnapshot Typed snapshot decoded from the payload.
      */
     private static function snapshot(array $payload): DbSnapshot
     {
-        return DbSnapshot::fromArray(
-            $payload,
-            '$.panels.db',
-        );
+        return DbSnapshot::fromArray($payload, '$.panels.db');
     }
 }

@@ -13,19 +13,26 @@ use PHPForge\Debug\Panel\Log\LogRow;
 final readonly class LogSearch
 {
     /**
-     * @param array<string, string> $activeFilters
+     * @param array<string, string> $activeFilters Submitted filter values kept for this group, keyed by attribute.
      */
     private function __construct(public array $activeFilters) {}
 
+    /**
+     * Returns the submitted `category` filter value.
+     *
+     * @return string Submitted `category` filter value, or `''` when the filter is not active.
+     */
     public function category(): string
     {
         return $this->activeFilters['category'] ?? '';
     }
 
     /**
-     * @param list<LogRow> $rows
+     * Keeps only the messages matching every active filter.
      *
-     * @return list<LogRow>
+     * @param list<LogRow> $rows Captured messages to filter.
+     *
+     * @return list<LogRow> Rows matching every active filter, reindexed.
      */
     public function filter(array $rows): array
     {
@@ -39,7 +46,11 @@ final readonly class LogSearch
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
+     * Builds the search model from the submitted filter values.
+     *
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     *
+     * @return self Search model holding the active message filters.
      */
     public static function fromQueryParams(array $queryParams): self
     {
@@ -56,11 +67,21 @@ final readonly class LogSearch
         return new self($filters);
     }
 
+    /**
+     * Returns the submitted `level` filter value.
+     *
+     * @return string Submitted `level` filter value, or `''` when the filter is not active.
+     */
     public function level(): string
     {
         return $this->activeFilters['level'] ?? '';
     }
 
+    /**
+     * Returns the submitted `message` filter value.
+     *
+     * @return string Submitted `message` filter value, or `''` when the filter is not active.
+     */
     public function message(): string
     {
         return $this->activeFilters['message'] ?? '';

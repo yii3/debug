@@ -22,13 +22,24 @@ final readonly class PageWindow
      * @var positive-int
      */
     public int $limit;
+    /**
+     * Index of the first row on the resolved page.
+     */
     public int $offset;
     /**
      * @var positive-int
      */
     public int $page;
+    /**
+     * Total number of pages the collection spans.
+     */
     public int $pageCount;
 
+    /**
+     * @param int $total Rows in the collection.
+     * @param string|null $perPage Raw `per-page` query value, or `null` to keep every row on one page.
+     * @param string|null $page Raw `page` query value, or `null` to start on the first page.
+     */
     public function __construct(int $total, string|null $perPage, string|null $page)
     {
         $this->limit = PageSize::resolve($perPage) ?? max(1, $total);
@@ -70,7 +81,6 @@ final readonly class PageWindow
      */
     public static function single(array $rows): OffsetPaginator
     {
-        return (new OffsetPaginator(new IterableDataReader($rows)))
-            ->withPageSize(max(1, count($rows)));
+        return (new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(max(1, count($rows)));
     }
 }

@@ -20,6 +20,8 @@ final class FilterInput
      * @param array<string, string> $filters Active filters of the group, keyed by attribute.
      * @param array<array-key, string> $options Selectable values mapped to the label shown for each of them.
      * @param string $class Class list applied to the control.
+     *
+     * @return Select Rendered dropdown.
      */
     public static function select(
         string $prefix,
@@ -55,6 +57,8 @@ final class FilterInput
      * @param string $label Attribute name announced to assistive technology.
      * @param array<string, string> $filters Active filters of the group, keyed by attribute.
      * @param string $class Class list applied to the control.
+     *
+     * @return InputText Rendered text box.
      */
     public static function text(
         string $prefix,

@@ -8,6 +8,7 @@ use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, DbSummary};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
+use PHPForge\Debug\Toolbar\DebugHeader;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
 use Yii3\Debug\Collector\{ProfilingCollector, RequestObserverInterface};
@@ -69,6 +70,12 @@ final class ToolbarMiddleware implements MiddlewareInterface
      */
     private array $skipUrls = [];
 
+    /**
+     * @param ToolbarRenderer $renderer Renderer producing the toolbar markup injected into the response.
+     * @param StreamFactoryInterface $streamFactory Factory building the rewritten response body.
+     * @param SnapshotStore $store Store the capture is written to.
+     * @param IpRanges $allowedIpRanges Ranges allowed to reach the debugger.
+     */
     public function __construct(
         private readonly ToolbarRenderer $renderer,
         private readonly StreamFactoryInterface $streamFactory,
@@ -78,6 +85,16 @@ final class ToolbarMiddleware implements MiddlewareInterface
         $this->capturePolicy = new CapturePolicy();
     }
 
+    /**
+     * Captures the request, then injects the toolbar into an eligible HTML response.
+     *
+     * Requests from a disallowed address, and the debugger's own routes, pass through untouched.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     *
+     * @return ResponseInterface Response, with the toolbar injected when the request qualifies.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if ($this->isDebugRequest($request) || !$this->isAllowed($request)) {
@@ -93,6 +110,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $this->captureRequest($request, $handler);
     }
 
+    /**
+     * Returns a copy applying another capture policy.
+     *
+     * @param CapturePolicy $capturePolicy Policy deciding which values are persisted and which are
+     * redacted.
+     *
+     * @return self Middleware with the policy applied.
+     */
     public function withCapturePolicy(CapturePolicy $capturePolicy): self
     {
         $new = clone $this;
@@ -101,6 +126,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $new;
     }
 
+    /**
+     * Returns a copy driving another set of collectors.
+     *
+     * @param CollectorCoordinator|null $collectorCoordinator Coordinator owning the collectors, or `null`
+     * to capture nothing.
+     *
+     * @return self Middleware with the coordinator applied.
+     */
     public function withCollectorCoordinator(CollectorCoordinator|null $collectorCoordinator): self
     {
         $new = clone $this;
@@ -113,6 +146,8 @@ final class ToolbarMiddleware implements MiddlewareInterface
      * Returns a new instance with the threshold that flags a call site as issuing too many statements.
      *
      * @param int|null $excessiveCallerThreshold Statements per call site that flag it, or `null` to disable.
+     *
+     * @return self Middleware with the threshold applied.
      */
     public function withExcessiveCallerThreshold(int|null $excessiveCallerThreshold): self
     {
@@ -122,6 +157,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $new;
     }
 
+    /**
+     * Returns a copy retaining another number of captures.
+     *
+     * @param int $historySize Captures kept before the oldest are rotated out.
+     *
+     * @return self Middleware with the history size applied.
+     */
     public function withHistorySize(int $historySize): self
     {
         $new = clone $this;
@@ -130,6 +172,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $new;
     }
 
+    /**
+     * Returns a copy carrying the drawer presentation settings.
+     *
+     * @param string $position Edge the toolbar docks to.
+     * @param int $height Collapsed toolbar height, in pixels.
+     *
+     * @return self Middleware with the presentation applied.
+     */
     public function withPresentation(string $position, int $height): self
     {
         $new = clone $this;
@@ -139,6 +189,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $new;
     }
 
+    /**
+     * Returns a copy building every debugger URL on another base path.
+     *
+     * @param string $routePrefix Base path; a trailing slash is trimmed.
+     *
+     * @return self Middleware with the prefix applied.
+     */
     public function withRoutePrefix(string $routePrefix): self
     {
         $new = clone $this;
@@ -148,7 +205,11 @@ final class ToolbarMiddleware implements MiddlewareInterface
     }
 
     /**
+     * Returns a copy excluding more same-origin URLs from AJAX tracking.
+     *
      * @param list<string> $skipUrls Same-origin URLs excluded from AJAX tracking.
+     *
+     * @return self Middleware with the exclusions applied.
      */
     public function withSkipUrls(array $skipUrls): self
     {
@@ -158,6 +219,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $new;
     }
 
+    /**
+     * Runs the request with the collectors active and writes the resulting capture.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     *
+     * @return ResponseInterface Response produced by the handler.
+     */
     private function captureRequest(
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
@@ -186,13 +255,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         $processingTime = microtime(true) - $start;
 
         $response = $response
-            ->withHeader('X-Debug-Tag', $tag)
+            ->withHeader(DebugHeader::TAG->value, $tag)
             ->withHeader(
-                'X-Debug-Duration',
+                DebugHeader::DURATION->value,
                 number_format($processingTime * 1000, 0, '.', ''),
             )
             ->withHeader(
-                'X-Debug-Link',
+                DebugHeader::LINK->value,
                 "{$this->routePrefix}/view?tag="
                     . rawurlencode($tag)
                     . '&panel=' . ($requestCollector === null ? 'config' : 'request'),
@@ -250,6 +319,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $response->withBody($this->streamFactory->createStream($html));
     }
 
+    /**
+     * Reads the remote address reported for the request.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     *
+     * @return string Remote address of the request, or `''` when the server did not report one.
+     */
     private static function clientIp(ServerRequestInterface $request): string
     {
         $clientIp = $request->getServerParams()['REMOTE_ADDR'] ?? null;
@@ -257,6 +333,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return is_string($clientIp) && IpHelper::isIp($clientIp) ? $clientIp : '';
     }
 
+    /**
+     * Returns whether the client address may reach the debugger.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     *
+     * @return bool `true` when the client address falls in an allowed range; `false` otherwise.
+     */
     private function isAllowed(ServerRequestInterface $request): bool
     {
         $clientIp = $request->getServerParams()['REMOTE_ADDR'] ?? null;
@@ -266,6 +349,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
             && $this->allowedIpRanges->isAllowed($clientIp);
     }
 
+    /**
+     * Returns whether the request targets the debugger itself.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     *
+     * @return bool `true` when the request targets the debugger itself; `false` otherwise.
+     */
     private function isDebugRequest(ServerRequestInterface $request): bool
     {
         $path = $request->getUri()->getPath();
@@ -273,6 +363,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return $path === $this->routePrefix || str_starts_with($path, $this->routePrefix . '/');
     }
 
+    /**
+     * Resolves one request-start origin shared by the summary and the profiler.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     *
+     * @return float Request start, in seconds.
+     */
     private static function requestStart(ServerRequestInterface $request): float
     {
         $start = $request->getServerParams()['REQUEST_TIME_FLOAT'] ?? null;
@@ -280,6 +377,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
         return is_float($start) || is_int($start) ? $start : microtime(true);
     }
 
+    /**
+     * Returns whether the toolbar may be injected into the response body.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param ResponseInterface $response Response produced for the request.
+     *
+     * @return bool `true` when the toolbar may be injected into the body; `false` otherwise.
+     */
     private function shouldInject(ServerRequestInterface $request, ResponseInterface $response): bool
     {
         $statusCode = $response->getStatusCode();

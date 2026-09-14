@@ -17,8 +17,16 @@ use const DEBUG_BACKTRACE_IGNORE_ARGS;
  */
 final readonly class DebugEventDispatcher implements EventDispatcherInterface
 {
+    /**
+     * Guard isolating capture failures, so a broken collector never breaks dispatch.
+     */
     private InstrumentationGuard $guard;
 
+    /**
+     * @param EventDispatcherInterface $dispatcher Application dispatcher every event is delegated to.
+     * @param EventCollector $collector Collector recording the event and its immediate caller.
+     * @param InstrumentationGuard|null $guard Guard isolating capture failures, or `null` to build the default.
+     */
     public function __construct(
         private EventDispatcherInterface $dispatcher,
         private EventCollector $collector,
@@ -27,6 +35,13 @@ final readonly class DebugEventDispatcher implements EventDispatcherInterface
         $this->guard = $guard ?? new InstrumentationGuard();
     }
 
+    /**
+     * Records the event and its immediate caller, then delegates to the application dispatcher.
+     *
+     * @param object $event Event being dispatched.
+     *
+     * @return object Event as returned by the application dispatcher.
+     */
     public function dispatch(object $event): object
     {
         // Frame zero is this method; frame one is the immediate dispatch caller.

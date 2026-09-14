@@ -11,6 +11,8 @@ interface ToolbarTitleProviderInterface
 {
     /**
      * Returns the toolbar title. An empty string keeps the icon while hiding the text label.
+     *
+     * @return string Toolbar title, or `''` to show the icon alone.
      */
     public function toolbarTitle(): string;
 }

@@ -14,6 +14,27 @@ use function sprintf;
 enum Message: string
 {
     /**
+     * Indicates that the requested capture holds no payload for the requested panel.
+     *
+     * Format: "Debug panel was not captured."
+     */
+    case DEBUG_PANEL_NOT_CAPTURED = 'Debug panel was not captured.';
+
+    /**
+     * Indicates that the requested panel cannot be served.
+     *
+     * Format: "The requested debug panel is not available."
+     */
+    case DEBUG_PANEL_UNAVAILABLE = 'The requested debug panel is not available.';
+
+    /**
+     * Indicates that the requested capture is no longer retained.
+     *
+     * Format: "Debug snapshot not found."
+     */
+    case DEBUG_SNAPSHOT_NOT_FOUND = 'Debug snapshot not found.';
+
+    /**
      * Indicates that an extension panel ID is registered more than once.
      *
      * Format: "Duplicate debug extension panel ID: %s."
@@ -61,6 +82,13 @@ enum Message: string
      * Format: "The request collector must be started before collecting a response."
      */
     case RESPONSE_COLLECTOR_NOT_STARTED = 'The request collector must be started before collecting a response.';
+
+    /**
+     * Indicates that the captured route metadata does not carry the expected shape.
+     *
+     * Format: "Captured route metadata must be an array or null."
+     */
+    case ROUTE_METADATA_INVALID = 'Captured route metadata must be an array or null.';
 
     /**
      * Indicates that an extension panel returned an item other than a `ToolbarItem` instance.

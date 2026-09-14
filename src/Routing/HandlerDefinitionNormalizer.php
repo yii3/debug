@@ -17,6 +17,11 @@ final class HandlerDefinitionNormalizer
 {
     /**
      * Formats an action or middleware definition without retaining its object graph or configuration values.
+     *
+     * @param mixed $definition Handler as a class name, a `['class' => ...]` array, a callable pair, or any
+     * other value.
+     *
+     * @return string|null Scalar label, or `null` when the definition carries no recognizable name.
      */
     public static function describe(mixed $definition): string|null
     {
@@ -46,9 +51,11 @@ final class HandlerDefinitionNormalizer
     }
 
     /**
-     * @param array<array-key, mixed> $definitions
+     * Formats every handler definition, dropping the ones that carry no recognizable name.
      *
-     * @return list<string>
+     * @param array<array-key, mixed> $definitions Handler definitions in declaration order.
+     *
+     * @return list<string> Scalar labels in the same order, unnamed handlers omitted.
      */
     public static function describeAll(array $definitions): array
     {
@@ -67,6 +74,10 @@ final class HandlerDefinitionNormalizer
 
     /**
      * Removes PHP's NUL-delimited source suffix from anonymous class labels.
+     *
+     * @param string $label Raw class label, possibly carrying the anonymous-class suffix.
+     *
+     * @return string Label truncated at the NUL separator when present.
      */
     private static function normalizeClassLabel(string $label): string
     {

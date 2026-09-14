@@ -26,6 +26,8 @@ final class DebugLogTarget extends Target
     }
 
     /**
+     * Returns the messages accumulated for the current request.
+     *
      * @return list<Message> Messages accumulated in emission order.
      */
     public function messages(): array
@@ -42,6 +44,9 @@ final class DebugLogTarget extends Target
         $this->captured = [];
     }
 
+    /**
+     * Accumulates the flushed messages, so the capture keeps every message of the request.
+     */
     protected function export(): void
     {
         $this->captured = [

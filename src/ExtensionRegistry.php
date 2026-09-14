@@ -15,11 +15,11 @@ use Yii3\Debug\Panel\ProviderPanel;
 final readonly class ExtensionRegistry
 {
     /**
-     * @var list<CollectorInterface>
+     * @var list<CollectorInterface> Enabled collectors in capture order.
      */
     private array $collectors;
     /**
-     * @var list<ExtensionPanelInterface>
+     * @var list<ExtensionPanelInterface> Enabled panels in navigation order.
      */
     private array $panels;
 
@@ -33,9 +33,13 @@ final readonly class ExtensionRegistry
 
         foreach ($collectors as $collector) {
             $id = $collector->id();
+
             if (trim($id) === '' || isset($collectorList[$id])) {
-                throw new InvalidArgumentException('Empty or duplicate debug collector ID: ' . $id);
+                throw new InvalidArgumentException(
+                    "Empty or duplicate debug collector ID: {$id}",
+                );
             }
+
             $collectorList[$id] = $collector;
         }
 
@@ -43,9 +47,13 @@ final readonly class ExtensionRegistry
 
         foreach ($panels as $panel) {
             $id = $panel->id();
+
             if (trim($id) === '' || isset($panelList[$id])) {
-                throw new InvalidArgumentException('Empty or duplicate debug panel ID: ' . $id);
+                throw new InvalidArgumentException(
+                    "Empty or duplicate debug panel ID: {$id}",
+                );
             }
+
             $panelList[$id] = $panel instanceof PortablePanel ? new ProviderPanel($panel) : $panel;
         }
 
@@ -54,6 +62,8 @@ final readonly class ExtensionRegistry
     }
 
     /**
+     * Returns the collectors the application enabled.
+     *
      * @return list<CollectorInterface> Enabled collectors in capture order.
      */
     public function collectors(): array
@@ -63,6 +73,8 @@ final readonly class ExtensionRegistry
 
     /**
      * Returns the built-in collector first, unless the application explicitly registered an override with the same ID.
+     *
+     * @param CollectorInterface $builtIn Built-in collector to place first.
      *
      * @return list<CollectorInterface> Built-in and enabled collectors in capture order.
      */
@@ -113,16 +125,17 @@ final readonly class ExtensionRegistry
      *
      * @param iterable<CollectorInterface> $collectors Enabled collectors in capture order.
      * @param iterable<ExtensionPanelInterface|PortablePanel> $panels Enabled panels in navigation order.
+     *
+     * @return self Registry holding the enabled collectors and panels.
      */
     public static function create(iterable $collectors = [], iterable $panels = []): self
     {
-        return new self(
-            $collectors,
-            $panels,
-        );
+        return new self($collectors, $panels);
     }
 
     /**
+     * Returns the panels the application enabled.
+     *
      * @return list<ExtensionPanelInterface> Enabled panels in navigation order.
      */
     public function panels(): array
@@ -132,6 +145,8 @@ final readonly class ExtensionRegistry
 
     /**
      * Returns the built-in panel first, unless the application explicitly registered an override with the same ID.
+     *
+     * @param ExtensionPanelInterface $builtIn Built-in panel to place first.
      *
      * @return list<ExtensionPanelInterface> Built-in and enabled panels in navigation order.
      */
@@ -177,25 +192,27 @@ final readonly class ExtensionRegistry
         ];
     }
 
+    /**
+     * Returns a copy with one more enabled collector appended.
+     *
+     * @param CollectorInterface $collector Collector to enable.
+     *
+     * @return self Registry including the collector.
+     */
     public function withCollector(CollectorInterface $collector): self
     {
-        return new self(
-            [
-                ...$this->collectors,
-                $collector,
-            ],
-            $this->panels,
-        );
+        return new self([...$this->collectors, $collector], $this->panels);
     }
 
+    /**
+     * Returns a copy with one more enabled panel appended.
+     *
+     * @param ExtensionPanelInterface|PortablePanel $panel Panel to enable; a portable panel is adapted.
+     *
+     * @return self Registry including the panel.
+     */
     public function withPanel(ExtensionPanelInterface|PortablePanel $panel): self
     {
-        return new self(
-            $this->collectors,
-            [
-                ...$this->panels,
-                $panel,
-            ],
-        );
+        return new self($this->collectors, [...$this->panels, $panel]);
     }
 }

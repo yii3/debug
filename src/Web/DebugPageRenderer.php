@@ -12,6 +12,7 @@ use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
+use PHPForge\Debug\View\ViewMessage;
 use Throwable;
 use UIAwesome\Html\Flow\Div;
 use UIAwesome\Html\Heading\H1;
@@ -26,6 +27,7 @@ use Yii3\Debug\Panel\{
     ProviderPanel,
     SummaryAwarePanelInterface,
 };
+use Yii3\Debug\View\ViewMessage as AdapterMessage;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
@@ -84,6 +86,12 @@ final class DebugPageRenderer
      */
     private readonly string $viewPath;
 
+    /**
+     * @param WebView $view View rendering the debugger templates.
+     * @param AssetManager $assetManager Manager resolving the published URLs of the debugger assets.
+     * @param ConfigDataFactory $configDataFactory Factory building the live configuration payload.
+     * @param string $viewPath Directory the debugger templates are read from.
+     */
     public function __construct(
         private readonly WebView $view,
         private readonly AssetManager $assetManager,
@@ -94,7 +102,13 @@ final class DebugPageRenderer
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
+     * Renders the comparison page for two captures.
+     *
+     * @param HistoryComparison $comparison Differences between the two captures.
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param string $theme Resolved theme: `'light'` or `'dark'`.
+     *
+     * @return string Rendered debugger page.
      */
     public function compare(HistoryComparison $comparison, array $manifest, string $theme): string
     {
@@ -122,7 +136,14 @@ final class DebugPageRenderer
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
+     * Renders the live configuration page.
+     *
+     * @param string $tag Capture in context, used by the sidebar links.
+     * @param string $theme Resolved theme: `'light'` or `'dark'`.
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     *
+     * @return string Rendered debugger page.
      */
     public function config(
         string $tag,
@@ -154,8 +175,13 @@ final class DebugPageRenderer
     /**
      * Renders one captured extension panel.
      *
-     * @param array<string, RequestSummary> $manifest
-     * @param array<array-key, mixed> $queryParams
+     * @param DebugSnapshot $snapshot Capture the panel renders.
+     * @param string $panelId Panel to render.
+     * @param string $theme Resolved theme: `'light'` or `'dark'`.
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     *
+     * @return string Rendered debugger page.
      */
     public function extension(
         DebugSnapshot $snapshot,
@@ -250,14 +276,27 @@ final class DebugPageRenderer
         );
     }
 
+    /**
+     * Returns whether a panel is registered under the given ID.
+     *
+     * @param string $panelId Panel to look up.
+     *
+     * @return bool `true` when the panel is registered; `false` otherwise.
+     */
     public function hasExtensionPanel(string $panelId): bool
     {
         return isset($this->extensionPanels[$panelId]);
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
-     * @param array<array-key, mixed> $queryParams
+     * Renders the captured request history.
+     *
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     * @param string $theme Resolved theme: `'light'` or `'dark'`.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     *
+     * @return string Rendered debugger page.
      */
     public function history(
         array $manifest,
@@ -285,7 +324,13 @@ final class DebugPageRenderer
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
+     * Renders the `phpinfo()` page inside the debugger shell.
+     *
+     * @param string $theme Resolved theme: `'light'` or `'dark'`.
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     *
+     * @return string Rendered debugger page.
      */
     public function phpInfo(
         string $theme,
@@ -317,7 +362,11 @@ final class DebugPageRenderer
     }
 
     /**
+     * Returns a copy carrying the extension panels shown in the sidebar.
+     *
      * @param iterable<ExtensionPanelInterface> $extensionPanels Optional panel presenters in sidebar order.
+     *
+     * @return self Renderer with the panels applied.
      */
     public function withExtensionPanels(iterable $extensionPanels): self
     {
@@ -347,6 +396,13 @@ final class DebugPageRenderer
         return $new;
     }
 
+    /**
+     * Returns a copy building every debugger URL on another base path.
+     *
+     * @param string $routePrefix Base path; a trailing slash is trimmed.
+     *
+     * @return self Renderer with the prefix applied.
+     */
     public function withRoutePrefix(string $routePrefix): self
     {
         $new = clone $this;
@@ -356,7 +412,13 @@ final class DebugPageRenderer
     }
 
     /**
-     * @return array<string, list<SidebarNavItem>>
+     * Groups the extension panel links shown after the built-in navigation.
+     *
+     * @param RequestSummary|null $summary Summary of the capture in context, or `null` when none is selected.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     * @param string|null $activePanelId Panel to mark as active, or `null` when no panel is being shown.
+     *
+     * @return array<string, list<SidebarNavItem>> Navigation entries keyed by group label.
      */
     private function extensionNavGroups(
         RequestSummary|null $summary,
@@ -409,14 +471,21 @@ final class DebugPageRenderer
                 label: $id,
                 iconSvg: Icon::render('code'),
                 url: $this->viewUrl($summary->tag, $id),
-                tooltip: 'View captured data without an installed presenter',
+                tooltip: AdapterMessage::RAW_PANEL_TOOLTIP->value,
                 isActive: $activePanelId === $id,
             );
         }
 
-        return $items === [] ? [] : ['Extensions' => $items];
+        return $items === [] ? [] : [ViewMessage::EXTENSIONS->value => $items];
     }
 
+    /**
+     * Returns a copy whose extension panels are bound to one capture.
+     *
+     * @param DebugSnapshot $snapshot Capture the panels are bound to.
+     *
+     * @return self Renderer bound to that capture.
+     */
     private function forSnapshot(DebugSnapshot $snapshot): self
     {
         $prepared = clone $this;
@@ -429,6 +498,14 @@ final class DebugPageRenderer
         return $prepared;
     }
 
+    /**
+     * Builds the History entry of the sidebar navigation.
+     *
+     * @param bool $isActive Whether the History entry is the active one.
+     * @param string|null $tag Capture the entry returns to, or `null` for the newest one.
+     *
+     * @return SidebarNavItem History navigation entry.
+     */
     private function historyNavItem(bool $isActive, string|null $tag = null): SidebarNavItem
     {
         $url = $this->routePrefix;
@@ -441,14 +518,19 @@ final class DebugPageRenderer
             label: PanelTitle::HISTORY->value,
             iconSvg: Icon::render('history'),
             url: $url,
-            tooltip: 'View request history',
+            tooltip: AdapterMessage::HISTORY_TOOLTIP->value,
             isActive: $isActive,
         );
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
-     * @param array<array-key, mixed> $queryParams
+     * Builds the sidebar of the history page, where the navigator acts as a grid cursor.
+     *
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     *
+     * @return SidebarView Sidebar view-model for the history page.
      */
     private function historySidebar(array $manifest, array $queryParams, DebugSnapshot|null $snapshot): SidebarView
     {
@@ -463,7 +545,7 @@ final class DebugPageRenderer
                 : $this->snapshot(
                     $summary,
                     $manifest,
-                    title: 'Newest request',
+                    title: ViewMessage::NEWEST_REQUEST->value,
                     isCursor: true,
                     cursorInitTag: is_string($cursor) ? $cursor : '',
                 ),
@@ -475,6 +557,18 @@ final class DebugPageRenderer
         );
     }
 
+    /**
+     * Renders the debugger shell around already-composed page content.
+     *
+     * @param string $title Document title.
+     * @param string $content Rendered page content.
+     * @param string $theme Resolved theme: `'light'` or `'dark'`.
+     * @param string|null $configUrl URL of the configuration page, or `null` when unavailable.
+     * @param SidebarView $sidebar Sidebar view-model.
+     * @param RequestSummary|null $summary Summary of the capture in context, or `null` when none is selected.
+     *
+     * @return string Rendered debugger page.
+     */
     private function page(
         string $title,
         string $content,
@@ -488,7 +582,7 @@ final class DebugPageRenderer
             $this->viewPath . '/_shell.php',
             [
                 'actionIcon' => Icon::render('config'),
-                'actionLabel' => 'Config',
+                'actionLabel' => ViewMessage::CONFIG->value,
                 'actionTitle' => 'Open configuration',
                 'actionUrl' => $configUrl,
                 'content' => $content,
@@ -521,7 +615,11 @@ final class DebugPageRenderer
     /**
      * Builds the built-in panel navigation displayed after History and before extension groups.
      *
-     * @return list<SidebarNavItem>
+     * @param RequestSummary|null $summary Summary of the capture in context, or `null` when none is selected.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     * @param string|null $activePanelId Panel to mark as active, or `null` when no panel is being shown.
+     *
+     * @return list<SidebarNavItem> Navigation entries in display order.
      */
     private function primaryPanelNavItems(
         RequestSummary|null $summary,
@@ -558,12 +656,21 @@ final class DebugPageRenderer
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
+     * Builds the snapshot card surfaced at the top of the sidebar.
+     *
+     * @param RequestSummary $summary Summary of the capture the card describes.
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param string $title Card heading.
+     * @param bool $isCursor Whether the navigator buttons act as a grid cursor.
+     * @param string $cursorInitTag Capture the cursor lands on; empty to start at the newest one.
+     * @param string $panelId Panel the navigator buttons keep open.
+     *
+     * @return SidebarSnapshot Snapshot card view-model.
      */
     private function snapshot(
         RequestSummary $summary,
         array $manifest,
-        string $title = 'Current request',
+        string $title = ViewMessage::CURRENT_REQUEST->value,
         bool $isCursor = false,
         string $cursorInitTag = '',
         string $panelId = 'config',
@@ -607,7 +714,14 @@ final class DebugPageRenderer
     }
 
     /**
-     * @param array<string, RequestSummary> $manifest
+     * Builds the sidebar of a panel page, highlighting the active panel.
+     *
+     * @param RequestSummary|null $summary Summary of the capture in context, or `null` when none is selected.
+     * @param array<string, RequestSummary> $manifest Captured request summaries keyed by tag.
+     * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
+     * @param string|null $activePanelId Panel to mark as active, or `null` when no panel is being shown.
+     *
+     * @return SidebarView Sidebar view-model for the panel page.
      */
     private function viewSidebar(
         RequestSummary|null $summary,
@@ -635,6 +749,14 @@ final class DebugPageRenderer
         );
     }
 
+    /**
+     * Builds the URL opening one panel of a capture.
+     *
+     * @param string $tag Capture to open.
+     * @param string $panelId Panel to open within that capture.
+     *
+     * @return string URL of the panel view.
+     */
     private function viewUrl(string $tag, string $panelId = 'config'): string
     {
         return "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);

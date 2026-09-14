@@ -11,6 +11,16 @@ use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
  */
 interface RequestObserverInterface
 {
+    /**
+     * Records the incoming request.
+     *
+     * @param ServerRequestInterface $request Request reaching the debugger middleware.
+     */
     public function collectRequest(ServerRequestInterface $request): void;
+    /**
+     * Records the outgoing response.
+     *
+     * @param ResponseInterface $response Response produced for the captured request.
+     */
     public function collectResponse(ResponseInterface $response): void;
 }

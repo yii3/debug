@@ -12,6 +12,7 @@ use Throwable;
 use UnexpectedValueException;
 use WeakMap;
 use Yii3\Debug\Exception\Message;
+use Yii3\Debug\View\ViewMessage;
 
 use function array_is_list;
 use function class_exists;
@@ -37,6 +38,7 @@ final class EventCollector implements CollectorInterface
         'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware',
         'Yiisoft\\Middleware\\Dispatcher\\Event\\AfterMiddleware',
     ];
+
     /**
      * Opt-in capture of whitelisted lifecycle context. Arbitrary event properties remain unread.
      */
@@ -46,19 +48,30 @@ final class EventCollector implements CollectorInterface
      */
     public int $traceLimit = 0;
 
+    /**
+     * Current nesting depth of the dispatch being recorded.
+     */
     private int $depth = 0;
     /**
      * @var list<EventRow>
      */
     private array $events = [];
+    /**
+     * Next scope identifier handed to a lifecycle marker, so nested dispatches stay correlated.
+     */
     private int $nextScope = 0;
     /**
      * @var WeakMap<object, list<array{id: int, depth: int}>>|null Transient middleware identity, never persisted.
      */
     private WeakMap|null $scopes = null;
+    /**
+     * Whether the collector is capturing for the current request.
+     */
     private bool $started = false;
 
     /**
+     * Encodes the captured events into the Events panel payload.
+     *
      * @return array<string, mixed>|null Encoded Events panel payload; `null` when the collector never started.
      */
     public function capture(): array|null
@@ -70,6 +83,11 @@ final class EventCollector implements CollectorInterface
         return (new EventSnapshot($this->events))->jsonSerialize();
     }
 
+    /**
+     * Returns the stable identifier of this collector.
+     *
+     * @return string Stable ID pairing this collector with its panel.
+     */
     public function id(): string
     {
         return 'event';
@@ -78,6 +96,7 @@ final class EventCollector implements CollectorInterface
     /**
      * Records only dispatch metadata while collection is active.
      *
+     * @param object $event Event being dispatched.
      * @param string $senderClass Immediate class that invoked the decorated dispatcher, used as a fallback source.
      */
     public function record(object $event, string $senderClass = ''): void
@@ -89,13 +108,7 @@ final class EventCollector implements CollectorInterface
         $class = self::normalizeClassLabel($event::class);
         $source = self::normalizeClassLabel(self::source($event, $senderClass));
 
-        $row = new EventRow(
-            time: microtime(true),
-            name: $class,
-            class: $class,
-            isStatic: '0',
-            senderClass: $source,
-        );
+        $row = new EventRow(time: microtime(true), name: $class, class: $class, isStatic: '0', senderClass: $source);
 
         $this->events[] = in_array($event::class, self::MIDDLEWARE_EVENTS, true)
             || $this->captureContext || $this->traceLimit > 0
@@ -103,6 +116,9 @@ final class EventCollector implements CollectorInterface
             : $row;
     }
 
+    /**
+     * Stops capturing and clears the events accumulated for the request.
+     */
     public function shutdown(): void
     {
         $this->started = false;
@@ -112,6 +128,9 @@ final class EventCollector implements CollectorInterface
         $this->depth = 0;
     }
 
+    /**
+     * Starts capturing and resets the nesting and scope counters.
+     */
     public function startup(): void
     {
         if ($this->started) {
@@ -124,6 +143,10 @@ final class EventCollector implements CollectorInterface
 
     /**
      * Correlates only known lifecycle markers by object identity and per-object nesting, never by class name.
+     *
+     * @param object $event Event reaching the decorated dispatcher.
+     *
+     * @return EventInspection Metadata read at the dispatch point.
      */
     private function inspect(object $event): EventInspection
     {
@@ -181,8 +204,8 @@ final class EventCollector implements CollectorInterface
 
                         $context = EventCapture::context(
                             [
-                                'Request method' => $request->getMethod(),
-                                'Request path (no query)' => $request->getUri()->getPath(),
+                                ViewMessage::EVENT_CONTEXT_REQUEST_METHOD->value => $request->getMethod(),
+                                ViewMessage::EVENT_CONTEXT_REQUEST_PATH->value => $request->getUri()->getPath(),
                             ],
                         );
                     } elseif ($phase === 'leave' && method_exists($event, 'getResponse')) {
@@ -230,6 +253,10 @@ final class EventCollector implements CollectorInterface
 
     /**
      * Resolves Yii middleware-factory action wrappers to their whitelisted class and method name.
+     *
+     * @param object $middleware Middleware instance wrapping the action.
+     *
+     * @return string Action label, or `''` when the wrapper is not recognized.
      */
     private static function middlewareSource(object $middleware): string
     {
@@ -255,6 +282,10 @@ final class EventCollector implements CollectorInterface
 
     /**
      * Removes PHP's NUL-delimited source suffix from anonymous class labels.
+     *
+     * @param string $label Raw class label, possibly carrying the anonymous-class suffix.
+     *
+     * @return string Label truncated at the NUL separator when present.
      */
     private static function normalizeClassLabel(string $label): string
     {
@@ -265,6 +296,11 @@ final class EventCollector implements CollectorInterface
 
     /**
      * Resolves the most useful source without retaining an event subject or its payload.
+     *
+     * @param object $event Event being recorded.
+     * @param string $callerClass Immediate caller of the dispatcher, used as a fallback.
+     *
+     * @return string Source label for the event row.
      */
     private static function source(object $event, string $callerClass): string
     {
@@ -284,6 +320,10 @@ final class EventCollector implements CollectorInterface
 
     /**
      * Accepts only the named, public action shape emitted by Yii's middleware factory.
+     *
+     * @param mixed $callback Wrapped callback of unknown shape.
+     *
+     * @return string|null Action name, or `null` when the callback is not the expected shape.
      */
     private static function wrappedActionName(mixed $callback): string|null
     {

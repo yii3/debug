@@ -16,6 +16,8 @@ final class SummaryChip
      *
      * @param string $value Metric highlighted at the start of the chip.
      * @param string $label Unit the metric is expressed in, including the space separating it from the value.
+     *
+     * @return Span Rendered chip.
      */
     public static function render(string $value, string $label): Span
     {
@@ -24,6 +26,8 @@ final class SummaryChip
 
     /**
      * Renders the separator between summary chips.
+     *
+     * @return Span Rendered separator.
      */
     public static function separator(): Span
     {

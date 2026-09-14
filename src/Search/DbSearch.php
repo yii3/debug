@@ -13,13 +13,16 @@ use PHPForge\Debug\Panel\Db\QueryRow;
 final readonly class DbSearch
 {
     /**
-     * @param array<string, string> $activeFilters
+     * @param array<string, string> $activeFilters Submitted filter values kept for this group, keyed by attribute.
      */
     private function __construct(public array $activeFilters) {}
 
     /**
-     * @param list<QueryRow> $rows
-     * @return list<QueryRow>
+     * Keeps only the statements matching every active filter.
+     *
+     * @param list<QueryRow> $rows Captured statements to filter.
+     *
+     * @return list<QueryRow> Rows matching every active filter, reindexed.
      */
     public function filter(array $rows): array
     {
@@ -32,7 +35,11 @@ final readonly class DbSearch
     }
 
     /**
-     * @param array<array-key, mixed> $queryParams
+     * Builds the search model from the submitted filter values.
+     *
+     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
+     *
+     * @return self Search model holding the active statement filters.
      */
     public static function fromQueryParams(array $queryParams): self
     {

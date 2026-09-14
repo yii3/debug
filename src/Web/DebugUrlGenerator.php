@@ -21,11 +21,22 @@ final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
      */
     private string $routePrefix;
 
+    /**
+     * @param string $routePrefix Base path every debugger URL is built on; a trailing slash is trimmed.
+     */
     public function __construct(string $routePrefix = '/debug')
     {
         $this->routePrefix = rtrim($routePrefix, '/');
     }
 
+    /**
+     * Builds the URL of the query plan for one stored statement.
+     *
+     * @param string $tag Capture holding the statement.
+     * @param int $sequence Position of the statement within that capture.
+     *
+     * @return string URL of the plan page.
+     */
     public function dbExplain(string $tag, int $sequence): string
     {
         return "{$this->routePrefix}/db-explain?" . http_build_query(
@@ -36,6 +47,15 @@ final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
         );
     }
 
+    /**
+     * Builds a panel URL while keeping the captured tag and target panel authoritative.
+     *
+     * @param string $tag Capture to open.
+     * @param string $panel Panel to open within that capture.
+     * @param array<array-key, mixed> $queryParams Extra query parameters; route-owned keys are ignored.
+     *
+     * @return string URL of the panel view.
+     */
     public function panel(string $tag, string $panel, array $queryParams = []): string
     {
         unset($queryParams['tag'], $queryParams['panel']);
@@ -52,6 +72,8 @@ final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
 
     /**
      * Returns the normalized debugger route prefix.
+     *
+     * @return string Base path without a trailing slash.
      */
     public function routePrefix(): string
     {

@@ -39,13 +39,20 @@ final readonly class GridColumn implements ColumnInterface
     ) {}
 
     /**
-     * @return class-string<GridColumnRenderer>
+     * Returns the renderer GridView resolves this column through.
+     *
+     * @return class-string<GridColumnRenderer> Renderer class GridView instantiates for this column.
      */
     public function getRenderer(): string
     {
         return GridColumnRenderer::class;
     }
 
+    /**
+     * Returns whether the column renders.
+     *
+     * @return bool `true` when the column renders; `false` when it is hidden.
+     */
     public function isVisible(): bool
     {
         return true;

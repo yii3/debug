@@ -75,6 +75,8 @@ final readonly class SortState
      * @param list<string> $attributes Sortable attribute names.
      * @param string $defaultAttribute Attribute used when the query value names no sortable attribute.
      * @param 'asc'|'desc' $defaultDirection Direction paired with the default attribute.
+     *
+     * @return self Sort state for the visible page.
      */
     public static function fromQuery(
         string|null $sort,
@@ -97,6 +99,8 @@ final readonly class SortState
      * Determines whether the rows are currently ordered by the attribute.
      *
      * @param string $attribute Attribute backing a header cell.
+     *
+     * @return bool `true` when the rows are ordered by that attribute; `false` otherwise.
      */
     public function isActive(string $attribute): bool
     {
@@ -108,6 +112,8 @@ final readonly class SortState
      *
      * @param string $attribute Attribute backing the header link.
      * @param bool $descendingFirst Whether the first click on an inactive attribute requests a descending order.
+     *
+     * @return string Value for the `sort` query parameter.
      */
     public function next(string $attribute, bool $descendingFirst = false): string
     {

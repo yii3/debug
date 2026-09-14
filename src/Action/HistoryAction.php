@@ -16,6 +16,12 @@ use function array_key_first;
  */
 final readonly class HistoryAction
 {
+    /**
+     * @param SnapshotStore $store Store the captured snapshots are read from.
+     * @param DebugPageRenderer $renderer Renderer producing the debugger page markup.
+     * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.
+     * @param StreamFactoryInterface $streamFactory Factory building the PSR-7 response body.
+     */
     public function __construct(
         private SnapshotStore $store,
         private DebugPageRenderer $renderer,
@@ -23,6 +29,13 @@ final readonly class HistoryAction
         private StreamFactoryInterface $streamFactory,
     ) {}
 
+    /**
+     * Renders the captured request history, filtered and paginated by the query parameters.
+     *
+     * @param ServerRequestInterface $request Incoming request carrying the query parameters.
+     *
+     * @return ResponseInterface Rendered history page.
+     */
     public function __invoke(ServerRequestInterface $request): ResponseInterface
     {
         $query = $request->getQueryParams();

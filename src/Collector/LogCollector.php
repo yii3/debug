@@ -23,14 +23,23 @@ use function is_string;
  */
 final class LogCollector implements CollectorInterface
 {
+    /**
+     * Whether the collector is capturing for the current request.
+     */
     private bool $started = false;
 
+    /**
+     * @param DebugLogTarget $target Log target accumulating the messages of the request.
+     * @param LoggerInterface|null $logger Application logger flushed before reading, or `null` to skip flushing.
+     */
     public function __construct(
         private readonly DebugLogTarget $target,
         private readonly LoggerInterface|null $logger = null,
     ) {}
 
     /**
+     * Encodes the captured messages into the Logs panel payload.
+     *
      * @return array<string, mixed>|null Encoded Logs panel payload; `null` when the collector never started.
      */
     public function capture(): array|null
@@ -59,17 +68,29 @@ final class LogCollector implements CollectorInterface
         return LogSnapshot::capture($messages)->jsonSerialize();
     }
 
+    /**
+     * Returns the stable identifier of this collector.
+     *
+     * @return string Stable ID pairing this collector with its panel.
+     */
     public function id(): string
     {
         return 'log';
     }
 
+    /**
+     * Stops capturing and clears the messages accumulated for the request.
+     */
     public function shutdown(): void
     {
         $this->started = false;
+
         $this->flushAndReset();
     }
 
+    /**
+     * Starts capturing, discarding anything the target held from a previous request.
+     */
     public function startup(): void
     {
         if ($this->started) {
@@ -77,6 +98,7 @@ final class LogCollector implements CollectorInterface
         }
 
         $this->flushAndReset();
+
         $this->started = true;
     }
 
@@ -90,6 +112,9 @@ final class LogCollector implements CollectorInterface
         $this->target->reset();
     }
 
+    /**
+     * Flushes the application logger, so messages still buffered reach the target before it is read.
+     */
     private function flushLogger(): void
     {
         if (
@@ -105,7 +130,9 @@ final class LogCollector implements CollectorInterface
     /**
      * Keeps only the standard scalar backtrace fields and makes every stored string valid UTF-8.
      *
-     * @return list<array<string, int|string>>
+     * @param Message $message Captured log message carrying the raw backtrace.
+     *
+     * @return list<array<string, int|string>> Sanitized frames in capture order.
      */
     private static function trace(Message $message): array
     {
@@ -125,7 +152,9 @@ final class LogCollector implements CollectorInterface
     /**
      * Narrows one untrusted runtime trace value despite the stronger upstream PHPDoc declaration.
      *
-     * @return array<string, int|string>|null
+     * @param mixed $frame Raw backtrace frame of unknown shape.
+     *
+     * @return array<string, int|string>|null Sanitized frame, or `null` when it carries no usable field.
      */
     private static function traceFrame(mixed $frame): array|null
     {
@@ -134,8 +163,9 @@ final class LogCollector implements CollectorInterface
         }
 
         $normalized = [];
+        $attributes = ['file', 'line', 'function', 'class', 'type'];
 
-        foreach (['file', 'line', 'function', 'class', 'type'] as $attribute) {
+        foreach ($attributes as $attribute) {
             $value = $frame[$attribute] ?? null;
 
             if ($attribute === 'line') {
@@ -154,6 +184,13 @@ final class LogCollector implements CollectorInterface
         return $normalized === [] ? null : $normalized;
     }
 
+    /**
+     * Maps a PSR-3 level name to the numeric level used by the shared snapshot.
+     *
+     * @param string $level PSR-3 level name.
+     *
+     * @return int Numeric level used by the shared log snapshot.
+     */
     private static function wireLevel(string $level): int
     {
         return match ($level) {

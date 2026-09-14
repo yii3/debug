@@ -18,6 +18,11 @@ final class RouteDefinitionExtractor
 {
     /**
      * Safely resolves one named route from the collection.
+     *
+     * @param string $name Route name to look up.
+     * @param RouteCollectionInterface|null $routes Live route collection, or `null` when it cannot be resolved.
+     *
+     * @return RouteDefinition|null Matching definition, or `null` when the route cannot be resolved.
      */
     public static function find(string $name, RouteCollectionInterface|null $routes): RouteDefinition|null
     {
@@ -37,7 +42,9 @@ final class RouteDefinitionExtractor
      *
      * Collection failures intentionally propagate so presentation code can distinguish them from an empty collection.
      *
-     * @return list<RouteDefinition>
+     * @param RouteCollectionInterface|null $routes Live route collection, or `null` when it cannot be resolved.
+     *
+     * @return list<RouteDefinition> Definitions in declaration order; empty when no collection is available.
      */
     public static function fromCollection(RouteCollectionInterface|null $routes): array
     {
@@ -56,6 +63,10 @@ final class RouteDefinitionExtractor
 
     /**
      * Builds a partial definition from matched-route metadata when the route collection is unavailable.
+     *
+     * @param CurrentRoute $currentRoute Route matched for the captured request.
+     *
+     * @return RouteDefinition|null Partial definition, or `null` when the match carries no name.
      */
     public static function fromCurrentRoute(CurrentRoute $currentRoute): RouteDefinition|null
     {
@@ -74,6 +85,10 @@ final class RouteDefinitionExtractor
 
     /**
      * Builds a complete definition from a Yii route without retaining handler objects or configuration values.
+     *
+     * @param Route $route Route declared by the application.
+     *
+     * @return RouteDefinition Definition carrying only persistence-safe scalars.
      */
     public static function fromRoute(Route $route): RouteDefinition
     {
