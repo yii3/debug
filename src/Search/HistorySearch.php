@@ -23,7 +23,7 @@ final readonly class HistorySearch
     /**
      * Keeps only the captures matching every active filter.
      *
-     * @param list<HistoryRow> $rows Captured captures to filter.
+     * @param list<HistoryRow> $rows Captured requests to filter.
      *
      * @return list<HistoryRow> Rows matching every active filter, reindexed.
      */

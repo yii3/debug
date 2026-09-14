@@ -142,7 +142,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     /**
      * Builds the grid columns for the captured events.
      *
-     * @param EventSequence $sequence Ordering of the captured events on the visible page.
+     * @param EventSequence $sequence Ordering of every captured event, so row numbers survive pagination.
      * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
      * standalone.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
@@ -391,7 +391,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     /**
      * Renders the grid heading with the event total and the page-size selector.
      *
-     * @param list<EventRow> $rows Captured events on the visible page.
+     * @param list<EventRow> $rows Events matching the active filters, before pagination.
      * @param string|null $pageSizeSelector Rendered page-size selector, or `null` to omit it.
      *
      * @return string Rendered heading.

@@ -85,7 +85,7 @@ final class GridColumnRenderer implements FilterableColumnRendererInterface
     }
 
     /**
-     * Applies the column classes to the footer cell.
+     * Returns the footer cell unchanged; the grids in this package render no footer content per column.
      *
      * @param GridColumn<array<array-key, mixed>|object> $column Column being rendered.
      * @param Cell $cell Cell to decorate.

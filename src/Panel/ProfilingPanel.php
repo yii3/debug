@@ -52,11 +52,16 @@ final readonly class ProfilingPanel implements
     private const array SORT_ATTRIBUTES = ['seq', 'duration', 'category', 'info'];
 
     /**
-     * Returns whether the capture holds activity worth listing in the sidebar.
+     * Validates the captured payload and reports the panel as listable.
+     *
+     * Every capture whose payload decodes is listed, a capture with no span included, so the panel stays reachable
+     * from the sidebar.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
-     * @return bool `true` when the capture holds at least one span; `false` otherwise.
+     * @throws HydrationException when the payload does not match the snapshot schema.
+     *
+     * @return bool Always `true`.
      */
     public function hasContent(array $payload): bool
     {
@@ -169,7 +174,7 @@ final readonly class ProfilingPanel implements
     /**
      * Builds the grid columns for the captured spans.
      *
-     * @param float $maxDuration Longest span on the visible page, scaling the duration gauge.
+     * @param float $maxDuration Longest span of the whole capture, scaling the duration gauge.
      * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
      * standalone.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
@@ -384,7 +389,7 @@ final readonly class ProfilingPanel implements
      * Renders the spans grid for the visible page.
      *
      * @param OffsetPaginator<int, ProfileRow> $paginator Paginator clamped to the visible page.
-     * @param float $maxDuration Longest span on the visible page, scaling the duration gauge.
+     * @param float $maxDuration Longest span of the whole capture, scaling the duration gauge.
      * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
      * standalone.
      * @param array<string, string> $filters Active filter values keyed by attribute.

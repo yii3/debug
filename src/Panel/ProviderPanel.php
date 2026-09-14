@@ -117,11 +117,11 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     }
 
     /**
-     * Returns the payload this adapter was bound to, falling back to the given one.
+     * Returns the payload handed to the provider, as a hook subclasses override to transform it.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
-     * @return array<string, mixed> Bound payload when present; the given payload otherwise.
+     * @return array<string, mixed> Payload unchanged; a subclass may return a transformed one.
      */
     protected function data(array $payload): array
     {
