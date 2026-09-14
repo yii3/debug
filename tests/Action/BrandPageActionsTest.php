@@ -159,7 +159,7 @@ final class BrandPageActionsTest extends TestCase
             'Sidebar must expose history navigation.',
         );
         self::assertStringContainsString(
-            'Installed extensions (',
+            '<span class="yii-debug-section-mark">::</span>Installed extensions',
             (string) $response->getBody(),
             'Configuration page must include the installed-package roster.',
         );
@@ -252,7 +252,7 @@ final class BrandPageActionsTest extends TestCase
         );
     }
 
-    public function testInertiaPanelRendersDirectlyForAnEmptyCaptureWithoutShowingExtensionNavigation(): void
+    public function testInertiaPanelRendersDirectlyForAnIdleCaptureAndKeepsExtensionNavigation(): void
     {
         $store = $this->store();
 
@@ -299,10 +299,10 @@ final class BrandPageActionsTest extends TestCase
             $body,
             'The detail must explain that the request did not produce an Inertia page.',
         );
-        self::assertStringNotContainsString(
+        self::assertStringContainsString(
             'yii-debug-nav-group',
             $body,
-            'An empty Inertia capture must remain absent from extension navigation.',
+            'Idle capture must keep the extension nav group.',
         );
     }
 

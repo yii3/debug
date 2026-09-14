@@ -138,7 +138,7 @@ final class InertiaPanelTest extends TestCase
         );
     }
 
-    public function testContractMetadataAndPerCaptureVisibility(): void
+    public function testContractMetadataAndVisibilityAcrossCaptures(): void
     {
         self::assertSame(
             'inertia',
@@ -155,9 +155,9 @@ final class InertiaPanelTest extends TestCase
             $this->panel->icon(),
             'Panel icon must use the shared Inertia glyph.',
         );
-        self::assertFalse(
+        self::assertTrue(
             $this->panel->hasContent($this->payload(null)),
-            'A plain capture without a page or Inertia request header must stay out of the sidebar.',
+            'A capture without a page must keep the entry in the sidebar.',
         );
         self::assertTrue(
             $this->panel->hasContent(

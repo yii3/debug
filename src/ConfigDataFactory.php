@@ -8,6 +8,7 @@ use Composer\InstalledVersions;
 use PHPForge\Debug\Panel\Config\ConfigSnapshot;
 
 use function extension_loaded;
+use function getenv;
 use function is_bool;
 use function is_string;
 use function ksort;
@@ -41,7 +42,7 @@ final readonly class ConfigDataFactory
                     'language' => $this->string('language'),
                     'sourceLanguage' => $this->string('sourceLanguage'),
                     'charset' => $this->string('charset', 'UTF-8'),
-                    'env' => $this->string('env'),
+                    'env' => $this->string('env', self::environment()),
                     'debug' => $this->bool('debug'),
                 ],
                 'php' => [
@@ -68,6 +69,25 @@ final readonly class ConfigDataFactory
         $value = $this->application[$key] ?? null;
 
         return is_bool($value) ? $value : false;
+    }
+
+    /**
+     * Reads the environment name the application runs under.
+     *
+     * The module already gates itself on `APP_ENV` in `config/enabled.php`, so the same variable names the
+     * environment when the application declares no `env` metadata of its own.
+     *
+     * @return string Environment name, or `''` when the variable is unset.
+     */
+    private static function environment(): string
+    {
+        $environment = getenv('APP_ENV');
+
+        if ($environment === false || $environment === '') {
+            $environment = $_SERVER['APP_ENV'] ?? '';
+        }
+
+        return is_string($environment) ? $environment : '';
     }
 
     /**

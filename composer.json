@@ -31,7 +31,7 @@
         "psr/http-server-middleware": "^1.0",
         "psr/log": "^3.0",
         "ui-awesome/html": "^0.6",
-        "ui-awesome/html-core-component": "^0.5@dev",
+        "ui-awesome/html-core-component": "^0.4",
         "yiisoft/aliases": "^3.1",
         "yiisoft/assets": "^5.1",
         "yiisoft/data": "^2.0",
