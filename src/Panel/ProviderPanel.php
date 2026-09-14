@@ -31,6 +31,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      * @param PortablePanel $provider Declarative panel supplying the identity and presentation.
      */
     public function __construct(private readonly PortablePanel $provider) {}
+
     /**
      * Creates a render-operation-local adapter. Hosts discard it after one page, including on failure.
      *
@@ -41,27 +42,40 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     public function forPayload(array $payload): self
     {
         $prepared = clone $this;
+
         $prepared->preparedPayload = $payload;
         $prepared->preparedView = null;
         $prepared->presentationFailure = null;
+
         try {
             $prepared->preparedView = $this->provider->present($this->data($payload));
         } catch (Throwable $failure) {
             $prepared->presentationFailure = $failure;
         }
+
         return $prepared;
     }
+
     /**
-     * Returns whether the capture holds activity worth listing in the sidebar.
+     * Returns whether the capture holds a presentation for this panel.
+     *
+     * An extension the application enabled stays listed even on a capture where it recorded no activity, so its own
+     * empty state explains the idle capture instead of the entry disappearing from the sidebar. Building the
+     * presentation here keeps a failing provider discoverable, because the failure reaches the host.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
-     * @return bool `true` when the capture holds activity worth listing; `false` otherwise.
+     * @throws Throwable If the provider cannot present the payload.
+     *
+     * @return bool `true`, since the host only asks once the capture carries this panel's payload.
      */
     public function hasContent(array $payload): bool
     {
-        return $this->view($payload)->isActive();
+        $this->view($payload);
+
+        return true;
     }
+
     /**
      * Returns the shared Debug Core icon key.
      *
@@ -71,6 +85,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     {
         return $this->provider->icon();
     }
+
     /**
      * Returns the stable identifier of this panel.
      *
@@ -80,6 +95,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     {
         return $this->provider->id();
     }
+
     /**
      * Returns the human-readable panel name.
      *
@@ -89,6 +105,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     {
         return $this->provider->name();
     }
+
     /**
      * Renders the detail content the provider produces for a capture.
      *
@@ -100,6 +117,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     {
         return PanelRenderer::render($this->name(), $this->view($payload));
     }
+
     /**
      * Builds the toolbar metrics the provider declares for a capture.
      *
@@ -110,9 +128,11 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     public function toolbarItems(array $payload): array
     {
         $items = [];
+
         foreach ($this->view($payload)->toolbarMetrics() as $metric) {
             $items[] = ToolbarItem::create($metric['value']['value'])->withTitle($metric['label']);
         }
+
         return $items;
     }
 
@@ -141,10 +161,12 @@ class ProviderPanel implements ToolbarPanelProviderInterface
             if ($this->presentationFailure !== null) {
                 throw $this->presentationFailure;
             }
+
             if ($this->preparedView !== null) {
                 return $this->preparedView;
             }
         }
+
         return $this->provider->present($this->data($payload));
     }
 }

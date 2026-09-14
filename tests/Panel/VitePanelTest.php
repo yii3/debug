@@ -22,7 +22,7 @@ final class VitePanelTest extends TestCase
 {
     private ProviderPanel $panel;
 
-    public function testContractMetadataAndPerCaptureVisibility(): void
+    public function testContractMetadataAndVisibilityAcrossCaptures(): void
     {
         self::assertSame(
             'vite',
@@ -39,9 +39,9 @@ final class VitePanelTest extends TestCase
             $this->panel->icon(),
             'Panel icon must use the shared JavaScript brand glyph.',
         );
-        self::assertFalse(
+        self::assertTrue(
             $this->panel->hasContent($this->payload()),
-            'An empty Vite snapshot must stay out of the Extensions navigation group.',
+            'An idle capture must keep the entry in the Extensions group.',
         );
         self::assertTrue(
             $this->panel->hasContent($this->payload($this->component())),

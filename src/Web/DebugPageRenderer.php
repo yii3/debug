@@ -43,7 +43,9 @@ use function is_string;
 use function json_encode;
 use function rawurlencode;
 use function rtrim;
+use function strcasecmp;
 use function trim;
+use function usort;
 
 use const JSON_PRETTY_PRINT;
 use const JSON_THROW_ON_ERROR;
@@ -193,6 +195,7 @@ final class DebugPageRenderer
         if (!$this->prepared) {
             return $this->forSnapshot($snapshot)->extension($snapshot, $panelId, $theme, $manifest, $queryParams);
         }
+
         $panel = $this->extensionPanels[$panelId] ?? null;
 
         if (
@@ -261,6 +264,7 @@ final class DebugPageRenderer
                 'url' => Text::urlToPath($snapshot->summary->url),
             ],
         );
+
         return $this->page(
             $panel?->name() ?? $panelId,
             $content,
@@ -332,11 +336,8 @@ final class DebugPageRenderer
      *
      * @return string Rendered debugger page.
      */
-    public function phpInfo(
-        string $theme,
-        array $manifest = [],
-        DebugSnapshot|null $snapshot = null,
-    ): string {
+    public function phpInfo(string $theme, array $manifest = [], DebugSnapshot|null $snapshot = null): string
+    {
         $content = Div::tag()
             ->class('yii-debug-page')
             ->html(
@@ -467,6 +468,7 @@ final class DebugPageRenderer
             if (isset($this->extensionPanels[$id])) {
                 continue;
             }
+
             $items[] = new SidebarNavItem(
                 label: $id,
                 iconSvg: Icon::render('code'),
@@ -475,6 +477,11 @@ final class DebugPageRenderer
                 isActive: $activePanelId === $id,
             );
         }
+
+        usort(
+            $items,
+            static fn(SidebarNavItem $left, SidebarNavItem $right): int => strcasecmp($left->label, $right->label),
+        );
 
         return $items === [] ? [] : [ViewMessage::EXTENSIONS->value => $items];
     }
@@ -490,11 +497,13 @@ final class DebugPageRenderer
     {
         $prepared = clone $this;
         $prepared->prepared = true;
+
         foreach ($this->extensionPanels as $id => $panel) {
             if ($panel instanceof ProviderPanel && isset($snapshot->panels[$id])) {
                 $prepared->extensionPanels[$id] = $panel->forPayload($snapshot->panels[$id]);
             }
         }
+
         return $prepared;
     }
 

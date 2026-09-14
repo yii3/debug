@@ -83,9 +83,9 @@ final class ProviderPanelTest extends TestCase
             $panel->icon(),
             'Provider icon must be preserved.'
         );
-        self::assertFalse(
+        self::assertTrue(
             $panel->hasContent([]),
-            'Empty navigation state must be preserved.'
+            'An idle capture must keep the entry listed.'
         );
         self::assertTrue(
             $panel->hasContent(['hits' => 1]),
