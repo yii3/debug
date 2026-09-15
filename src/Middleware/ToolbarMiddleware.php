@@ -99,6 +99,11 @@ final class ToolbarMiddleware implements MiddlewareInterface
     /**
      * Captures the request, then injects the toolbar into an eligible HTML response.
      *
+     * A capture still pending from an earlier request is written before anything else, debugger pages and requests
+     * from a disallowed address included: a worker that never dispatched the shutdown event stops the collectors
+     * before serving them, so their activity stays out of that capture, and the capture reaches history at once. A
+     * failing finalization propagates from the request that triggered it.
+     *
      * A request targeting the debugger itself is served by the configured debug request handler, and rejected with
      * `403 Forbidden` when the client address is not allowed. Requests from a disallowed address pass through
      * untouched.
@@ -106,12 +111,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
      * @param ServerRequestInterface $request Request reaching the middleware.
      * @param RequestHandlerInterface $handler Next handler in the middleware stack.
      *
-     * @throws Throwable when the request handler fails.
+     * @throws Throwable when the pending capture or the request handler fails.
      *
      * @return ResponseInterface Response, with the toolbar injected when the request qualifies.
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        $this->deferredCapture?->finalize();
+
         if ($this->isDebugRequest($request)) {
             return $this->serveDebugRequest($request, $handler);
         }
@@ -322,9 +329,6 @@ final class ToolbarMiddleware implements MiddlewareInterface
     /**
      * Runs the request with the collectors active and hands the capture over to the application shutdown phase.
      *
-     * A capture still pending from an earlier request is written before the collectors restart, so a worker that
-     * never dispatched the shutdown event cannot fold that capture into the current request.
-     *
      * A handler failure drops the pending capture and stops the collectors, keeping the application failure primary.
      * The collectors also stop when the deferred finalization fails, and that failure reaches the shutdown phase.
      *
@@ -333,7 +337,7 @@ final class ToolbarMiddleware implements MiddlewareInterface
      * @param CollectorCoordinator $collectorCoordinator Coordinator owning the collectors.
      * @param DeferredCapture $deferredCapture Holder of the pending finalizer.
      *
-     * @throws Throwable when the pending capture, startup, or the request handler fails.
+     * @throws Throwable when the collector startup or the request handler fails.
      *
      * @return ResponseInterface Response produced by the handler.
      */
@@ -343,8 +347,6 @@ final class ToolbarMiddleware implements MiddlewareInterface
         CollectorCoordinator $collectorCoordinator,
         DeferredCapture $deferredCapture,
     ): ResponseInterface {
-        $deferredCapture->finalize();
-
         $collectorCoordinator->startup();
 
         $start = self::requestStart($request);

@@ -1133,6 +1133,118 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testProcessWritesThePendingCaptureBeforeRejectingADeniedClient(): void
+    {
+        $store = $this->store();
+
+        $collector = new DbCollector();
+
+        $deferredCapture = self::deferredCapture();
+
+        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
+            ->withDebugRequestHandler($this->debugRequestHandler())
+            ->withDeferredCapture($deferredCapture);
+
+        $tag = $middleware
+            ->process(
+                HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                $this->queryingHandler($collector),
+            )
+            ->getHeaderLine('X-Debug-Tag');
+
+        self::assertTrue(
+            $deferredCapture->isPending(),
+            'The earlier capture must still be waiting for the shutdown event.',
+        );
+
+        $response = $middleware->process(
+            HelperFactory::createRequest('GET', '/debug/toolbar', serverParams: ['REMOTE_ADDR' => '203.0.113.10']),
+            $this->handler(HelperFactory::createResponse(204)),
+        );
+
+        self::assertSame(
+            403,
+            $response->getStatusCode(),
+            'A denied client must still be rejected.',
+        );
+
+        $snapshot = $store->readSnapshot($tag);
+
+        self::assertNotNull(
+            $snapshot,
+            'The earlier capture must reach the store before the rejection.',
+        );
+        self::assertSame(
+            1,
+            $snapshot->summary->sqlCount,
+            'The snapshot must hold the statements of the earlier request only.',
+        );
+        self::assertNull(
+            $collector->capture(),
+            'Collectors must be stopped once the rejection is answered.',
+        );
+        self::assertFalse(
+            $deferredCapture->isPending(),
+            'Nothing may stay pending once the capture is written.',
+        );
+    }
+
+    public function testProcessWritesThePendingCaptureBeforeServingTheDebuggerPage(): void
+    {
+        $store = $this->store();
+
+        $collector = new DbCollector();
+
+        $deferredCapture = self::deferredCapture();
+
+        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
+            ->withDebugRequestHandler($this->debugRequestHandler())
+            ->withDeferredCapture($deferredCapture);
+
+        $tag = $middleware
+            ->process(
+                HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                $this->queryingHandler($collector),
+            )
+            ->getHeaderLine('X-Debug-Tag');
+
+        self::assertTrue(
+            $deferredCapture->isPending(),
+            'The earlier capture must still be waiting for the shutdown event.',
+        );
+
+        $response = $middleware->process(
+            HelperFactory::createRequest('GET', '/debug/toolbar', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            $this->handler(HelperFactory::createResponse(204)),
+        );
+
+        self::assertSame(
+            200,
+            $response->getStatusCode(),
+            'The debugger must still answer its own paths.',
+        );
+
+        $snapshot = $store->readSnapshot($tag);
+
+        self::assertNotNull(
+            $snapshot,
+            'The earlier capture must reach the store before the page is served.',
+        );
+        self::assertSame(
+            1,
+            $snapshot->summary->sqlCount,
+            'The snapshot must hold the statements of the earlier request only.',
+        );
+        self::assertNull(
+            $collector->capture(),
+            'Collectors must be stopped while the debugger page is served.',
+        );
+        self::assertFalse(
+            $deferredCapture->isPending(),
+            'Nothing may stay pending once the capture is written.',
+        );
+    }
+
     public function testReturnNewInstanceWhenSettingConfiguration(): void
     {
         $middleware = $this->middleware($this->store());
@@ -1263,6 +1375,23 @@ final class ToolbarMiddlewareTest extends TestCase
         return $collectorCoordinator === null
             ? $middleware
             : $middleware->withCollectorCoordinator($collectorCoordinator);
+    }
+
+    /**
+     * @return RequestHandlerInterface Handler observing one statement before answering `204 No Content`.
+     */
+    private function queryingHandler(DbCollector $collector): RequestHandlerInterface
+    {
+        return new readonly class ($collector) implements RequestHandlerInterface {
+            public function __construct(private DbCollector $collector) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->observe(QueryRow::create('SELECT 1', 1.0, 1000.0));
+
+                return HelperFactory::createResponse(204);
+            }
+        };
     }
 
     private function store(): SnapshotStore

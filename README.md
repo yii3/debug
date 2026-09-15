@@ -83,8 +83,7 @@ their own definitions and the debugger only decorates them, so a custom PSR disp
 
 The Logs panel works through parameters instead: the debugger merges its `debug` target, and a `stream` target, into
 `yiisoft/log.targets`, so your application must build `Psr\Log\LoggerInterface` from
-`$params['yiisoft/log']['targets']` and declare its own targets under that key. The `yiisoft/app` template already
-builds the logger this way:
+`$params['yiisoft/log']['targets']`. The `yiisoft/app` template already builds the logger this way:
 
 ```php
 'targets' => ReferencesArray::from(
@@ -93,13 +92,14 @@ builds the logger this way:
 ```
 
 An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
-the `?? [StreamTarget::class]` fallback rather than declaring targets must add them to its parameters, otherwise the
-merged key carries only the debugger's targets:
+the `?? [StreamTarget::class]` fallback needs no parameters of its own: the merged key bypasses that fallback, yet it
+already carries a `stream` target beside the debugger's. Declare targets under that key to add your own, or to replace
+a merged one under the same name:
 
 ```php
 'yiisoft/log' => [
     'targets' => [
-        'stream' => StreamTarget::class,
+        'file' => \Yiisoft\Log\Target\File\FileTarget::class,
     ],
 ],
 ```

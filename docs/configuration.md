@@ -118,8 +118,8 @@ unconfigured when one binding cannot represent all captured connections.
 ## Logger targets
 
 `Psr\Log\LoggerInterface` is not decorated. The debugger merges its `debug` target, and a `stream` target, into
-`yiisoft/log.targets`, so the application must build its logger from `$params['yiisoft/log']['targets']` and declare
-its own targets under the same key. The `yiisoft/app` template already builds the logger this way:
+`yiisoft/log.targets`, so the application must build its logger from `$params['yiisoft/log']['targets']`. The
+`yiisoft/app` template already builds the logger this way:
 
 ```php
 use Psr\Log\LoggerInterface;
@@ -141,14 +141,17 @@ return [
 ```
 
 An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
-the `?? [StreamTarget::class]` fallback rather than declaring targets must add them to its parameters, otherwise the
-merged key carries only the debugger's targets:
+the `?? [StreamTarget::class]` fallback needs no parameters of its own: the merged key bypasses that fallback, yet it
+already carries a `stream` target beside the debugger's. Declare targets under the same key to add your own, or to
+replace a merged one under the same name:
 
 ```php
+use Yiisoft\Log\Target\File\FileTarget;
+
 return [
     'yiisoft/log' => [
         'targets' => [
-            'stream' => StreamTarget::class,
+            'file' => FileTarget::class,
         ],
     ],
 ];
