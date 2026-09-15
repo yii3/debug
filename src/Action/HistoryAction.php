@@ -14,7 +14,7 @@ use function array_key_first;
 /**
  * Serves the captured request history grid.
  */
-final readonly class HistoryAction
+final readonly class HistoryAction implements DebugActionInterface
 {
     /**
      * @param SnapshotStore $store Store the captured snapshots are read from.

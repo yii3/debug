@@ -65,7 +65,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
-     * @throws Throwable If the provider cannot present the payload.
+     * @throws Throwable if the provider cannot present the payload.
      *
      * @return bool `true`, since the host only asks once the capture carries this panel's payload.
      */

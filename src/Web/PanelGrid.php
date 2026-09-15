@@ -10,7 +10,9 @@ use Yiisoft\Yii\DataView\GridView\GridView;
 /**
  * Builds the DataView grid with the layout, table, and empty-cell conventions shared by every debug panel.
  *
- * Usage example: `\Yii3\Debug\Web\PanelGrid::filterable($paginator, 'yii-debug-db-filters')->columns(...$columns);`
+ * The grid creates no application URLs: the debugger serves its pages from its own middleware, outside the router, so
+ * an application widget theme binding `GridView` to a router-aware URL creator must not reach the debug panels. A
+ * panel that needs real page links applies its own `urlCreator()` afterwards.
  */
 final class PanelGrid
 {
@@ -35,7 +37,8 @@ final class PanelGrid
             ->headerCellAttributes(['scope' => 'col'])
             ->keepColumnAttributesInEmptyCell()
             ->layout('{items}')
-            ->tableClass('yii-debug-table');
+            ->tableClass('yii-debug-table')
+            ->urlCreator(null);
     }
 
     /**

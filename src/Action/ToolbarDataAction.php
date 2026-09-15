@@ -20,7 +20,7 @@ use const JSON_UNESCAPED_UNICODE;
 /**
  * Serves the toolbar payload for a captured request.
  */
-final readonly class ToolbarDataAction
+final readonly class ToolbarDataAction implements DebugActionInterface
 {
     /**
      * @param ToolbarDataFactory $dataFactory Factory building the toolbar payload.

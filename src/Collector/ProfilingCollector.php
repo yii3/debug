@@ -8,11 +8,12 @@ use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Helper\Coerce;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use Psr\Http\Message\ServerRequestInterface;
+use Yii3\Debug\Profiling\DebugProfilerTarget;
 use Yiisoft\Profiler\{Message, Profiler, ProfilerInterface};
 
-use function array_slice;
 use function class_exists;
 use function error_reporting;
+use function in_array;
 use function is_float;
 use function is_int;
 use function memory_get_peak_usage;
@@ -42,8 +43,13 @@ final class ProfilingCollector implements CollectorInterface
     /**
      * @param ProfilerInterface|null $profiler Application profiler supplying the spans, or `null` when none is
      * configured.
+     * @param DebugProfilerTarget|null $target Target keeping the spans the profiler already flushed, or `null` when
+     * the profiler dispatches to no debugger target.
      */
-    public function __construct(private readonly ProfilerInterface|null $profiler = null) {}
+    public function __construct(
+        private readonly ProfilerInterface|null $profiler = null,
+        private readonly DebugProfilerTarget|null $target = null,
+    ) {}
 
     /**
      * Encodes the captured spans into the Profiling panel payload.
@@ -71,9 +77,7 @@ final class ProfilingCollector implements CollectorInterface
     {
         $start = $request->getServerParams()['REQUEST_TIME_FLOAT'] ?? null;
 
-        $this->collectRequestStart(
-            is_float($start) || is_int($start) ? (float) $start : microtime(true),
-        );
+        $this->collectRequestStart(is_float($start) || is_int($start) ? (float) $start : microtime(true));
     }
 
     /**
@@ -104,6 +108,8 @@ final class ProfilingCollector implements CollectorInterface
         $this->started = false;
         $this->messageCursor = null;
         $this->start = 0.0;
+
+        $this->target?->reset();
     }
 
     /**
@@ -129,6 +135,8 @@ final class ProfilingCollector implements CollectorInterface
             }
         }
 
+        $this->target?->reset();
+
         $this->started = true;
     }
 
@@ -150,36 +158,25 @@ final class ProfilingCollector implements CollectorInterface
     /**
      * Returns completed profiler messages ordered by their begin timestamp.
      *
-     * @return list<array{token: string, category: string, context: array<array-key, mixed>}> Completed messages
-     * in begin-timestamp order.
+     * Spans already flushed into the debugger target come first, followed by the spans the profiler still holds after
+     * the lifecycle cursor, so a flush performed while the capture is deferred loses nothing.
+     *
+     * @return list<array{token: string, category: string, context: array<array-key, mixed>}> Completed messages in
+     * begin-timestamp order.
      */
     private function messages(): array
     {
-        if (!$this->profiler instanceof Profiler) {
-            return [];
-        }
+        $collected = $this->target?->messages() ?? [];
 
-        $profilerMessages = $this->profiler->getMessages();
-
-        $messageOffset = 0;
-
-        if ($this->messageCursor !== null) {
-            $index = 0;
-
-            foreach ($profilerMessages as $message) {
-                if ($message === $this->messageCursor) {
-                    $messageOffset = $index + 1;
-
-                    break;
-                }
-
-                $index++;
+        foreach ($this->profilerMessages() as $message) {
+            if (in_array($message, $collected, true) === false) {
+                $collected[] = $message;
             }
         }
 
         $messages = [];
 
-        foreach (array_slice($profilerMessages, $messageOffset) as $message) {
+        foreach ($collected as $message) {
             $context = $message->context();
             $messages[] = [
                 'token' => $message->token(),
@@ -197,6 +194,30 @@ final class ProfilingCollector implements CollectorInterface
                 return $leftTime <=> $rightTime;
             },
         );
+
+        return $messages;
+    }
+
+    /**
+     * Returns the profiler messages completed after the lifecycle cursor.
+     *
+     * @return list<Message> Messages the profiler has not flushed yet.
+     */
+    private function profilerMessages(): array
+    {
+        if (!$this->profiler instanceof Profiler) {
+            return [];
+        }
+
+        $messages = [];
+
+        foreach ($this->profiler->getMessages() as $message) {
+            $messages[] = $message;
+
+            if ($message === $this->messageCursor) {
+                $messages = [];
+            }
+        }
 
         return $messages;
     }

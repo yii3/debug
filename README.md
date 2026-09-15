@@ -61,32 +61,53 @@ composer require yii3/debug --dev
 
 ### Enable the debugger
 
-Set the vendor override layer in your application's `composer.json`, keeping any existing `extra` settings:
+Run the application with `APP_ENV=dev`. The debugger also accepts `debug` and `test`; it stays disabled when the
+runtime environment is missing, unknown, or production. Setting the runner's configuration environment alone is
+not enough.
 
-```json
-{
-    "extra": {
-        "config-plugin-options": {
-            "vendor-override-layer": "yii3/debug"
-        }
-    }
-}
-```
-
-Rebuild the application configuration after changing this setting:
+Rebuild the merged configuration after installing or updating the package:
 
 ```shell
 composer yii-config-rebuild
 ```
 
-Run the application with `APP_ENV=dev`. The debugger also accepts `debug` and `test`; it stays disabled when the
-runtime environment is missing, unknown, or production. Setting the runner's configuration environment alone is
-not enough.
+Applications that build their middleware list by hand must spread the merged
+`$params['yiisoft/middleware-dispatcher']['middlewares']` first, so the toolbar middleware stays in the pipeline.
+The middleware also answers the `/debug` pages itself, so the debugger publishes no routes and needs none of your
+application's routing.
 
-The package registers its routes, toolbar middleware, logging, and event capture automatically. Your application
-must use the merged `yiisoft/middleware-dispatcher.middlewares` parameters for its middleware pipeline. If it defines
-its own logger, preserve the targets in `yiisoft/log.targets`; custom PSR loggers and event dispatchers need a
-separate integration.
+The debugger attaches itself to `Yiisoft\Db\Connection\ConnectionInterface` and
+`Psr\EventDispatcher\EventDispatcherInterface` through the container, using the `di-providers` and `bootstrap`
+configuration groups; both must belong to the provider and bootstrap groups your runner loads. Your services keep
+their own definitions and the debugger only decorates them, so a custom PSR dispatcher needs no separate integration.
+
+The Logs panel works through parameters instead: the debugger merges its `debug` target, and a `stream` target, into
+`yiisoft/log.targets`, so your application must build `Psr\Log\LoggerInterface` from
+`$params['yiisoft/log']['targets']`. The `yiisoft/app` template already builds the logger this way:
+
+```php
+'targets' => ReferencesArray::from(
+    array_values($params['yiisoft/log']['targets'] ?? [StreamTarget::class]),
+),
+```
+
+An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
+the `?? [StreamTarget::class]` fallback needs no parameters of its own: the merged key bypasses that fallback, yet it
+already carries a `stream` target beside the debugger's. Declare targets under that key to add your own, or to replace
+a merged one under the same name:
+
+```php
+'yiisoft/log' => [
+    'targets' => [
+        'file' => \Yiisoft\Log\Target\File\FileTarget::class,
+    ],
+],
+```
+
+The snapshot itself is written when the application dispatches `Yiisoft\Yii\Http\Event\ApplicationShutdown`, through
+the merged `events-web` listeners the Yii HTTP runner uses. Finalizing there, rather than inside the middleware
+pipeline, is what makes the logs, the profiler spans flushed after emission, and the queries issued while the view is
+rendered lazily complete in the capture. See [Capture lifecycle](docs/configuration.md#capture-lifecycle).
 
 ### Basic usage
 

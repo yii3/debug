@@ -15,7 +15,7 @@ use function is_string;
 /**
  * Serves a plan for a stored query selected by tag and sequence, never for SQL supplied by the request.
  */
-final readonly class DbExplainAction
+final readonly class DbExplainAction implements DebugActionInterface
 {
     /**
      * @param SnapshotStore $store Store the captured snapshots are read from.

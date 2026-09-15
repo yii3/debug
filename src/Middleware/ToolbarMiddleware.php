@@ -6,13 +6,16 @@ namespace Yii3\Debug\Middleware;
 
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
+use PHPForge\Debug\Instrumentation\InstrumentationGuard;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, DbSummary};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPForge\Debug\Toolbar\DebugHeader;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryInterface};
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
+use Throwable;
+use Yii3\Debug\Capture\DeferredCapture;
 use Yii3\Debug\Collector\{ProfilingCollector, RequestObserverInterface};
-use Yii3\Debug\Web\ToolbarRenderer;
+use Yii3\Debug\Web\{DebugRequestHandler, ToolbarRenderer};
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
 use function is_float;
@@ -43,6 +46,14 @@ final class ToolbarMiddleware implements MiddlewareInterface
      * Coordinates collectors while processing a request.
      */
     private CollectorCoordinator|null $collectorCoordinator = null;
+    /**
+     * Serves the debugger endpoints, or `null` to let the application handle the debugger paths.
+     */
+    private DebugRequestHandler|null $debugRequestHandler = null;
+    /**
+     * Holds the capture finalizer until the application shuts down, or `null` to finalize inside the pipeline.
+     */
+    private DeferredCapture|null $deferredCapture = null;
     /**
      * Defines the statements per call site that flag it as excessive, or `null` to disable the check.
      */
@@ -88,26 +99,49 @@ final class ToolbarMiddleware implements MiddlewareInterface
     /**
      * Captures the request, then injects the toolbar into an eligible HTML response.
      *
-     * Requests from a disallowed address, and the debugger's own routes, pass through untouched.
+     * A capture still pending from an earlier request is written before anything else, debugger pages and requests
+     * from a disallowed address included: a worker that never dispatched the shutdown event stops the collectors
+     * before serving them, so their activity stays out of that capture, and the capture reaches history at once. A
+     * failing finalization propagates from the request that triggered it.
+     *
+     * A request targeting the debugger itself is served by the configured debug request handler, and rejected with
+     * `403 Forbidden` when the client address is not allowed. Requests from a disallowed address pass through
+     * untouched.
      *
      * @param ServerRequestInterface $request Request reaching the middleware.
      * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     *
+     * @throws Throwable when the pending capture or the request handler fails.
      *
      * @return ResponseInterface Response, with the toolbar injected when the request qualifies.
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if ($this->isDebugRequest($request) || !$this->isAllowed($request)) {
+        $this->deferredCapture?->finalize();
+
+        if ($this->isDebugRequest($request)) {
+            return $this->serveDebugRequest($request, $handler);
+        }
+
+        if (!$this->isAllowed($request)) {
             return $handler->handle($request);
         }
 
-        if ($this->collectorCoordinator !== null) {
-            return $this->collectorCoordinator->run(
-                fn(): ResponseInterface => $this->captureRequest($request, $handler),
-            );
+        $collectorCoordinator = $this->collectorCoordinator;
+
+        if ($collectorCoordinator === null) {
+            return $this->captureRequest($request, $handler);
         }
 
-        return $this->captureRequest($request, $handler);
+        $deferredCapture = $this->deferredCapture;
+
+        if ($deferredCapture !== null) {
+            return $this->deferCapture($request, $handler, $collectorCoordinator, $deferredCapture);
+        }
+
+        return $collectorCoordinator->run(
+            fn(): ResponseInterface => $this->captureRequest($request, $handler),
+        );
     }
 
     /**
@@ -138,6 +172,42 @@ final class ToolbarMiddleware implements MiddlewareInterface
     {
         $new = clone $this;
         $new->collectorCoordinator = $collectorCoordinator;
+
+        return $new;
+    }
+
+    /**
+     * Returns a copy serving the debugger endpoints itself instead of letting the application handle them.
+     *
+     * @param DebugRequestHandler|null $debugRequestHandler Handler serving the debugger endpoints, or `null` to pass
+     * the debugger paths through to the application.
+     *
+     * @return self Middleware with the handler applied.
+     */
+    public function withDebugRequestHandler(DebugRequestHandler|null $debugRequestHandler): self
+    {
+        $new = clone $this;
+        $new->debugRequestHandler = $debugRequestHandler;
+
+        return $new;
+    }
+
+    /**
+     * Returns a copy finalizing the capture at application shutdown instead of inside the middleware pipeline.
+     *
+     * Deferral keeps the work that follows the pipeline in the snapshot: a lazily rendered response body, the log and
+     * profiler flushes, and the events dispatched around emission. It requires a coordinator; without one the capture
+     * is finalized immediately.
+     *
+     * @param DeferredCapture|null $deferredCapture Holder of the pending finalizer, or `null` to finalize inside the
+     * pipeline.
+     *
+     * @return self Middleware with the deferral applied.
+     */
+    public function withDeferredCapture(DeferredCapture|null $deferredCapture): self
+    {
+        $new = clone $this;
+        $new->deferredCapture = $deferredCapture;
 
         return $new;
     }
@@ -220,10 +290,12 @@ final class ToolbarMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Runs the request with the collectors active and writes the resulting capture.
+     * Runs the request with the collectors active and writes the resulting capture before returning.
      *
      * @param ServerRequestInterface $request Request reaching the middleware.
      * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     *
+     * @throws Throwable when the request handler fails.
      *
      * @return ResponseInterface Response produced by the handler.
      */
@@ -231,9 +303,123 @@ final class ToolbarMiddleware implements MiddlewareInterface
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
     ): ResponseInterface {
-        $tag = str_replace('.', '', uniqid('', true));
+        $start = self::requestStart($request);
+
+        [$response, $summary] = $this->handleRequest($request, $handler, $start);
+
+        $this->finalizeCapture($summary);
+
+        return $response;
+    }
+
+    /**
+     * Reads the remote address reported for the request.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     *
+     * @return string Remote address of the request, or `''` when the server did not report one.
+     */
+    private static function clientIp(ServerRequestInterface $request): string
+    {
+        $clientIp = $request->getServerParams()['REMOTE_ADDR'] ?? null;
+
+        return is_string($clientIp) && IpHelper::isIp($clientIp) ? $clientIp : '';
+    }
+
+    /**
+     * Runs the request with the collectors active and hands the capture over to the application shutdown phase.
+     *
+     * A handler failure drops the pending capture and stops the collectors, keeping the application failure primary.
+     * The collectors also stop when the deferred finalization fails, and that failure reaches the shutdown phase.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     * @param CollectorCoordinator $collectorCoordinator Coordinator owning the collectors.
+     * @param DeferredCapture $deferredCapture Holder of the pending finalizer.
+     *
+     * @throws Throwable when the collector startup or the request handler fails.
+     *
+     * @return ResponseInterface Response produced by the handler.
+     */
+    private function deferCapture(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+        CollectorCoordinator $collectorCoordinator,
+        DeferredCapture $deferredCapture,
+    ): ResponseInterface {
+        $collectorCoordinator->startup();
 
         $start = self::requestStart($request);
+
+        try {
+            [$response, $summary] = $this->handleRequest($request, $handler, $start);
+        } catch (Throwable $primaryFailure) {
+            $deferredCapture->cancel();
+
+            (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
+
+            throw $primaryFailure;
+        }
+
+        $deferredCapture->defer(
+            function () use ($collectorCoordinator, $start, $summary): void {
+                try {
+                    $this->finalizeCapture(
+                        $summary->withProfiling(microtime(true) - $start, memory_get_peak_usage(true)),
+                    );
+                } finally {
+                    (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
+                }
+            },
+        );
+
+        return $response;
+    }
+
+    /**
+     * Captures every collector into the summary and writes the snapshot to the store.
+     *
+     * @param RequestSummary $summary Metadata the capture is written for.
+     */
+    private function finalizeCapture(RequestSummary $summary): void
+    {
+        $snapshot = $this->collectorCoordinator?->capture($summary) ?? new DebugSnapshot($summary, [], []);
+
+        if (isset($snapshot->panels['db'])) {
+            $database = new DbSummary(DbSnapshot::fromArray($snapshot->panels['db'], '$.panels.db')->entries());
+            $snapshot = new DebugSnapshot(
+                $snapshot->summary->withDatabase(
+                    $database->count,
+                    $database->excessiveCallerCount($this->excessiveCallerThreshold),
+                ),
+                $snapshot->panels,
+                $snapshot->failures,
+            );
+        }
+
+        $this->store->writeSnapshot($snapshot, $this->historySize);
+    }
+
+    /**
+     * Runs the request phase, returning the final response and the summary its capture is finalized from.
+     *
+     * The toolbar is injected here, so a lazily rendered body is materialized before any collector is read.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     * @param float $start Request start, in seconds.
+     *
+     * @throws Throwable when the request handler fails.
+     *
+     * @return array{ResponseInterface, RequestSummary} Response returned to the client, and its summary carrying the
+     * handler timing.
+     */
+    private function handleRequest(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+        float $start,
+    ): array {
+        $tag = str_replace('.', '', uniqid('', true));
 
         $profilingCollector = $this->collectorCoordinator?->collector('profiling');
         $requestCollector = $this->collectorCoordinator?->collector('request');
@@ -243,6 +429,7 @@ final class ToolbarMiddleware implements MiddlewareInterface
         }
 
         $observers = [];
+
         foreach ($this->collectorCoordinator?->collectors() ?? [] as $collector) {
             if ($collector instanceof RequestObserverInterface) {
                 $observers[] = $collector;
@@ -288,49 +475,19 @@ final class ToolbarMiddleware implements MiddlewareInterface
             ->withResponse($response->getStatusCode())
             ->withProfiling($processingTime, memory_get_peak_usage(true));
 
-        $snapshot = $this->collectorCoordinator?->capture($summary) ?? new DebugSnapshot($summary, [], []);
-
-        if (isset($snapshot->panels['db'])) {
-            $database = new DbSummary(DbSnapshot::fromArray($snapshot->panels['db'], '$.panels.db')->entries());
-            $snapshot = new DebugSnapshot(
-                $snapshot->summary->withDatabase(
-                    $database->count,
-                    $database->excessiveCallerCount($this->excessiveCallerThreshold),
-                ),
-                $snapshot->panels,
-                $snapshot->failures,
+        if ($injectToolbar) {
+            $toolbar = $this->renderer->render(
+                dataUrl: "{$this->routePrefix}/toolbar?tag=" . rawurlencode($tag),
+                skipUrls: $this->skipUrls,
+                position: $this->position,
+                height: $this->height,
             );
+            $html = $this->renderer->inject((string) $response->getBody(), $toolbar);
+
+            $response = $response->withBody($this->streamFactory->createStream($html));
         }
 
-        $this->store->writeSnapshot($snapshot, $this->historySize);
-
-        if (!$injectToolbar) {
-            return $response;
-        }
-
-        $toolbar = $this->renderer->render(
-            dataUrl: "{$this->routePrefix}/toolbar?tag=" . rawurlencode($tag),
-            skipUrls: $this->skipUrls,
-            position: $this->position,
-            height: $this->height,
-        );
-        $html = $this->renderer->inject((string) $response->getBody(), $toolbar);
-
-        return $response->withBody($this->streamFactory->createStream($html));
-    }
-
-    /**
-     * Reads the remote address reported for the request.
-     *
-     * @param ServerRequestInterface $request Request reaching the middleware.
-     *
-     * @return string Remote address of the request, or `''` when the server did not report one.
-     */
-    private static function clientIp(ServerRequestInterface $request): string
-    {
-        $clientIp = $request->getServerParams()['REMOTE_ADDR'] ?? null;
-
-        return is_string($clientIp) && IpHelper::isIp($clientIp) ? $clientIp : '';
+        return [$response, $summary];
     }
 
     /**
@@ -375,6 +532,32 @@ final class ToolbarMiddleware implements MiddlewareInterface
         $start = $request->getServerParams()['REQUEST_TIME_FLOAT'] ?? null;
 
         return is_float($start) || is_int($start) ? $start : microtime(true);
+    }
+
+    /**
+     * Serves a request targeting the debugger itself.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param RequestHandlerInterface $handler Next handler in the middleware stack.
+     *
+     * @throws Throwable when the request handler fails.
+     *
+     * @return ResponseInterface Debugger response, `403 Forbidden` for a disallowed client, or the application
+     * response when no debug request handler is configured.
+     */
+    private function serveDebugRequest(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
+    ): ResponseInterface {
+        $debugRequestHandler = $this->debugRequestHandler;
+
+        if ($debugRequestHandler === null) {
+            return $handler->handle($request);
+        }
+
+        return $this->isAllowed($request)
+            ? $debugRequestHandler->handle($request)
+            : $debugRequestHandler->forbidden();
     }
 
     /**

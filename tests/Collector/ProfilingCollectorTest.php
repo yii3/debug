@@ -8,8 +8,8 @@ use PHPUnit\Framework\Attributes\{Group, IgnoreDeprecations};
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Yii3\Debug\Collector\ProfilingCollector;
-use Yii3\Debug\Tests\Support\Captured;
-use Yii3\Debug\Tests\Support\HelperFactory;
+use Yii3\Debug\Profiling\DebugProfilerTarget;
+use Yii3\Debug\Tests\Support\{Captured, HelperFactory};
 use Yiisoft\Profiler\Profiler;
 
 use function array_key_exists;
@@ -23,21 +23,86 @@ use function microtime;
 #[IgnoreDeprecations('Yiisoft\\\\Profiler\\\\Message::context\\(\\)')]
 final class ProfilingCollectorTest extends TestCase
 {
+    public function testCaptureIgnoresATargetMessageTheProfilerStillHolds(): void
+    {
+        $target = new DebugProfilerTarget();
+        $profiler = new Profiler(new NullLogger());
+        $collector = new ProfilingCollector($profiler, $target);
+
+        $collector->startup();
+        $profiler->begin('shared');
+        $profiler->end('shared');
+        $target->collect($profiler->getMessages());
+
+        $snapshot = Captured::profiling($collector);
+
+        $collector->shutdown();
+
+        self::assertNotNull(
+            $snapshot,
+            'An active collector must expose a snapshot.',
+        );
+
+        $entries = $snapshot->entries();
+
+        self::assertCount(
+            1,
+            $entries,
+            'A span held by both sources must be counted once.',
+        );
+        self::assertSame(
+            'shared',
+            $entries[0]->info,
+            'The surviving row must be the shared span.',
+        );
+    }
+
+    public function testCaptureMergesFlushedTargetMessagesWithUnflushedProfilerMessages(): void
+    {
+        $target = new DebugProfilerTarget();
+        $profiler = new Profiler(new NullLogger(), [$target]);
+        $collector = new ProfilingCollector($profiler, $target);
+
+        $collector->startup();
+        $profiler->begin('flushed');
+        $profiler->end('flushed');
+        $profiler->flush();
+        $profiler->begin('pending');
+        $profiler->end('pending');
+
+        $snapshot = Captured::profiling($collector);
+
+        $collector->shutdown();
+
+        self::assertNotNull(
+            $snapshot,
+            'An active collector must expose a snapshot.',
+        );
+
+        $entries = $snapshot->entries();
+
+        self::assertCount(
+            2,
+            $entries,
+            'A flush performed mid-request must not drop its spans.',
+        );
+        self::assertSame(
+            ['flushed', 'pending'],
+            [$entries[0]->info, $entries[1]->info],
+            'Order: begin timestamp.',
+        );
+    }
+
     public function testCaptureNormalizesNestedYiiProfilerMessages(): void
     {
         $profiler = new Profiler(new NullLogger());
         $collector = new ProfilingCollector($profiler);
 
-        $collector
-            ->startup();
-        $profiler
-            ->begin('service', ['category' => 'App\\Service::run']);
-        $profiler
-            ->begin('SELECT 1', ['category' => 'Yiisoft\\Db\\Command::query']);
-        $profiler
-            ->end('SELECT 1', ['category' => 'Yiisoft\\Db\\Command::query']);
-        $profiler
-            ->end('service', ['category' => 'App\\Service::run']);
+        $collector->startup();
+        $profiler->begin('service', ['category' => 'App\\Service::run']);
+        $profiler->begin('SELECT 1', ['category' => 'Yiisoft\\Db\\Command::query']);
+        $profiler->end('SELECT 1', ['category' => 'Yiisoft\\Db\\Command::query']);
+        $profiler->end('service', ['category' => 'App\\Service::run']);
 
         $snapshot = Captured::profiling($collector);
 
@@ -325,6 +390,25 @@ final class ProfilingCollectorTest extends TestCase
         );
     }
 
+    public function testShutdownClearsTheTargetForTheNextRequest(): void
+    {
+        $target = new DebugProfilerTarget();
+        $profiler = new Profiler(new NullLogger(), [$target]);
+        $collector = new ProfilingCollector($profiler, $target);
+
+        $collector->startup();
+        $profiler->begin('current');
+        $profiler->end('current');
+        $profiler->flush();
+        $collector->shutdown();
+
+        self::assertSame(
+            [],
+            $target->messages(),
+            'Spans of the finished request must not leak into the next one.',
+        );
+    }
+
     public function testStartupAnchorsOnRequestTimeFloatForDirectLifecycleCallers(): void
     {
         $hadRequestTime = array_key_exists('REQUEST_TIME_FLOAT', $_SERVER);
@@ -357,6 +441,45 @@ final class ProfilingCollectorTest extends TestCase
             4.0,
             $snapshot->time,
             'Direct lifecycle callers must retain the SAPI request-start fallback.',
+        );
+    }
+
+    public function testStartupDropsTheSpansTheTargetKeptFromThePreviousRequest(): void
+    {
+        $target = new DebugProfilerTarget();
+        $profiler = new Profiler(new NullLogger(), [$target]);
+
+        $profiler->begin('previous');
+        $profiler->end('previous');
+        $profiler->flush();
+
+        $collector = new ProfilingCollector($profiler, $target);
+
+        $collector->startup();
+        $profiler->begin('current');
+        $profiler->end('current');
+        $profiler->flush();
+
+        $snapshot = Captured::profiling($collector);
+
+        $collector->shutdown();
+
+        self::assertNotNull(
+            $snapshot,
+            'An active collector must expose a snapshot.',
+        );
+
+        $entries = $snapshot->entries();
+
+        self::assertCount(
+            1,
+            $entries,
+            'Spans of an earlier request must not reappear.',
+        );
+        self::assertSame(
+            'current',
+            $entries[0]->info,
+            'Only the span of the active lifecycle may remain.',
         );
     }
 

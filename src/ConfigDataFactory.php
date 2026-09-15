@@ -8,16 +8,22 @@ use Composer\InstalledVersions;
 use PHPForge\Debug\Panel\Config\ConfigSnapshot;
 
 use function extension_loaded;
+use function filter_var;
 use function getenv;
 use function is_bool;
+use function is_scalar;
 use function is_string;
 use function ksort;
 use function str_starts_with;
 
+use const FILTER_VALIDATE_BOOLEAN;
 use const PHP_VERSION;
 
 /**
  * Creates the live Yii and PHP configuration shown by the Configuration page.
+ *
+ * Application metadata the application does not declare falls back to the runtime: the Composer root package supplies
+ * the name and version, `APP_ENV` the environment, and `APP_DEBUG` the debug mode.
  */
 final readonly class ConfigDataFactory
 {
@@ -33,17 +39,19 @@ final readonly class ConfigDataFactory
      */
     public function create(): array
     {
+        $rootPackage = InstalledVersions::getRootPackage();
+
         return ConfigSnapshot::capture(
             [
                 'application' => [
                     'yii' => '3',
-                    'name' => $this->string('name'),
-                    'version' => $this->string('version'),
+                    'name' => $this->string('name', $rootPackage['name']),
+                    'version' => $this->string('version', $rootPackage['pretty_version']),
                     'language' => $this->string('language'),
                     'sourceLanguage' => $this->string('sourceLanguage'),
                     'charset' => $this->string('charset', 'UTF-8'),
                     'env' => $this->string('env', self::environment()),
-                    'debug' => $this->bool('debug'),
+                    'debug' => $this->bool('debug', self::debugMode()),
                 ],
                 'php' => [
                     'version' => PHP_VERSION,
@@ -61,14 +69,34 @@ final readonly class ConfigDataFactory
      * Reads an application metadata key as a boolean.
      *
      * @param string $key Application metadata key to read.
+     * @param bool $default Value returned when the key is absent or not a `bool`.
      *
-     * @return bool Value when it is a `bool`; `false` otherwise.
+     * @return bool Value when it is a `bool`; the default otherwise.
      */
-    private function bool(string $key): bool
+    private function bool(string $key, bool $default): bool
     {
         $value = $this->application[$key] ?? null;
 
-        return is_bool($value) ? $value : false;
+        return is_bool($value) ? $value : $default;
+    }
+
+    /**
+     * Reads whether the application runs with debug output enabled.
+     *
+     * `APP_DEBUG` is the variable Yii applications expose for it, so it names the mode when the application declares
+     * no `debug` metadata of its own.
+     *
+     * @return bool `true` when the variable holds a truthy value; `false` otherwise.
+     */
+    private static function debugMode(): bool
+    {
+        $debug = getenv('APP_DEBUG');
+
+        if ($debug === false || $debug === '') {
+            $debug = $_SERVER['APP_DEBUG'] ?? false;
+        }
+
+        return is_scalar($debug) && filter_var($debug, FILTER_VALIDATE_BOOLEAN);
     }
 
     /**

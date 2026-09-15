@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Action;
 
-use Closure;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Action\CompareAction;
@@ -13,7 +12,6 @@ use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
-use Yiisoft\Router\{Group as RouteGroup, RouteCollection, RouteCollector};
 use Yiisoft\View\WebView;
 
 use function file_put_contents;
@@ -56,10 +54,7 @@ final class CompareActionTest extends TestCase
     {
         [$store] = $this->storeWithPair();
 
-        $request = HelperFactory::createRequest(
-            'GET',
-            '/debug/compare?yii_debug_theme=dark',
-        );
+        $request = HelperFactory::createRequest('GET', '/debug/compare?yii_debug_theme=dark');
 
         $response = ($this->action($store))($request);
 
@@ -91,15 +86,8 @@ final class CompareActionTest extends TestCase
     {
         [$store] = $this->storeWithPair();
 
-        $request = HelperFactory::createRequest(
-            'GET',
-            '/debug/compare',
-        )->withQueryParams(
-            [
-                'baseline' => 'request-newest',
-                'target' => 'request-older',
-            ],
-        );
+        $request = HelperFactory::createRequest('GET', '/debug/compare')
+            ->withQueryParams(['baseline' => 'request-newest', 'target' => 'request-older']);
 
         $response = ($this->action($store))($request);
 
@@ -115,93 +103,6 @@ final class CompareActionTest extends TestCase
         );
     }
 
-    public function testProtectedCompareGetRouteIsPublished(): void
-    {
-        $params = require dirname(__DIR__, 2) . '/config/params.php';
-
-        self::assertIsArray(
-            $params,
-            'Parameter configuration must return an array.',
-        );
-
-        $debug = $params['yii3/debug'] ?? null;
-
-        self::assertIsArray(
-            $debug,
-            'Debug parameters must be present.',
-        );
-
-        $debug['routePrefix'] = '/developer/debug';
-        $params['yii3/debug'] = $debug;
-
-        $routes = require dirname(__DIR__, 2) . '/config/routes.php';
-
-        self::assertIsArray(
-            $routes,
-            'Route configuration must return an array.',
-        );
-        self::assertCount(
-            1,
-            $routes,
-            'Debugger routes must share one protected group.',
-        );
-
-        $group = $routes[0] ?? null;
-
-        self::assertInstanceOf(
-            RouteGroup::class,
-            $group,
-            'Debugger routes must be grouped.',
-        );
-
-        $groupMiddlewares = $group->getData('enabledMiddlewares');
-
-        self::assertCount(
-            1,
-            $groupMiddlewares,
-            'The debugger route group must retain its IP filter.',
-        );
-        self::assertInstanceOf(
-            Closure::class,
-            $groupMiddlewares[0],
-            'The route group must create the IP filter.',
-        );
-
-        $collector = new RouteCollector();
-
-        $collector->addRoute($group);
-
-        $compareRoute = null;
-
-        foreach ((new RouteCollection($collector))->getRoutes() as $route) {
-            if ($route->getData('name') === 'yii3-debug/compare') {
-                $compareRoute = $route;
-
-                break;
-            }
-        }
-
-        self::assertNotNull(
-            $compareRoute,
-            'The named comparison route must be published.',
-        );
-        self::assertSame(
-            '/developer/debug/compare',
-            $compareRoute->getData('pattern'),
-            'The comparison path must honor the configured debugger prefix.',
-        );
-        self::assertSame(
-            ['GET'],
-            $compareRoute->getData('methods'),
-            'Capture comparison must be read-only.',
-        );
-        self::assertSame(
-            CompareAction::class,
-            $compareRoute->getData('enabledMiddlewares')[1] ?? null,
-            'The protected route must dispatch the comparison action after the group middleware.',
-        );
-    }
-
     public function testRequiresTwoCapturesWhenASelectionMustBeDefaulted(): void
     {
         [$store] = $this->storeWithPair();
@@ -214,10 +115,8 @@ final class CompareActionTest extends TestCase
             0.01,
         );
 
-        $request = HelperFactory::createRequest(
-            'GET',
-            '/debug/compare',
-        )->withQueryParams(['baseline' => 'request-only']);
+        $request = HelperFactory::createRequest('GET', '/debug/compare')
+            ->withQueryParams(['baseline' => 'request-only']);
 
         $response = ($this->action($store))($request);
 
@@ -270,10 +169,8 @@ final class CompareActionTest extends TestCase
             0.01,
         );
 
-        $request = HelperFactory::createRequest(
-            'GET',
-            '/debug/compare',
-        )->withQueryParams(['target' => 'request-only']);
+        $request = HelperFactory::createRequest('GET', '/debug/compare')
+            ->withQueryParams(['target' => 'request-only']);
 
         $response = ($this->action($store))($request);
 
@@ -330,15 +227,8 @@ final class CompareActionTest extends TestCase
             'The orphan snapshot fixture must be writable.',
         );
 
-        $request = HelperFactory::createRequest(
-            'GET',
-            '/debug/compare',
-        )->withQueryParams(
-            [
-                'baseline' => 'request-orphan',
-                'target' => 'request-newest',
-            ],
-        );
+        $request = HelperFactory::createRequest('GET', '/debug/compare')
+            ->withQueryParams(['baseline' => 'request-orphan', 'target' => 'request-newest']);
 
         $response = ($this->action($store))($request);
 
@@ -358,15 +248,8 @@ final class CompareActionTest extends TestCase
     {
         [$store] = $this->storeWithPair();
 
-        $request = HelperFactory::createRequest(
-            'GET',
-            '/debug/compare',
-        )->withQueryParams(
-            [
-                'baseline' => 'request-older',
-                'target' => 'request-unknown',
-            ],
-        );
+        $request = HelperFactory::createRequest('GET', '/debug/compare')
+            ->withQueryParams(['baseline' => 'request-older', 'target' => 'request-unknown']);
 
         $response = ($this->action($store))($request);
 

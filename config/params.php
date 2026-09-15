@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yii3\Debug\Profiling\DebugProfilerTarget;
 use Yiisoft\Log\StreamTarget;
 
 if (!(require __DIR__ . '/enabled.php')) {
@@ -52,6 +53,11 @@ return [
     'yiisoft/middleware-dispatcher' => [
         'middlewares' => [
             ToolbarMiddleware::class,
+        ],
+    ],
+    'yiisoft/profiler' => [
+        'targets' => [
+            DebugProfilerTarget::class => [],
         ],
     ],
 ];
