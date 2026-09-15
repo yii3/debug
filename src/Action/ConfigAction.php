@@ -16,7 +16,7 @@ use function is_string;
 /**
  * Serves the live Yii configuration page and captured extension panels.
  */
-final readonly class ConfigAction
+final readonly class ConfigAction implements DebugActionInterface
 {
     /**
      * @param SnapshotStore $store Store the captured snapshots are read from.
@@ -66,10 +66,7 @@ final readonly class ConfigAction
             return $this->response(Message::DEBUG_PANEL_UNAVAILABLE->value, 'text/plain; charset=UTF-8', 400);
         }
 
-        $theme = ThemeResolver::resolve(
-            $request->getCookieParams(),
-            $query,
-        );
+        $theme = ThemeResolver::resolve($request->getCookieParams(), $query);
 
         if ($panel === 'auto') {
             $panel = $snapshot !== null

@@ -18,7 +18,7 @@ use function count;
 /**
  * Compares two retained debugger snapshots.
  */
-final readonly class CompareAction
+final readonly class CompareAction implements DebugActionInterface
 {
     /**
      * @param SnapshotStore $store Store the captured snapshots are read from.

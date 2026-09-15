@@ -14,7 +14,7 @@ use function array_key_first;
 /**
  * Serves the Debug Core phpinfo page.
  */
-final readonly class PhpInfoAction
+final readonly class PhpInfoAction implements DebugActionInterface
 {
     /**
      * @param SnapshotStore $store Store the captured snapshots are read from.

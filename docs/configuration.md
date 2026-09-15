@@ -19,7 +19,12 @@ return [
 ```
 
 These are the defaults: local access only, up to 50 retained requests, and captures stored under `@runtime/debug`.
-Changing `routePrefix` also changes the History URL. The storage path accepts a registered Yii alias.
+Changing `routePrefix` also changes the History URL, which the toolbar middleware serves directly. The storage path
+accepts a registered Yii alias.
+
+The `application` block is optional. Leave it out and the Configuration panel reads the name and version from the
+Composer root package, the environment from `APP_ENV`, and the debug mode from `APP_DEBUG`; every key you declare
+wins over the runtime value.
 
 ## Inertia and Vite
 
@@ -61,34 +66,54 @@ $registry = $registry
 
 Collectors declare their own ID; the registry rejects an empty or duplicate one.
 
-## Database
+## Capture lifecycle
 
-Database capture requires a Yii DB 2 driver and an instrumented application connection. For example, if your SQLite
-application already registers its configured connection as `Yiisoft\Db\Sqlite\Connection`, add this factory to your
-development-only DI configuration. The container supplies that connection and the debugger's registered profiler:
+The toolbar middleware runs the request with the collectors active, but it does not write the snapshot when the
+pipeline returns. Instead it hands a finalizer to `Yii3\Debug\Capture\DeferredCapture`, and the capture is written
+when the application dispatches `Yiisoft\Yii\Http\Event\ApplicationShutdown`. That event is the last step of the
+Yii HTTP runner, after the response is emitted and after the `AfterEmit` listeners of `yiisoft/log` and
+`yiisoft/profiler` have flushed.
 
-```php
-use Yii3\Debug\Db\DebugDbProfiler;
-use Yiisoft\Db\Connection\ConnectionInterface;
-use Yiisoft\Db\Sqlite\Connection;
+Deferral is what keeps three kinds of work in the snapshot:
 
-return [
-    ConnectionInterface::class => static function (
-        Connection $connection,
-        DebugDbProfiler $debugDbProfiler,
-    ): ConnectionInterface {
-        $debugDbProfiler->instrument($connection);
+- Queries issued while `Yiisoft\DataResponse\DataResponse` renders the view lazily, which happens only when the body
+  is read.
+- Log messages and profiler spans flushed at `AfterEmit`. The debugger registers its own profiler target, so spans the
+  profiler moved out of memory on flush still reach the Profiling and Logs panels.
+- Events dispatched after the middleware returned, such as `AfterRequest` and `AfterEmit`.
 
-        return $connection;
-    },
-];
+This requires the application to merge the package's `events-web` configuration group, which the Yii HTTP runner
+loads. Rebuild the merged configuration after installing or updating the package:
+
+```shell
+composer yii-config-rebuild
 ```
 
-Keep the existing concrete `Connection` registration and its driver settings; it must not resolve back to
-`ConnectionInterface`. For another PDO driver, use its configured concrete connection class instead of SQLite's.
-EXPLAIN supports MySQL, SQLite, and PostgreSQL and
-requires the application's `Yiisoft\Db\Connection\ConnectionInterface` binding to match the captured queries.
-Leave EXPLAIN unconfigured when one binding cannot represent all captured connections.
+Then confirm that `config/.merge-plan.php` lists `yii3/debug/config/events-web.php` under `events-web`.
+
+If the application never dispatches that event — a console command, a custom runner, or a fatal error during emission
+— a PHP shutdown function registered on the first deferral writes the capture instead, so a request is never lost.
+Without a collector coordinator there is nothing to defer, and the fallback summary is written inside the pipeline as
+before.
+
+## Automatic wiring
+
+The debugger attaches itself to the services the application already declares, so no development-only DI override is
+needed.
+
+- `Psr\Log\LoggerInterface` and `Psr\EventDispatcher\EventDispatcherInterface` are decorated by
+  `Yii3\Debug\DebugServiceProvider`, published in the `di-providers` and `di-providers-web` groups. The application
+  definitions are kept; the provider only wraps what they resolve to. Attaching the log target rebuilds
+  `Yiisoft\Log\Logger`, which resets its flush interval and context provider to the defaults.
+- `Yiisoft\Db\Connection\ConnectionInterface` receives the application logger and the debugger profiler from the
+  `bootstrap` group. A connection no PDO driver backs, or an application without a connection, is left untouched.
+
+Both groups must belong to the provider and bootstrap groups the application runner loads, and the decorations are
+idempotent, so an application wiring the connection itself keeps working.
+
+Database capture still requires a Yii DB 2 driver. EXPLAIN supports MySQL, SQLite, and PostgreSQL and requires the
+application's `Yiisoft\Db\Connection\ConnectionInterface` binding to match the captured queries. Leave EXPLAIN
+unconfigured when one binding cannot represent all captured connections.
 
 ## IDE links
 

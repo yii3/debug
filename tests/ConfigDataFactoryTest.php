@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests;
 
+use Composer\InstalledVersions;
 use PHPForge\Debug\Panel\Config\ConfigSnapshot;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\ConfigDataFactory;
 
 use function array_keys;
+use function getenv;
 use function is_array;
+use function putenv;
 use function sort;
 
 use const PHP_VERSION;
@@ -19,8 +22,75 @@ use const PHP_VERSION;
  */
 final class ConfigDataFactoryTest extends TestCase
 {
+    public function testCreateFallsBackToTheEnvironmentNameSources(): void
+    {
+        self::assertSame(
+            'staging',
+            self::applicationWith('APP_ENV', 'staging', null)['env'] ?? null,
+            '`APP_ENV` must name the environment.',
+        );
+        self::assertSame(
+            'staging',
+            self::applicationWith('APP_ENV', '', 'staging')['env'] ?? null,
+            'An empty process variable must defer to the server variable.',
+        );
+        self::assertSame(
+            '',
+            self::applicationWith('APP_ENV', '', ['dev'])['env'] ?? null,
+            'A value that is no `string` must leave the environment unnamed.',
+        );
+    }
+
+    public function testCreateFallsBackToTheProcessEnvironmentForDebugMode(): void
+    {
+        self::assertTrue(
+            self::applicationWith('APP_DEBUG', '1', null)['debug'] ?? null,
+            '`APP_DEBUG` must enable debug mode.',
+        );
+        self::assertTrue(
+            self::applicationWith('APP_DEBUG', '', 'true')['debug'] ?? null,
+            'An empty process variable must defer to the server variable.',
+        );
+    }
+
+    public function testCreateFallsBackToTheRootPackageAndTheEnvironment(): void
+    {
+        $rootPackage = InstalledVersions::getRootPackage();
+
+        $application = self::applicationWith('APP_DEBUG', null, null);
+
+        self::assertSame(
+            $rootPackage['name'],
+            $application['name'] ?? null,
+            'Name must default to the Composer root package.',
+        );
+        self::assertSame(
+            $rootPackage['pretty_version'],
+            $application['version'] ?? null,
+            'Version must default to the Composer root package.',
+        );
+        self::assertFalse(
+            $application['debug'] ?? null,
+            'Debug mode must stay `false` without `APP_DEBUG`.',
+        );
+    }
+
+    public function testCreateKeepsDebugDisabledForFalsyAndNonScalarValues(): void
+    {
+        self::assertFalse(
+            self::applicationWith('APP_DEBUG', null, 'false')['debug'] ?? null,
+            'A falsy value must keep debug mode off.',
+        );
+        self::assertFalse(
+            self::applicationWith('APP_DEBUG', null, ['on'])['debug'] ?? null,
+            'A value that is no scalar must keep debug mode off.',
+        );
+    }
+
     public function testCreateUsesNeutralDefaultsForInvalidMetadata(): void
     {
+        $rootPackage = InstalledVersions::getRootPackage();
+
         $application = self::slice(
             new ConfigDataFactory(
                 [
@@ -33,18 +103,18 @@ final class ConfigDataFactoryTest extends TestCase
         );
 
         self::assertSame(
-            '',
+            $rootPackage['name'],
             $application['name'] ?? null,
-            'Invalid application name must fall back to an empty string.',
+            'An invalid name must fall back to the Composer root package.',
         );
         self::assertSame(
             'UTF-8',
             $application['charset'] ?? null,
-            'Invalid charset must fall back to UTF-8.',
+            'An invalid charset must fall back to UTF-8.',
         );
         self::assertFalse(
             $application['debug'] ?? null,
-            'Invalid debug metadata must fall back to `false`.',
+            'Invalid debug metadata must fall back to the environment.',
         );
     }
 
@@ -139,6 +209,49 @@ final class ConfigDataFactoryTest extends TestCase
             $assets,
             'Each roster entry must carry its installed version.',
         );
+    }
+
+    /**
+     * Reads the application slice with one environment variable bound to the given sources for the call.
+     *
+     * @param string $variable Environment variable to bind.
+     * @param string|null $process Process environment value, or `null` to leave the variable unset.
+     * @param mixed $server Server environment value, or `null` to leave the variable unset.
+     *
+     * @return array<array-key, mixed> Decoded application slice.
+     */
+    private static function applicationWith(string $variable, string|null $process, mixed $server): array
+    {
+        $previousProcess = getenv($variable);
+        $previousServer = $_SERVER[$variable] ?? null;
+
+        self::bind($variable, $process, $server);
+
+        try {
+            return self::slice(new ConfigDataFactory(), 'application');
+        } finally {
+            self::bind($variable, $previousProcess === false ? null : $previousProcess, $previousServer);
+        }
+    }
+
+    /**
+     * Binds one environment variable to the process and server environments.
+     *
+     * @param string $variable Environment variable to bind.
+     * @param string|null $process Process environment value, or `null` to unset the variable.
+     * @param mixed $server Server environment value, or `null` to unset the variable.
+     */
+    private static function bind(string $variable, string|null $process, mixed $server): void
+    {
+        putenv($process === null ? $variable : "{$variable}={$process}");
+
+        if ($server === null) {
+            unset($_SERVER[$variable]);
+
+            return;
+        }
+
+        $_SERVER[$variable] = $server;
     }
 
     /**

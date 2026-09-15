@@ -28,6 +28,13 @@ enum Message: string
     case DEBUG_PANEL_UNAVAILABLE = 'The requested debug panel is not available.';
 
     /**
+     * Indicates that the container resolved a debugger service to an unexpected type.
+     *
+     * Format: "The debug service %s is not available."
+     */
+    case DEBUG_SERVICE_UNAVAILABLE = 'The debug service %s is not available.';
+
+    /**
      * Indicates that the requested capture is no longer retained.
      *
      * Format: "Debug snapshot not found."
