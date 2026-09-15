@@ -7,19 +7,20 @@ namespace Yii3\Debug;
 use Closure;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
-use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\Exception\Message;
-use Yii3\Debug\Log\{DebugLogTarget, LoggerDecorator};
 use Yiisoft\Di\ServiceProviderInterface;
 
 /**
- * Attaches the debugger to the application logger and PSR-14 dispatcher without redefining either service.
+ * Attaches the debugger to the application PSR-14 dispatcher without redefining the service.
  *
- * Both decorations are idempotent, so an application registering the provider in more than one configuration group
- * still ends up with each service decorated exactly once.
+ * The decoration is idempotent, so an application registering the provider in more than one configuration group still
+ * ends up with the dispatcher decorated exactly once.
+ *
+ * The Logs panel is fed by the `debug` target the package merges into the `yiisoft/log` parameters, so the application
+ * logger is built by the application itself and is never decorated here.
  */
 final class DebugServiceProvider implements ServiceProviderInterface
 {
@@ -34,9 +35,9 @@ final class DebugServiceProvider implements ServiceProviderInterface
     }
 
     /**
-     * Returns the decorations applied to the application logger and PSR-14 dispatcher.
+     * Returns the decoration applied to the application PSR-14 dispatcher.
      *
-     * Each service keeps its application definition; the decoration runs once, when the container first resolves it.
+     * The service keeps its application definition; the decoration runs once, when the container first resolves it.
      *
      * @return array<class-string, Closure(ContainerInterface, object): object> Decoration keyed by extended service.
      */
@@ -44,7 +45,6 @@ final class DebugServiceProvider implements ServiceProviderInterface
     {
         return [
             EventDispatcherInterface::class => self::extendEventDispatcher(...),
-            LoggerInterface::class => self::extendLogger(...),
         ];
     }
 
@@ -66,23 +66,6 @@ final class DebugServiceProvider implements ServiceProviderInterface
         }
 
         return new DebugEventDispatcher($dispatcher, self::service($container, EventCollector::class));
-    }
-
-    /**
-     * Records every logged message in the Logs panel.
-     *
-     * @param ContainerInterface $container Container the debugger log target is resolved from.
-     * @param object $logger Logger the application declared.
-     *
-     * @throws RuntimeException when the container resolves the debugger log target to another type.
-     *
-     * @return object Decorated logger, or the service unchanged when it is no PSR-3 logger.
-     */
-    private static function extendLogger(ContainerInterface $container, object $logger): object
-    {
-        return $logger instanceof LoggerInterface
-            ? LoggerDecorator::decorate($logger, self::service($container, DebugLogTarget::class))
-            : $logger;
     }
 
     /**

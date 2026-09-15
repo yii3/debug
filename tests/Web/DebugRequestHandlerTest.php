@@ -41,6 +41,11 @@ final class DebugRequestHandlerTest extends TestCase
             $response->getHeaderLine('X-Debug-Action'),
             'Path must select its own endpoint.',
         );
+        self::assertSame(
+            'no-store',
+            $response->getHeaderLine('Cache-Control'),
+            'Captured data must never be cached.',
+        );
     }
 
     public function testHandleForwardsTheRequestToTheEndpoint(): void
@@ -64,6 +69,11 @@ final class DebugRequestHandlerTest extends TestCase
             'A denied client must be rejected.',
         );
         self::assertSame(
+            'no-store',
+            $response->getHeaderLine('Cache-Control'),
+            'Captured data must never be cached.',
+        );
+        self::assertSame(
             '',
             (string) $response->getBody(),
             'Rejection must expose no diagnostics.',
@@ -85,6 +95,11 @@ final class DebugRequestHandlerTest extends TestCase
             'Rejection must advertise the readable methods.',
         );
         self::assertSame(
+            'no-store',
+            $response->getHeaderLine('Cache-Control'),
+            'Captured data must never be cached.',
+        );
+        self::assertSame(
             '',
             (string) $response->getBody(),
             'Rejection must expose no diagnostics.',
@@ -99,6 +114,11 @@ final class DebugRequestHandlerTest extends TestCase
             404,
             $response->getStatusCode(),
             'An unknown path must not reach an endpoint.',
+        );
+        self::assertSame(
+            'no-store',
+            $response->getHeaderLine('Cache-Control'),
+            'Captured data must never be cached.',
         );
         self::assertSame(
             '',

@@ -8,32 +8,27 @@ use Closure;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\{EventDispatcherInterface, ListenerProviderInterface};
-use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\DebugServiceProvider;
 use Yii3\Debug\Event\DebugEventDispatcher;
-use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Tests\Support\Stubs\ContainerStub;
-use Yiisoft\Definitions\Reference;
 use Yiisoft\Di\{Container, ContainerConfig};
 use Yiisoft\EventDispatcher\Dispatcher\Dispatcher;
 use Yiisoft\EventDispatcher\Provider\{ListenerCollection, Provider};
-use Yiisoft\Log\{Logger, StreamTarget};
 
 /**
- * Unit tests for {@see DebugServiceProvider} decorating the application logger and PSR-14 dispatcher.
+ * Unit tests for {@see DebugServiceProvider} decorating the application PSR-14 dispatcher.
  */
 final class DebugServiceProviderTest extends TestCase
 {
-    public function testExtensionsDecorateEachServiceOnceWhenTheProviderIsRegisteredTwice(): void
+    public function testExtensionsDecorateTheDispatcherOnceWhenTheProviderIsRegisteredTwice(): void
     {
         $container = self::container();
 
         $dispatcher = $container->get(EventDispatcherInterface::class);
-        $logger = $container->get(LoggerInterface::class);
 
         self::assertInstanceOf(
             DebugEventDispatcher::class,
@@ -49,29 +44,6 @@ final class DebugServiceProviderTest extends TestCase
             $container->get(EventCollector::class),
             (new ReflectionProperty(DebugEventDispatcher::class, 'collector'))->getValue($dispatcher),
             'Recording must use the shared collector.',
-        );
-        self::assertInstanceOf(
-            Logger::class,
-            $logger,
-            'Logger must stay a Yii logger.',
-        );
-
-        $targets = $logger->getTargets();
-
-        self::assertCount(
-            2,
-            $targets,
-            'The debugger target must be attached exactly once.',
-        );
-        self::assertInstanceOf(
-            StreamTarget::class,
-            $targets[0] ?? null,
-            'Order: application targets first.',
-        );
-        self::assertSame(
-            $container->get(DebugLogTarget::class),
-            $targets[1] ?? null,
-            'The attached target must be the shared one.',
         );
     }
 
@@ -90,11 +62,6 @@ final class DebugServiceProviderTest extends TestCase
             $recording,
             (self::extension(EventDispatcherInterface::class))($container, $recording),
             'An already recording dispatcher must pass through.',
-        );
-        self::assertSame(
-            $foreign,
-            (self::extension(LoggerInterface::class))($container, $foreign),
-            'A service that is no PSR-3 logger must pass through.',
         );
     }
 
@@ -119,20 +86,8 @@ final class DebugServiceProviderTest extends TestCase
         (self::extension(EventDispatcherInterface::class))($container, self::dispatcher());
     }
 
-    public function testThrowRuntimeExceptionWhenTheContainerResolvesAnotherLogTarget(): void
-    {
-        $container = new ContainerStub([DebugLogTarget::class => new stdClass()]);
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
-            'The debug service Yii3\Debug\Log\DebugLogTarget is not available.',
-        );
-
-        (self::extension(LoggerInterface::class))($container, new Logger());
-    }
-
     /**
-     * @return Container Container declaring an application logger and dispatcher, with the provider registered twice.
+     * @return Container Container declaring an application dispatcher, with the provider registered twice.
      */
     private static function container(): Container
     {
@@ -142,12 +97,6 @@ final class DebugServiceProviderTest extends TestCase
                     [
                         EventDispatcherInterface::class => Dispatcher::class,
                         ListenerProviderInterface::class => Provider::class,
-                        LoggerInterface::class => [
-                            'class' => Logger::class,
-                            '__construct()' => [
-                                'targets' => [Reference::to(StreamTarget::class)],
-                            ],
-                        ],
                     ],
                 )
                 ->withProviders([new DebugServiceProvider(), new DebugServiceProvider()]),

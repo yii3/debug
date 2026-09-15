@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Middleware;
 
+use Closure;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use PHPForge\Debug\Storage\SnapshotStore;
+use PHPForge\Debug\Storage\{SnapshotStore, StorageException};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
@@ -30,6 +31,7 @@ use Yiisoft\NetworkUtilities\IpRanges;
 use Yiisoft\View\WebView;
 
 use function array_map;
+use function file_put_contents;
 use function json_encode;
 use function microtime;
 use function sys_get_temp_dir;
@@ -275,6 +277,38 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testDeferredFinalizationFailureStillStopsTheCollectors(): void
+    {
+        $collector = new DbCollector();
+
+        $deferredCapture = self::deferredCapture();
+
+        $this->middleware($this->unwritableStore(), new CollectorCoordinator([$collector]))
+            ->withDeferredCapture($deferredCapture)
+            ->process(
+                HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                $this->handler(HelperFactory::createResponse(204)),
+            );
+
+        $failure = null;
+
+        try {
+            $deferredCapture->finalize();
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        self::assertInstanceOf(
+            StorageException::class,
+            $failure,
+            'The storage failure must reach the shutdown phase.',
+        );
+        self::assertNull(
+            $collector->capture(),
+            'Collectors must stop even when the capture cannot be written.',
+        );
+    }
+
     public function testDeferredHandlerFailureCancelsThePendingCaptureAndStopsCollectors(): void
     {
         $store = $this->store();
@@ -285,18 +319,28 @@ final class ToolbarMiddlewareTest extends TestCase
 
         $stale = 0;
 
-        $deferredCapture->defer(
-            static function () use (&$stale): void {
-                $stale++;
-            },
-        );
-
         $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
             ->withDeferredCapture($deferredCapture);
 
-        $handler = new readonly class implements RequestHandlerInterface {
+        $handler = new readonly class (
+            $deferredCapture,
+            static function () use (&$stale): void {
+                $stale++;
+            },
+        ) implements RequestHandlerInterface {
+            /**
+             * @param DeferredCapture $deferredCapture Holder of the pending finalizer.
+             * @param Closure(): void $finalizer Capture deferred while the request is handled.
+             */
+            public function __construct(
+                private DeferredCapture $deferredCapture,
+                private Closure $finalizer,
+            ) {}
+
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
+                $this->deferredCapture->defer($this->finalizer);
+
                 throw new RuntimeException('Handler failed.');
             }
         };
@@ -339,6 +383,62 @@ final class ToolbarMiddlewareTest extends TestCase
             [],
             $store->loadManifest(),
             'A failed request must not be captured.',
+        );
+    }
+
+    public function testDeferredProcessWritesThePendingCaptureBeforeTheCollectorsRestart(): void
+    {
+        $store = $this->store();
+
+        $collector = new DbCollector();
+
+        $deferredCapture = self::deferredCapture();
+
+        $observed = [];
+
+        $deferredCapture->defer(
+            static function () use ($collector, &$observed): void {
+                $observed[] = $collector->capture();
+            },
+        );
+
+        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
+            ->withDeferredCapture($deferredCapture);
+
+        $handler = new readonly class ($collector) implements RequestHandlerInterface {
+            public function __construct(private DbCollector $collector) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->observe(QueryRow::create('SELECT 1', 1.0, 1000.0));
+
+                return HelperFactory::createResponse(204);
+            }
+        };
+
+        $response = $middleware->process(
+            HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            $handler,
+        );
+
+        self::assertSame(
+            [null],
+            $observed,
+            'Collectors must still be stopped while the earlier capture is written.',
+        );
+
+        $deferredCapture->finalize();
+
+        $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
+
+        self::assertNotNull(
+            $snapshot,
+            'Finalization must persist the capture.',
+        );
+        self::assertSame(
+            1,
+            $snapshot->summary->sqlCount,
+            'The restarted cycle must keep the statements of its own request.',
         );
     }
 
@@ -619,6 +719,11 @@ final class ToolbarMiddlewareTest extends TestCase
             'Path must select its own endpoint.',
         );
         self::assertSame(
+            'no-store',
+            $response->getHeaderLine('Cache-Control'),
+            'Captured data must never be cached.',
+        );
+        self::assertSame(
             [],
             $store->loadManifest(),
             'Debugger requests must not be captured.',
@@ -693,6 +798,11 @@ final class ToolbarMiddlewareTest extends TestCase
             403,
             $response->getStatusCode(),
             'A denied client must not reach the debugger.',
+        );
+        self::assertSame(
+            'no-store',
+            $response->getHeaderLine('Cache-Control'),
+            'Captured data must never be cached.',
         );
         self::assertSame(
             '',
@@ -1162,5 +1272,17 @@ final class ToolbarMiddlewareTest extends TestCase
             0o700,
             0o600,
         );
+    }
+
+    /**
+     * @return SnapshotStore Store whose directory cannot be created, because a regular file holds its parent path.
+     */
+    private function unwritableStore(): SnapshotStore
+    {
+        $path = sys_get_temp_dir() . '/yii3-debug-middleware-' . uniqid();
+
+        file_put_contents($path, '');
+
+        return new SnapshotStore($path . '/snapshots', 0o700, 0o600);
     }
 }

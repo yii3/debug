@@ -76,12 +76,33 @@ Applications that build their middleware list by hand must spread the merged
 The middleware also answers the `/debug` pages itself, so the debugger publishes no routes and needs none of your
 application's routing.
 
-The debugger attaches itself to `Yiisoft\Db\Connection\ConnectionInterface`, `Psr\Log\LoggerInterface`, and
+The debugger attaches itself to `Yiisoft\Db\Connection\ConnectionInterface` and
 `Psr\EventDispatcher\EventDispatcherInterface` through the container, using the `di-providers` and `bootstrap`
 configuration groups; both must belong to the provider and bootstrap groups your runner loads. Your services keep
-their own definitions and the debugger only decorates them, so a custom PSR logger or dispatcher needs no separate
-integration. Attaching the log target rebuilds `Yiisoft\Log\Logger`, which resets its flush interval and context
-provider to the defaults; configure either where the logger service is defined.
+their own definitions and the debugger only decorates them, so a custom PSR dispatcher needs no separate integration.
+
+The Logs panel works through parameters instead: the debugger merges its `debug` target, and a `stream` target, into
+`yiisoft/log.targets`, so your application must build `Psr\Log\LoggerInterface` from
+`$params['yiisoft/log']['targets']` and declare its own targets under that key. The `yiisoft/app` template already
+builds the logger this way:
+
+```php
+'targets' => ReferencesArray::from(
+    array_values($params['yiisoft/log']['targets'] ?? [StreamTarget::class]),
+),
+```
+
+An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
+the `?? [StreamTarget::class]` fallback rather than declaring targets must add them to its parameters, otherwise the
+merged key carries only the debugger's targets:
+
+```php
+'yiisoft/log' => [
+    'targets' => [
+        'stream' => StreamTarget::class,
+    ],
+],
+```
 
 The snapshot itself is written when the application dispatches `Yiisoft\Yii\Http\Event\ApplicationShutdown`, through
 the merged `events-web` listeners the Yii HTTP runner uses. Finalizing there, rather than inside the middleware

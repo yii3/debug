@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Profiling\DebugProfilerTarget;
+use Yiisoft\Log\StreamTarget;
 
 if (!(require __DIR__ . '/enabled.php')) {
     return [];
@@ -40,6 +42,12 @@ return [
     'yiisoft/aliases' => [
         'aliases' => [
             '@yii3DebugViews' => '@vendor/php-forge/debug-core/resources/views',
+        ],
+    ],
+    'yiisoft/log' => [
+        'targets' => [
+            'debug' => DebugLogTarget::class,
+            'stream' => StreamTarget::class,
         ],
     ],
     'yiisoft/middleware-dispatcher' => [

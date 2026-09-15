@@ -62,15 +62,18 @@ final class DebugRequestHandler
     /**
      * Rejects a client that may not reach the debugger.
      *
-     * @return ResponseInterface Empty `403 Forbidden` response.
+     * @return ResponseInterface Empty `403 Forbidden` response, marked `Cache-Control: no-store`.
      */
     public function forbidden(): ResponseInterface
     {
-        return $this->responseFactory->createResponse(Status::FORBIDDEN);
+        return self::withoutStore($this->responseFactory->createResponse(Status::FORBIDDEN));
     }
 
     /**
      * Serves the endpoint the path selects.
+     *
+     * Every response carries `Cache-Control: no-store`, so captured request data never reaches a shared cache or the
+     * browser history.
      *
      * @param ServerRequestInterface $request Request targeting the debugger.
      *
@@ -84,15 +87,17 @@ final class DebugRequestHandler
         $method = strtoupper($request->getMethod());
 
         if ($method !== Method::GET && $method !== Method::HEAD) {
-            return $this->responseFactory
-                ->createResponse(Status::METHOD_NOT_ALLOWED)
-                ->withHeader('Allow', Method::GET . ', ' . Method::HEAD);
+            return self::withoutStore(
+                $this->responseFactory
+                    ->createResponse(Status::METHOD_NOT_ALLOWED)
+                    ->withHeader('Allow', Method::GET . ', ' . Method::HEAD),
+            );
         }
 
         $action = $this->action($request);
 
         if ($action === null) {
-            return $this->responseFactory->createResponse(Status::NOT_FOUND);
+            return self::withoutStore($this->responseFactory->createResponse(Status::NOT_FOUND));
         }
 
         $endpoint = $this->container->get($action);
@@ -103,7 +108,7 @@ final class DebugRequestHandler
             );
         }
 
-        return $endpoint($request);
+        return self::withoutStore($endpoint($request));
     }
 
     /**
@@ -144,5 +149,17 @@ final class DebugRequestHandler
         }
 
         return self::ACTIONS[substr($path, strlen($prefix))] ?? null;
+    }
+
+    /**
+     * Marks a response as never cacheable, keeping the headers and body it already carries.
+     *
+     * @param ResponseInterface $response Response the debugger returns.
+     *
+     * @return ResponseInterface Response carrying `Cache-Control: no-store`.
+     */
+    private static function withoutStore(ResponseInterface $response): ResponseInterface
+    {
+        return $response->withHeader('Cache-Control', 'no-store');
     }
 }

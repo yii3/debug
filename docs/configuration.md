@@ -89,7 +89,8 @@ loads. Rebuild the merged configuration after installing or updating the package
 composer yii-config-rebuild
 ```
 
-Then confirm that `config/.merge-plan.php` lists `yii3/debug/config/events-web.php` under `events-web`.
+Then confirm that the application's merge plan (`config/.merge-plan.php` unless `config-plugin-options.merge-plan-file`
+says otherwise) lists `yii3/debug/config/events-web.php` under `events-web`.
 
 If the application never dispatches that event — a console command, a custom runner, or a fatal error during emission
 — a PHP shutdown function registered on the first deferral writes the capture instead, so a request is never lost.
@@ -101,10 +102,9 @@ before.
 The debugger attaches itself to the services the application already declares, so no development-only DI override is
 needed.
 
-- `Psr\Log\LoggerInterface` and `Psr\EventDispatcher\EventDispatcherInterface` are decorated by
-  `Yii3\Debug\DebugServiceProvider`, published in the `di-providers` and `di-providers-web` groups. The application
-  definitions are kept; the provider only wraps what they resolve to. Attaching the log target rebuilds
-  `Yiisoft\Log\Logger`, which resets its flush interval and context provider to the defaults.
+- `Psr\EventDispatcher\EventDispatcherInterface` is decorated by `Yii3\Debug\DebugServiceProvider`, published in the
+  `di-providers` and `di-providers-web` groups. The application definition is kept; the provider only wraps what it
+  resolves to.
 - `Yiisoft\Db\Connection\ConnectionInterface` receives the application logger and the debugger profiler from the
   `bootstrap` group. A connection no PDO driver backs, or an application without a connection, is left untouched.
 
@@ -114,6 +114,45 @@ idempotent, so an application wiring the connection itself keeps working.
 Database capture still requires a Yii DB 2 driver. EXPLAIN supports MySQL, SQLite, and PostgreSQL and requires the
 application's `Yiisoft\Db\Connection\ConnectionInterface` binding to match the captured queries. Leave EXPLAIN
 unconfigured when one binding cannot represent all captured connections.
+
+## Logger targets
+
+`Psr\Log\LoggerInterface` is not decorated. The debugger merges its `debug` target, and a `stream` target, into
+`yiisoft/log.targets`, so the application must build its logger from `$params['yiisoft/log']['targets']` and declare
+its own targets under the same key. The `yiisoft/app` template already builds the logger this way:
+
+```php
+use Psr\Log\LoggerInterface;
+use Yiisoft\Definitions\ReferencesArray;
+use Yiisoft\Log\{Logger, StreamTarget};
+
+/** @var array $params */
+
+return [
+    LoggerInterface::class => [
+        'class' => Logger::class,
+        '__construct()' => [
+            'targets' => ReferencesArray::from(
+                array_values($params['yiisoft/log']['targets'] ?? [StreamTarget::class]),
+            ),
+        ],
+    ],
+];
+```
+
+An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
+the `?? [StreamTarget::class]` fallback rather than declaring targets must add them to its parameters, otherwise the
+merged key carries only the debugger's targets:
+
+```php
+return [
+    'yiisoft/log' => [
+        'targets' => [
+            'stream' => StreamTarget::class,
+        ],
+    ],
+];
+```
 
 ## IDE links
 

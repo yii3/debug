@@ -322,14 +322,18 @@ final class ToolbarMiddleware implements MiddlewareInterface
     /**
      * Runs the request with the collectors active and hands the capture over to the application shutdown phase.
      *
+     * A capture still pending from an earlier request is written before the collectors restart, so a worker that
+     * never dispatched the shutdown event cannot fold that capture into the current request.
+     *
      * A handler failure drops the pending capture and stops the collectors, keeping the application failure primary.
+     * The collectors also stop when the deferred finalization fails, and that failure reaches the shutdown phase.
      *
      * @param ServerRequestInterface $request Request reaching the middleware.
      * @param RequestHandlerInterface $handler Next handler in the middleware stack.
      * @param CollectorCoordinator $collectorCoordinator Coordinator owning the collectors.
      * @param DeferredCapture $deferredCapture Holder of the pending finalizer.
      *
-     * @throws Throwable when startup or the request handler fails.
+     * @throws Throwable when the pending capture, startup, or the request handler fails.
      *
      * @return ResponseInterface Response produced by the handler.
      */
@@ -339,6 +343,8 @@ final class ToolbarMiddleware implements MiddlewareInterface
         CollectorCoordinator $collectorCoordinator,
         DeferredCapture $deferredCapture,
     ): ResponseInterface {
+        $deferredCapture->finalize();
+
         $collectorCoordinator->startup();
 
         $start = self::requestStart($request);
@@ -355,11 +361,13 @@ final class ToolbarMiddleware implements MiddlewareInterface
 
         $deferredCapture->defer(
             function () use ($collectorCoordinator, $start, $summary): void {
-                $this->finalizeCapture(
-                    $summary->withProfiling(microtime(true) - $start, memory_get_peak_usage(true)),
-                );
-
-                (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
+                try {
+                    $this->finalizeCapture(
+                        $summary->withProfiling(microtime(true) - $start, memory_get_peak_usage(true)),
+                    );
+                } finally {
+                    (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
+                }
             },
         );
 
@@ -419,6 +427,7 @@ final class ToolbarMiddleware implements MiddlewareInterface
         }
 
         $observers = [];
+
         foreach ($this->collectorCoordinator?->collectors() ?? [] as $collector) {
             if ($collector instanceof RequestObserverInterface) {
                 $observers[] = $collector;

@@ -85,8 +85,7 @@
             "dev-main": "0.1.x-dev"
         },
         "config-plugin-options": {
-            "source-directory": "config",
-            "merge-plan-file": "../runtime/.merge-plan.php"
+            "source-directory": "config"
         },
         "config-plugin": {
             "params": "params.php",
