@@ -115,7 +115,7 @@ final class CompareActionTest extends TestCase
             0.01,
         );
 
-        $request = HelperFactory::createRequest('GET','/debug/compare')
+        $request = HelperFactory::createRequest('GET', '/debug/compare')
             ->withQueryParams(['baseline' => 'request-only']);
 
         $response = ($this->action($store))($request);
