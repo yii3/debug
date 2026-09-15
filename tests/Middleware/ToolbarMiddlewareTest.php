@@ -33,7 +33,6 @@ use function array_map;
 use function json_encode;
 use function microtime;
 use function sys_get_temp_dir;
-use function usleep;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -384,7 +383,11 @@ final class ToolbarMiddlewareTest extends TestCase
             'Collectors must stay active until the application finalizes.',
         );
 
-        usleep(20_000);
+        $resumeAt = microtime(true) + 0.02;
+
+        while (microtime(true) < $resumeAt) {
+            // Busy-wait on the clock the middleware samples, so the deferred duration holds on every platform.
+        }
 
         $deferredCapture->finalize();
 

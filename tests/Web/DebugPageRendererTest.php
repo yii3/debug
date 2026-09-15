@@ -21,14 +21,7 @@ use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{
-    EventPanel,
-    ExtensionPanelInterface,
-    LogPanel,
-    ProfilingPanel,
-    ProviderPanel,
-    RequestPanel,
-};
+use Yii3\Debug\Panel\{EventPanel, ExtensionPanelInterface, LogPanel, ProfilingPanel, ProviderPanel, RequestPanel};
 use Yii3\Debug\Tests\Provider\UrlPathProvider;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
@@ -84,6 +77,84 @@ final class DebugPageRendererTest extends TestCase
             $original,
             $summary->jsonSerialize(),
             'Presentation must not mutate the request summary.',
+        );
+    }
+
+    public function testConfigOmitsExtensionPanelWhenCaptureHasNoContent(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            [
+                'silent' => ['entries' => []],
+                'active' => ['entries' => [['message' => 'captured']]],
+            ],
+            [],
+        );
+
+        $html = $this->rendererWithPanels(
+            'page-renderer-silent-panel-assets',
+            [
+                $this->extensionPanelStub('silent', 'Silent'),
+                $this->extensionPanelStub('active', 'Active', true),
+            ],
+        )->config('request-1', 'light', $manifest, $snapshot);
+
+        self::assertStringNotContainsString(
+            'panel=silent',
+            $html,
+            'An idle capture must not be linked.',
+        );
+        self::assertStringNotContainsString(
+            'View Silent panel',
+            $html,
+            'An idle capture must not reach the Extensions group.',
+        );
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=active" title="View Active panel"',
+            $html,
+            'A capture holding activity must stay linked.',
+        );
+    }
+
+    public function testConfigOmitsExtensionPanelWhenCaptureIsMissing(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            [],
+            [
+                'failed' => PanelFailure::fromThrowable(
+                    PanelFailure::CAPTURE,
+                    new RuntimeException('Panel capture failed.'),
+                ),
+            ],
+        );
+
+        $html = $this->rendererWithPanels(
+            'page-renderer-uncaptured-panel-assets',
+            [
+                $this->extensionPanelStub('uncaptured', 'Uncaptured', true),
+                $this->extensionPanelStub('failed', 'Failed'),
+            ],
+        )->config('request-1', 'light', $manifest, $snapshot);
+
+        self::assertStringNotContainsString(
+            'panel=uncaptured',
+            $html,
+            'A panel without payload must not be linked.',
+        );
+        self::assertStringNotContainsString(
+            'View Uncaptured panel',
+            $html,
+            'A panel without payload must not reach the Extensions group.',
+        );
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=failed" title="View Failed panel"',
+            $html,
+            'A recorded failure must keep the panel linked.',
         );
     }
 
@@ -2445,6 +2516,35 @@ final class DebugPageRendererTest extends TestCase
             PanelTitle::CONFIGURATION->value,
             $view,
         );
+    }
+
+    /**
+     * Builds a registered extension panel whose sidebar visibility is pinned by the caller.
+     *
+     * @param string $id Stable panel identifier used in debug URLs.
+     * @param string $name Panel display name.
+     * @param bool $hasContent Result the visibility check reports for any payload.
+     *
+     * @return ExtensionPanelInterface Stubbed extension panel.
+     */
+    private function extensionPanelStub(string $id, string $name, bool $hasContent = false): ExtensionPanelInterface
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('hasContent')
+            ->willReturn($hasContent);
+        $panel
+            ->method('icon')
+            ->willReturn('history');
+        $panel
+            ->method('id')
+            ->willReturn($id);
+        $panel
+            ->method('name')
+            ->willReturn($name);
+
+        return $panel;
     }
 
     /**
