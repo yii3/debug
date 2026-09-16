@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Support;
 
+use PHPForge\Debug\Panel\Asset\AssetSnapshot;
 use PHPForge\Debug\Panel\Db\DbSnapshot;
 use PHPForge\Debug\Panel\Event\EventSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use Yii3\Debug\Collector\{DbCollector, EventCollector, LogCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{AssetCollector, DbCollector, EventCollector, LogCollector, ProfilingCollector, RequestCollector};
 
 /**
  * Reads a collector's encoded capture back through the snapshot its panel hydrates from.
@@ -19,6 +20,13 @@ use Yii3\Debug\Collector\{DbCollector, EventCollector, LogCollector, ProfilingCo
  */
 final class Captured
 {
+    public static function asset(AssetCollector $collector): AssetSnapshot|null
+    {
+        $payload = $collector->capture();
+
+        return $payload === null ? null : AssetSnapshot::fromArray($payload, '$.asset');
+    }
+
     public static function db(DbCollector $collector): DbSnapshot|null
     {
         $payload = $collector->capture();

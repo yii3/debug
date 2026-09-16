@@ -181,6 +181,7 @@ final class ToolbarDataActionTest extends TestCase
                     'title' => 'Inertia',
                     'url' => '/debug/view?tag=request-1&panel=inertia',
                     'icon' => 'inertia',
+                    'extension' => true,
                     'items' => [
                         [
                             'value' => 'Site/Index',

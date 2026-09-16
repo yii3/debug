@@ -3,7 +3,14 @@
 declare(strict_types=1);
 
 use PHPForge\Debug\Collector\CollectorCoordinator;
-use Yii3\Debug\Collector\{DbCollector, EventCollector, LogCollector, ProfilingCollector, RequestCollector};
+use Yii3\Debug\Collector\{
+    AssetCollector,
+    DbCollector,
+    EventCollector,
+    LogCollector,
+    ProfilingCollector,
+    RequestCollector,
+};
 use Yii3\Debug\ExtensionRegistry;
 
 if (!(require dirname(__DIR__) . '/enabled.php')) {
@@ -17,10 +24,11 @@ return [
         EventCollector $eventCollector,
         ProfilingCollector $profilingCollector,
         DbCollector $dbCollector,
+        AssetCollector $assetCollector,
         ExtensionRegistry $extensions,
     ): CollectorCoordinator => new CollectorCoordinator(
         $extensions->collectorsWithBuiltIns(
-            [$requestCollector, $logCollector, $eventCollector, $profilingCollector, $dbCollector],
+            [$requestCollector, $logCollector, $eventCollector, $profilingCollector, $dbCollector, $assetCollector],
         ),
     ),
 ];

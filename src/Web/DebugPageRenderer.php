@@ -20,6 +20,7 @@ use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Panel\{
+    BuiltInPanels,
     ContextAndSummaryAwarePanelInterface,
     ContextAwarePanelInterface,
     DbPanel,
@@ -38,7 +39,6 @@ use function array_search;
 use function count;
 use function date;
 use function dirname;
-use function in_array;
 use function is_string;
 use function json_encode;
 use function rawurlencode;
@@ -58,17 +58,6 @@ use const PHP_VERSION;
  */
 final class DebugPageRenderer
 {
-    /**
-     * Built-in panels shown in the primary request navigation.
-     */
-    private const array PRIMARY_PANEL_IDS = [
-        'request',
-        'log',
-        'event',
-        'profiling',
-        'db',
-    ];
-
     /**
      * Extension panels registered with the debugger.
      *
@@ -433,7 +422,7 @@ final class DebugPageRenderer
         $items = [];
 
         foreach ($this->extensionPanels as $id => $panel) {
-            if (in_array($id, self::PRIMARY_PANEL_IDS, true)) {
+            if (BuiltInPanels::isBuiltIn($id)) {
                 continue;
             }
 
@@ -641,7 +630,7 @@ final class DebugPageRenderer
 
         $items = [];
 
-        foreach (self::PRIMARY_PANEL_IDS as $id) {
+        foreach (BuiltInPanels::IDS as $id) {
             $panel = $this->extensionPanels[$id] ?? null;
 
             if (

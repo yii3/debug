@@ -11,19 +11,79 @@ use Psr\EventDispatcher\{EventDispatcherInterface, ListenerProviderInterface};
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
-use Yii3\Debug\Collector\EventCollector;
+use Yii3\Debug\Collector\{AssetCollector, AssetLoaderProxy, EventCollector};
 use Yii3\Debug\DebugServiceProvider;
 use Yii3\Debug\Event\DebugEventDispatcher;
+use Yii3\Debug\Tests\Support\Captured;
 use Yii3\Debug\Tests\Support\Stubs\ContainerStub;
+use Yiisoft\Aliases\Aliases;
+use Yiisoft\Assets\{AssetLoader, AssetLoaderInterface};
 use Yiisoft\Di\{Container, ContainerConfig};
 use Yiisoft\EventDispatcher\Dispatcher\Dispatcher;
 use Yiisoft\EventDispatcher\Provider\{ListenerCollection, Provider};
 
 /**
- * Unit tests for {@see DebugServiceProvider} decorating the application PSR-14 dispatcher.
+ * Unit tests for {@see DebugServiceProvider} decorating the application PSR-14 dispatcher and asset loader.
  */
 final class DebugServiceProviderTest extends TestCase
 {
+    public function testExtensionsDecorateTheAssetLoaderOnceWhenTheProviderIsRegisteredTwice(): void
+    {
+        $container = self::container();
+
+        $loader = $container->get(AssetLoaderInterface::class);
+
+        self::assertInstanceOf(
+            AssetLoaderProxy::class,
+            $loader,
+            'Loader must record bundles.',
+        );
+        self::assertInstanceOf(
+            AssetLoader::class,
+            (new ReflectionProperty(AssetLoaderProxy::class, 'loader'))->getValue($loader),
+            'Recording must wrap the application loader exactly once.',
+        );
+
+        $collector = $container->get(AssetCollector::class);
+
+        self::assertInstanceOf(
+            AssetCollector::class,
+            $collector,
+            'The container must own the asset collector.',
+        );
+        self::assertSame(
+            $collector,
+            (new ReflectionProperty(AssetLoaderProxy::class, 'collector'))->getValue($loader),
+            'Recording must use the shared collector.',
+        );
+
+        $collector->startup();
+
+        $bundle = $loader->loadBundle(
+            'app\assets\AppAsset',
+            ['basePath' => '/assets', 'baseUrl' => '/assets', 'css' => ['css/app.css']],
+        );
+
+        self::assertSame(
+            ['css/app.css'],
+            $bundle->css,
+            'The bundle must come from the application loader.',
+        );
+
+        $bundles = Captured::asset($collector)?->bundles() ?? [];
+
+        self::assertCount(
+            1,
+            $bundles,
+            'Recording must feed the collector.',
+        );
+        self::assertSame(
+            'app\assets\AppAsset',
+            $bundles[0]->name,
+            'The recorded bundle must keep its class name.',
+        );
+    }
+
     public function testExtensionsDecorateTheDispatcherOnceWhenTheProviderIsRegisteredTwice(): void
     {
         $container = self::container();
@@ -44,6 +104,24 @@ final class DebugServiceProviderTest extends TestCase
             $container->get(EventCollector::class),
             (new ReflectionProperty(DebugEventDispatcher::class, 'collector'))->getValue($dispatcher),
             'Recording must use the shared collector.',
+        );
+    }
+
+    public function testExtensionsReturnForeignAssetLoadersUnchanged(): void
+    {
+        $container = new ContainerStub();
+        $foreign = new stdClass();
+        $recording = new AssetLoaderProxy(new AssetLoader(new Aliases()), new AssetCollector());
+
+        self::assertSame(
+            $foreign,
+            (self::extension(AssetLoaderInterface::class))($container, $foreign),
+            'A service that is no asset loader must pass through.',
+        );
+        self::assertSame(
+            $recording,
+            (self::extension(AssetLoaderInterface::class))($container, $recording),
+            'An already recording loader must pass through.',
         );
     }
 
@@ -87,7 +165,8 @@ final class DebugServiceProviderTest extends TestCase
     }
 
     /**
-     * @return Container Container declaring an application dispatcher, with the provider registered twice.
+     * @return Container Container declaring an application asset loader and dispatcher, with the provider registered
+     * twice.
      */
     private static function container(): Container
     {
@@ -95,6 +174,7 @@ final class DebugServiceProviderTest extends TestCase
             ContainerConfig::create()
                 ->withDefinitions(
                     [
+                        AssetLoaderInterface::class => AssetLoader::class,
                         EventDispatcherInterface::class => Dispatcher::class,
                         ListenerProviderInterface::class => Provider::class,
                     ],
