@@ -251,6 +251,7 @@ final class ToolbarDataFactoryTest extends TestCase
                     'id' => 'inertia',
                     'title' => 'Inertia',
                     'url' => '/debug/view?tag=request-1&panel=inertia',
+                    'extension' => true,
                     'items' => [
                         [
                             'label' => 'Inertia',
@@ -357,6 +358,7 @@ final class ToolbarDataFactoryTest extends TestCase
                     'title' => 'Inertia',
                     'url' => '/debug/view?tag=request-1&panel=inertia',
                     'icon' => 'inertia',
+                    'extension' => true,
                     'items' => [
                         [
                             'value' => 'Site/Index',
@@ -389,6 +391,7 @@ final class ToolbarDataFactoryTest extends TestCase
                     'title' => 'Inertia',
                     'url' => '/developer/debug/view?tag=request-1&panel=inertia',
                     'icon' => 'inertia',
+                    'extension' => true,
                     'items' => [
                         [
                             'value' => 'Site/Index',
@@ -434,6 +437,7 @@ final class ToolbarDataFactoryTest extends TestCase
                     'title' => 'Vite',
                     'url' => '/debug/view?tag=request-1&panel=vite',
                     'icon' => 'brand-javascript',
+                    'extension' => true,
                     'items' => [
                         [
                             'value' => 'Production',
@@ -507,6 +511,47 @@ final class ToolbarDataFactoryTest extends TestCase
             'Invalid decoded Inertia diagnostics.',
             $item['title'],
             'The danger-item tooltip must contain the redacted presentation diagnostic.',
+        );
+    }
+
+    public function testCreateForSnapshotKeepsFailedBuiltInChipsInline(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new RequestPanel()]);
+
+        $failure = PanelFailure::fromThrowable(
+            PanelFailure::CAPTURE,
+            new RuntimeException('Unable to capture the request.'),
+        );
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [],
+            ['request' => $failure],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            [
+                [
+                    'id' => 'request',
+                    'title' => 'Request',
+                    'url' => '/debug/view?tag=request-1&panel=request',
+                    'items' => [
+                        [
+                            'label' => 'Request',
+                            'value' => 'error',
+                            'status' => 'danger',
+                            'title' => 'Unable to capture the request.',
+                        ],
+                    ],
+                ],
+            ],
+            $payload['items'],
+            'A failed built-in chip must omit the key.',
         );
     }
 
@@ -606,6 +651,34 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotPlacesBuiltInChipsBeforeEarlierRegisteredExtensions(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new ProviderPanel(new InertiaPanel()), new RequestPanel()]);
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'inertia' => $this->inertiaPayload('Site/Index'),
+                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['request', 'inertia'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Built-in chips must lead regardless of registration.',
+        );
+    }
+
     public function testCreateForSnapshotPreservesTheBuiltInToolbarOrder(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
@@ -672,6 +745,81 @@ final class ToolbarDataFactoryTest extends TestCase
             '/application/logs?severity=error',
             $payload['items'][0]['items'][0]['url'] ?? null,
             'Built-in Logs filter links must not overwrite an application panel override with the same stable ID.',
+        );
+    }
+
+    public function testCreateForSnapshotSortsExtensionChipsByName(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels(
+                [new ProviderPanel(new VitePanel()), new ProviderPanel(new InertiaPanel()), new RequestPanel()],
+            );
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'vite' => $this->vitePayload(),
+                'inertia' => $this->inertiaPayload('Site/Index'),
+                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['request', 'inertia', 'vite'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Extensions must follow built-ins, sorted by name.',
+        );
+    }
+
+    public function testCreateForSnapshotSortsExtensionChipsCaseInsensitively(): void
+    {
+        $panels = [];
+
+        foreach (['beta' => 'Beta', 'alpha' => 'alpha'] as $id => $name) {
+            $panel = self::createStub(ToolbarPanelProviderInterface::class);
+
+            $panel
+                ->method('id')
+                ->willReturn($id);
+            $panel
+                ->method('name')
+                ->willReturn($name);
+            $panel
+                ->method('toolbarItems')
+                ->willReturn([ToolbarItem::create($name)]);
+
+            $panels[] = $panel;
+        }
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'beta' => ['value' => true],
+                'alpha' => ['value' => true],
+            ],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels($panels)
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['alpha', 'beta'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Lowercase names must not sort after capitalized ones.',
         );
     }
 

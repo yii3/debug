@@ -15,6 +15,7 @@ use Yii3\Debug\Collector\EventCollector;
 use Yii3\Debug\DebugServiceProvider;
 use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\Tests\Support\Stubs\ContainerStub;
+use Yiisoft\Assets\{AssetLoader, AssetLoaderInterface};
 use Yiisoft\Di\{Container, ContainerConfig};
 use Yiisoft\EventDispatcher\Dispatcher\Dispatcher;
 use Yiisoft\EventDispatcher\Provider\{ListenerCollection, Provider};
@@ -95,6 +96,7 @@ final class DebugServiceProviderTest extends TestCase
             ContainerConfig::create()
                 ->withDefinitions(
                     [
+                        AssetLoaderInterface::class => AssetLoader::class,
                         EventDispatcherInterface::class => Dispatcher::class,
                         ListenerProviderInterface::class => Provider::class,
                     ],

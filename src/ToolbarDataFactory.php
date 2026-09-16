@@ -12,7 +12,13 @@ use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
 use PHPForge\Debug\View\ViewMessage;
 use Throwable;
 use Yii3\Debug\Exception\Message;
-use Yii3\Debug\Panel\{ExtensionPanelInterface, LogPanel, ToolbarPanelProviderInterface, ToolbarTitleProviderInterface};
+use Yii3\Debug\Panel\{
+    BuiltInPanels,
+    ExtensionPanelInterface,
+    LogPanel,
+    ToolbarPanelProviderInterface,
+    ToolbarTitleProviderInterface,
+};
 use Yii3\Debug\Web\DebugUrlGenerator;
 use Yiisoft\Assets\AssetManager;
 
@@ -20,9 +26,11 @@ use function array_is_list;
 use function array_key_exists;
 use function rawurlencode;
 use function rtrim;
+use function strcasecmp;
 use function strlen;
 use function substr;
 use function trim;
+use function uasort;
 
 use const PHP_VERSION;
 
@@ -191,13 +199,21 @@ final class ToolbarDataFactory
      * @param string $title Panel display name.
      * @param string $url Debug page URL.
      * @param string $message Failure diagnostic shown as the metric tooltip.
+     * @param bool $extension `true` when the toolbar groups the panel under its Extensions menu; `false` when the
+     * panel is built in and stays inline.
      *
      * @return ToolbarPanel Panel representing the failure.
      */
-    private static function failedPanel(string $id, string $title, string $url, string $message): ToolbarPanel
-    {
+    private static function failedPanel(
+        string $id,
+        string $title,
+        string $url,
+        string $message,
+        bool $extension,
+    ): ToolbarPanel {
         return ToolbarPanel::create($id, $title)
             ->withUrl($url)
+            ->withExtension($extension)
             ->withItems(
                 [
                     ToolbarItem::create('error')
@@ -255,8 +271,9 @@ final class ToolbarDataFactory
     {
         $toolbarPanels = [];
 
-        foreach ($this->extensionPanels as $id => $panel) {
+        foreach (self::toolbarOrder($this->extensionPanels) as $id => $panel) {
             $url = $this->viewUrl($tag, $id);
+            $extension = !BuiltInPanels::isBuiltIn($id);
 
             $failure = $snapshot->failures[$id] ?? null;
 
@@ -266,6 +283,7 @@ final class ToolbarDataFactory
                     $panel->name(),
                     $url,
                     $failure->exception->getMessage(),
+                    $extension,
                 );
 
                 continue;
@@ -293,6 +311,7 @@ final class ToolbarDataFactory
                     $panel->name(),
                     $url,
                     ExceptionSnapshot::fromThrowable($throwable)->getMessage(),
+                    $extension,
                 );
 
                 continue;
@@ -308,10 +327,45 @@ final class ToolbarDataFactory
             )
                 ->withUrl($url)
                 ->withIcon($panel->icon())
+                ->withExtension($extension)
                 ->withItems($items);
         }
 
         return $toolbarPanels;
+    }
+
+    /**
+     * Orders the registered panels the way the sidebar lists them: built-ins keep their registration order and come
+     * first, extensions follow sorted case-insensitively by display name.
+     *
+     * @param array<string, ExtensionPanelInterface> $panels Registered panels keyed by ID.
+     *
+     * @return array<string, ExtensionPanelInterface> Panels keyed by ID, in toolbar order.
+     */
+    private static function toolbarOrder(array $panels): array
+    {
+        $builtIns = [];
+        $extensions = [];
+
+        foreach ($panels as $id => $panel) {
+            if (BuiltInPanels::isBuiltIn($id)) {
+                $builtIns[$id] = $panel;
+
+                continue;
+            }
+
+            $extensions[$id] = $panel;
+        }
+
+        uasort(
+            $extensions,
+            static fn(ExtensionPanelInterface $left, ExtensionPanelInterface $right): int => strcasecmp(
+                $left->name(),
+                $right->name(),
+            ),
+        );
+
+        return $builtIns + $extensions;
     }
 
     /**

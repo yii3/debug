@@ -105,6 +105,9 @@ needed.
 - `Psr\EventDispatcher\EventDispatcherInterface` is decorated by `Yii3\Debug\DebugServiceProvider`, published in the
   `di-providers` and `di-providers-web` groups. The application definition is kept; the provider only wraps what it
   resolves to.
+- `Yiisoft\Assets\AssetLoaderInterface` is decorated by the same provider, so every bundle the application loads reaches
+  the Asset Bundles panel. The definition `yiisoft/assets` publishes in the `di` group is kept; the provider only wraps
+  what it resolves to.
 - `Yiisoft\Db\Connection\ConnectionInterface` receives the application logger and the debugger profiler from the
   `bootstrap` group. A connection no PDO driver backs, or an application without a connection, is left untouched.
 

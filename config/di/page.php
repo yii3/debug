@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
-use Yii3\Debug\Panel\{DbPanel, EventPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\{AssetPanel, DbPanel, EventPanel, LogPanel, ProfilingPanel, RequestPanel};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Definitions\DynamicReference;
@@ -36,8 +36,9 @@ return [
                     EventPanel $eventPanel,
                     ProfilingPanel $profilingPanel,
                     DbPanel $dbPanel,
+                    AssetPanel $assetPanel,
                 ): array => $extensions->panelsWithBuiltIns(
-                    [$requestPanel, $logPanel, $eventPanel, $profilingPanel, $dbPanel],
+                    [$requestPanel, $logPanel, $eventPanel, $profilingPanel, $dbPanel, $assetPanel],
                 ),
             ),
         ],

@@ -130,7 +130,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
         $items = [];
 
         foreach ($this->view($payload)->toolbarMetrics() as $metric) {
-            $items[] = ToolbarItem::create($metric['value']['value'])->withTitle($metric['label']);
+            $items[] = ToolbarItem::create($metric->value)->withTitle($metric->label);
         }
 
         return $items;
