@@ -483,7 +483,7 @@ final class ExtensionRegistryTest extends TestCase
             'Container instance must be registered as is.',
         );
         self::assertCount(
-        1,
+            1,
             $panels,
             'One configured entry must produce one panel.',
         );
