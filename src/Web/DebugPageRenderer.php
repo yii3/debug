@@ -19,15 +19,7 @@ use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Exception\Message;
-use Yii3\Debug\Panel\{
-    BuiltInPanels,
-    ContextAndSummaryAwarePanelInterface,
-    ContextAwarePanelInterface,
-    DbPanel,
-    ExtensionPanelInterface,
-    ProviderPanel,
-    SummaryAwarePanelInterface,
-};
+use Yii3\Debug\Panel\{BuiltInPanels, DbPanel, ExtensionPanelInterface, PanelRenderInput, ProviderPanel};
 use Yii3\Debug\View\ViewMessage as AdapterMessage;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
@@ -204,30 +196,20 @@ final class DebugPageRenderer
 
         if ($panel !== null && array_key_exists($panelId, $snapshot->panels)) {
             try {
-                $context = new PanelRenderContext(
-                    $snapshot->summary->tag,
-                    $panelId,
-                    $queryParams,
-                    $theme,
-                    new DebugUrlGenerator($this->routePrefix),
-                    $snapshot->panels,
+                $panelContent = $panel->render(
+                    new PanelRenderInput(
+                        $payload,
+                        new PanelRenderContext(
+                            $snapshot->summary->tag,
+                            $panelId,
+                            $queryParams,
+                            $theme,
+                            new DebugUrlGenerator($this->routePrefix),
+                            $snapshot->panels,
+                        ),
+                        $snapshot->summary,
+                    ),
                 );
-                $panelContent = match (true) {
-                    $panel instanceof ContextAndSummaryAwarePanelInterface => $panel->renderWithContextAndSummary(
-                        $payload,
-                        $context,
-                        $snapshot->summary,
-                    ),
-                    $panel instanceof SummaryAwarePanelInterface => $panel->renderWithSummary(
-                        $payload,
-                        $snapshot->summary,
-                    ),
-                    $panel instanceof ContextAwarePanelInterface => $panel->renderWithContext(
-                        $payload,
-                        $context,
-                    ),
-                    default => $panel->render($payload),
-                };
             } catch (Throwable $throwable) {
                 $renderError = $throwable::class . ': ' . $throwable->getMessage();
             }
@@ -404,6 +386,9 @@ final class DebugPageRenderer
     /**
      * Groups the extension panel links shown after the built-in navigation.
      *
+     * Registered panels keep the order the registration policy resolved; captured payloads with no registered
+     * presenter follow, sorted case-insensitively among themselves.
+     *
      * @param RequestSummary|null $summary Summary of the capture in context, or `null` when none is selected.
      * @param DebugSnapshot|null $snapshot Capture backing the sidebar, or `null` when none is selected.
      * @param string|null $activePanelId Panel to mark as active, or `null` when no panel is being shown.
@@ -453,12 +438,14 @@ final class DebugPageRenderer
             );
         }
 
+        $raw = [];
+
         foreach (array_unique([...array_keys($snapshot->panels), ...array_keys($snapshot->failures)]) as $id) {
             if (isset($this->extensionPanels[$id])) {
                 continue;
             }
 
-            $items[] = new SidebarNavItem(
+            $raw[] = new SidebarNavItem(
                 label: $id,
                 iconSvg: Icon::render('code'),
                 url: $this->viewUrl($summary->tag, $id),
@@ -468,9 +455,11 @@ final class DebugPageRenderer
         }
 
         usort(
-            $items,
+            $raw,
             static fn(SidebarNavItem $left, SidebarNavItem $right): int => strcasecmp($left->label, $right->label),
         );
+
+        $items = [...$items, ...$raw];
 
         return $items === [] ? [] : [ViewMessage::EXTENSIONS->value => $items];
     }

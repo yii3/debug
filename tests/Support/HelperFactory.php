@@ -14,6 +14,8 @@ use HttpSoft\Message\{
     UploadedFileFactory,
     Uri,
 };
+use PHPForge\Debug\Panel\PanelRenderContext;
+use PHPForge\Debug\Storage\RequestSummary;
 use Psr\Http\Message\{
     ResponseFactoryInterface,
     ResponseInterface,
@@ -25,6 +27,8 @@ use Psr\Http\Message\{
     UploadedFileInterface,
     UriInterface,
 };
+use Yii3\Debug\Panel\PanelRenderInput;
+use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function is_string;
 use function parse_str;
@@ -32,10 +36,27 @@ use function parse_str;
 use const UPLOAD_ERR_OK;
 
 /**
- * Creates PSR-7 and PSR-17 objects used by tests.
+ * Creates the PSR-7, PSR-17, and panel render objects used by tests.
  */
 final class HelperFactory
 {
+    /**
+     * Builds the render input a panel receives for one captured page.
+     *
+     * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderContext|null $context State of the debugger request, or `null` for a neutral one.
+     * @param RequestSummary|null $summary Manifest entry of the capture, or `null` for an empty one.
+     */
+    public static function createPanelRenderInput(
+        array $payload,
+        PanelRenderContext|null $context = null,
+        RequestSummary|null $summary = null,
+    ): PanelRenderInput {
+        $context ??= new PanelRenderContext('request-1', 'panel', [], 'light', new DebugUrlGenerator());
+
+        return new PanelRenderInput($payload, $context, $summary ?? RequestSummary::create($context->tag));
+    }
+
     /**
      * @param array<string, list<string>|string> $headers
      * @param array<string, mixed>|object|null $parsedBody

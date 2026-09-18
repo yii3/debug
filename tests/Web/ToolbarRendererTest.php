@@ -20,8 +20,6 @@ use function unlink;
 
 /**
  * Unit tests for {@see ToolbarRenderer} rendering shared markup with Yii3 assets.
- *
- * @since 0.1
  */
 #[Group('toolbar')]
 final class ToolbarRendererTest extends TestCase

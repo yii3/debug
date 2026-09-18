@@ -69,18 +69,4 @@ final readonly class PageWindow
             ->withPageSize($window->limit)
             ->withCurrentPage($window->page);
     }
-
-    /**
-     * Wraps every row in a single page, for context-free rendering without navigation.
-     *
-     * @template TRow of array<array-key, mixed>|object
-     *
-     * @param list<TRow> $rows Rows to expose without pagination.
-     *
-     * @return OffsetPaginator<int, TRow> Paginator holding the whole collection.
-     */
-    public static function single(array $rows): OffsetPaginator
-    {
-        return (new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(max(1, count($rows)));
-    }
 }

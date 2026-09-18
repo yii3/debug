@@ -26,8 +26,6 @@ use const DEBUG_BACKTRACE_IGNORE_ARGS;
  *
  * Connection and command timings are also forwarded to the application profiler when configured.
  * Only the native method category is forwarded; parameter arrays and exception objects are not copied.
- *
- * Usage example: `(new DebugDbProfiler($collector))->instrument($connection);` in development configuration only.
  */
 final class DebugDbProfiler implements ProfilerInterface
 {
@@ -139,12 +137,6 @@ final class DebugDbProfiler implements ProfilerInterface
      * Statements are instrumented through `PDO::ATTR_STATEMENT_CLASS`, installed on the live PDO instance immediately
      * when the connection is already open and again on every open, including the opens that precede the captured
      * request. A connection wired with `setProfiler()` alone is still captured, but its Rows column stays empty.
-     *
-     * Usage example:
-     * ```php
-     * $profiler = new \Yii3\Debug\Db\DebugDbProfiler($dbCollector);
-     * $profiler->instrument($connection);
-     * ```
      *
      * @param PdoConnectionInterface&ProfilerAwareInterface $connection Development connection to observe.
      */

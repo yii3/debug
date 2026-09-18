@@ -7,7 +7,7 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use Yii3\Debug\Capture\DeferredCapture;
 use Yii3\Debug\ExtensionRegistry;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
-use Yii3\Debug\Panel\{AssetPanel, DbPanel, EventPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\BuiltInPanelList;
 use Yii3\Debug\ToolbarDataFactory;
 use Yii3\Debug\Web\{DebugRequestHandler, ToolbarRenderer};
 use Yiisoft\Aliases\Aliases;
@@ -30,15 +30,8 @@ return [
             DynamicReference::to(
                 static fn(
                     ExtensionRegistry $extensions,
-                    RequestPanel $requestPanel,
-                    LogPanel $logPanel,
-                    EventPanel $eventPanel,
-                    ProfilingPanel $profilingPanel,
-                    DbPanel $dbPanel,
-                    AssetPanel $assetPanel,
-                ): array => $extensions->panelsWithBuiltIns(
-                    [$requestPanel, $logPanel, $eventPanel, $profilingPanel, $dbPanel, $assetPanel],
-                ),
+                    BuiltInPanelList $builtInPanels,
+                ): array => $extensions->panelsWithBuiltIns($builtInPanels->panels()),
             ),
         ],
         'withRoutePrefix()' => [$config['routePrefix']],

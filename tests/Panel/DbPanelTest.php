@@ -15,6 +15,7 @@ use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Tests\Provider\DbPanelProvider;
 use Yii3\Debug\Tests\Support\DatabaseFixture;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 /**
@@ -84,10 +85,10 @@ final class DbPanelTest extends TestCase
             Trace::create(),
         );
 
-        $html = $panel->renderWithContext(
+        $html = $panel->render(HelperFactory::createPanelRenderInput(
             DatabaseFixture::snapshot()->jsonSerialize(),
             self::context([]),
-        );
+        ));
 
         self::assertStringContainsString(
             '/inspect/db-explain?tag=capture&amp;seq=0',
@@ -122,10 +123,10 @@ final class DbPanelTest extends TestCase
             'yii_debug_theme' => 'dark',
         ];
 
-        $html = $panel->renderWithContext(
+        $html = $panel->render(HelperFactory::createPanelRenderInput(
             DatabaseFixture::snapshot()->jsonSerialize(),
             self::context($query),
-        );
+        ));
 
         self::assertStringContainsString(
             'name="Db[type]"',
@@ -163,10 +164,10 @@ final class DbPanelTest extends TestCase
             'Sort and filter navigation must reset stale page numbers.',
         );
 
-        $html = $panel->renderWithContext(
+        $html = $panel->render(HelperFactory::createPanelRenderInput(
             DatabaseFixture::snapshot()->jsonSerialize(),
             self::context(['Db' => ['query' => 'absent']]),
-        );
+        ));
 
         self::assertStringContainsString(
             'No database queries match',
@@ -179,7 +180,7 @@ final class DbPanelTest extends TestCase
             'No-match states must retain filter recovery.',
         );
     }
-    public function testMetadataEmptyCaptureAndContextFreeGrid(): void
+    public function testMetadataEmptyCaptureAndGridColumns(): void
     {
         $panel = new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create());
 
@@ -213,11 +214,13 @@ final class DbPanelTest extends TestCase
         );
         self::assertStringContainsString(
             'No database queries in this request',
-            $panel->render(['entries' => []]),
+            $panel->render(HelperFactory::createPanelRenderInput(['entries' => []], self::context([]))),
             'Empty captures must show guidance.',
         );
 
-        $html = $panel->render(DatabaseFixture::snapshot()->jsonSerialize());
+        $html = $panel->render(
+            HelperFactory::createPanelRenderInput(DatabaseFixture::snapshot()->jsonSerialize(), self::context([])),
+        );
 
         self::assertStringContainsString(
             'yii-debug-grid yii-debug-grid-db',
@@ -229,10 +232,10 @@ final class DbPanelTest extends TestCase
             $html,
             'Summary must report request-wide query totals.',
         );
-        self::assertStringNotContainsString(
+        self::assertStringContainsString(
             'name="Db[',
             $html,
-            'Context-free grids must omit query controls.',
+            'The grid must expose the query filter controls.',
         );
 
         $headings = [
@@ -310,7 +313,7 @@ final class DbPanelTest extends TestCase
 
         $panel = new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create());
 
-        $html = $panel->renderWithContext($payload, self::context(['per-page' => '3']));
+        $html = $panel->render(HelperFactory::createPanelRenderInput($payload, self::context(['per-page' => '3'])));
 
         self::assertStringContainsString(
             'Potential N+1 queries on this page',
@@ -329,8 +332,59 @@ final class DbPanelTest extends TestCase
         );
         self::assertStringNotContainsString(
             'Potential N+1 queries',
-            $panel->renderWithContext($payload, self::context(['per-page' => '3', 'page' => '2'])),
+            $panel->render(
+                HelperFactory::createPanelRenderInput($payload, self::context(['per-page' => '3', 'page' => '2'])),
+            ),
             'N+1 groups must not include rows outside the current page.'
+        );
+    }
+
+    public function testPageSizeSelectorAppearsOnlyWhenTheCaptureHasQueries(): void
+    {
+        $panel = new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create());
+
+        self::assertStringNotContainsString(
+            'yii-debug-grid-pagesize',
+            $panel->render(HelperFactory::createPanelRenderInput(['entries' => []], self::context([]))),
+            'Empty captures must omit the selector.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-grid-pagesize',
+            $panel->render(HelperFactory::createPanelRenderInput(
+                DatabaseFixture::snapshot()->jsonSerialize(),
+                self::context([]),
+            )),
+            'Captured queries must expose the selector.',
+        );
+    }
+
+    public function testSortHeaderLinksPreserveTheActiveQueryAndFlagTheSortedColumn(): void
+    {
+        $html = (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))
+            ->render(HelperFactory::createPanelRenderInput(
+                DatabaseFixture::snapshot()->jsonSerialize(),
+                self::context(
+                    [
+                        'sort' => 'duration',
+                        'per-page' => '25',
+                        'page' => '2',
+                        'yii_debug_theme' => 'dark',
+                        'Db' => ['type' => 'select'],
+                    ],
+                ),
+            ));
+
+        self::assertStringContainsString(
+            '<a href="/inspect/view?tag=capture&amp;panel=db&amp;sort=type&amp;per-page=25'
+                . '&amp;yii_debug_theme=dark&amp;Db%5Btype%5D=select">Type</a>',
+            $html,
+            'Idle header link must keep every unrelated parameter and request its own attribute.',
+        );
+        self::assertStringContainsString(
+            '<a class="asc" href="/inspect/view?tag=capture&amp;panel=db&amp;sort=-duration&amp;per-page=25'
+                . '&amp;yii_debug_theme=dark&amp;Db%5Btype%5D=select">Duration</a>',
+            $html,
+            'Sorted header link must carry the direction class and invert the order.',
         );
     }
 
@@ -355,7 +409,7 @@ final class DbPanelTest extends TestCase
         );
         self::assertStringContainsString(
             '<strong>10,000.000</strong> ms total',
-            $panel->render($payload),
+            $panel->render(HelperFactory::createPanelRenderInput($payload, self::context([]))),
             'Panel totals must retain millisecond precision.'
         );
         self::assertSame(
@@ -384,17 +438,17 @@ final class DbPanelTest extends TestCase
         );
 
         (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))
-            ->render(['entries' => 'invalid']);
+            ->render(HelperFactory::createPanelRenderInput(['entries' => 'invalid'], self::context([])));
     }
 
     #[DataProviderExternal(DbPanelProvider::class, 'sorts')]
     public function testVisibleColumnsSortBeforePagination(string $sort, string $first): void
     {
         $html = (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))
-            ->renderWithContext(
+            ->render(HelperFactory::createPanelRenderInput(
                 DatabaseFixture::snapshot()->jsonSerialize(),
                 self::context(['sort' => $sort, 'per-page' => '1']),
-            );
+            ));
 
         preg_match('~<div class="yii-debug-db-sql">(.*?)</div>~s', $html, $match);
 
