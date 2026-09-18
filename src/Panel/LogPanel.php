@@ -11,7 +11,7 @@ use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Palpable\A;
-use UIAwesome\Html\Phrasing\{Span, Strong};
+use UIAwesome\Html\Phrasing\Strong;
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\LogSearch;
 use Yii3\Debug\Web\{
@@ -34,7 +34,7 @@ use function strcasecmp;
 /**
  * Presents captured log messages and contributes the total, error, and warning toolbar metrics.
  */
-final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPanelProviderInterface
+final readonly class LogPanel implements ToolbarPanelProviderInterface
 {
     /**
      * Attributes by which the log entries can be sorted in the grid view.
@@ -101,28 +101,15 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     }
 
     /**
-     * Renders the detail view for a capture opened without page context.
-     *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @return string Rendered panel markup.
-     */
-    public function render(array $payload): string
-    {
-        return $this->renderPanel($payload);
-    }
-
-    /**
      * Renders the detail view, letting the page context drive filtering, sorting, and paging.
      *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext $context Query parameters and theme of the page being rendered.
+     * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
      * @return string Rendered panel markup.
      */
-    public function renderWithContext(array $payload, PanelRenderContext $context): string
+    public function render(PanelRenderInput $input): string
     {
-        return $this->renderPanel($payload, $context);
+        return $this->renderPanel($input->payload, $input->context);
     }
 
     /**
@@ -158,15 +145,14 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     /**
      * Builds the grid columns for the captured messages.
      *
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
      * @return list<GridColumn<LogRow>> Columns in display order.
      */
     private function columns(
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $queryParams,
         array $filters,
     ): array {
@@ -179,10 +165,6 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             $queryParams,
             $state,
         ): string {
-            if ($context === null) {
-                return $label;
-            }
-
             $isActive = $state->isActive($attribute);
 
             $queryParams['sort'] = $state->next($attribute, $attribute === 'timeSincePrevious');
@@ -194,22 +176,20 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             return ($isActive ? $link->class($state->direction) : $link)->render();
         };
 
-        $blank = $context === null ? null : '';
-
         $traceLine = $this->trace->render(...);
 
         return [
             new GridColumn(
                 header: LogMessage::NUMBER->value,
                 content: static fn(LogRow $row): string => (string) $row->id,
-                filter: $blank,
+                filter: '',
                 encodeContent: true,
                 bodyClass: 'yii-debug-nowrap',
             ),
             new GridColumn(
                 header: $header('time', LogMessage::TIME->value),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderTimeCell($row),
-                filter: $blank,
+                filter: '',
                 encodeContent: true,
                 headerClass: 'sort-numerical',
                 bodyClass: 'yii-debug-nowrap',
@@ -217,36 +197,30 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             new GridColumn(
                 header: $header('timeSincePrevious', LogMessage::DELTA->value),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderTimeSincePreviousCell($row),
-                filter: $blank,
+                filter: '',
                 headerClass: 'sort-numerical',
             ),
             new GridColumn(
                 header: $header('level', LogMessage::LEVEL->value),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderLevelCell($row),
-                filter: $context === null
-                    ? null
-                    : FilterInput::select(
-                        FilterPrefix::LOG,
-                        'level',
-                        LogMessage::LEVEL->value,
-                        $filters,
-                        self::levelOptions(),
-                    ),
+                filter: FilterInput::select(
+                    FilterPrefix::LOG,
+                    'level',
+                    LogMessage::LEVEL->value,
+                    $filters,
+                    self::levelOptions(),
+                ),
             ),
             new GridColumn(
                 header: $header('category', LogMessage::CATEGORY->value),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderCategoryCell($row),
-                filter: $context === null
-                    ? null
-                    : FilterInput::text(FilterPrefix::LOG, 'category', LogMessage::CATEGORY->value, $filters),
+                filter: FilterInput::text(FilterPrefix::LOG, 'category', LogMessage::CATEGORY->value, $filters),
                 bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
             ),
             new GridColumn(
                 header: $header('message', LogMessage::MESSAGE->value),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderMessageCell($row, $traceLine),
-                filter: $context === null
-                    ? null
-                    : FilterInput::text(FilterPrefix::LOG, 'message', LogMessage::MESSAGE->value, $filters),
+                filter: FilterInput::text(FilterPrefix::LOG, 'message', LogMessage::MESSAGE->value, $filters),
             ),
         ];
     }
@@ -283,26 +257,23 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      * Renders the messages grid for the visible page.
      *
      * @param OffsetPaginator<int, LogRow> $paginator Paginator clamped to the visible page.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
      * @return string Rendered grid.
      */
     private function renderGrid(
         OffsetPaginator $paginator,
-        PanelRenderContext|null $context = null,
-        array $filters = [],
+        PanelRenderContext $context,
+        array $filters,
     ): string {
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
 
         /** @var GridView<LogRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-log-filters')
             ->bodyRowAttributes(static fn(LogRow $row): array => LogCellRenderer::buildRowOptions($row))
             ->columns(...$this->columns($context, $queryParams, $filters))
-            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
+            ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
         $footer = GridFooter::renderForPanel(
             $paginator,
@@ -348,12 +319,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      * Renders the complete Logs panel for a capture.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      *
      * @return string Rendered detail content.
      */
-    private function renderPanel(array $payload, PanelRenderContext|null $context = null): string
+    private function renderPanel(array $payload, PanelRenderContext $context): string
     {
         $entries = self::snapshot($payload)->entries();
 
@@ -363,30 +333,18 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             return $title . self::renderEmptyState();
         }
 
-        $search = LogSearch::fromQueryParams($context->queryParams ?? []);
+        $search = LogSearch::fromQueryParams($context->queryParams);
 
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup(
-                $context->queryParams,
-                FilterPrefix::LOG,
-                $search->activeFilters,
-            );
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
-        $pageSizeSelector = $context === null ? null : PageSize::selectorFor($queryParams);
-
         $content = $title . self::renderSummary(
             LogCounts::fromRows($entries),
-            $pageSizeSelector,
+            PageSize::selectorFor($queryParams),
             $context,
             $queryParams,
         );
-
-        if ($context === null) {
-            return $content . $this->renderGrid(PageWindow::single($filteredRows));
-        }
 
         $content .= FilterRemoval::banner(
             $search->activeFilters,
@@ -409,17 +367,16 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
      * Renders the grid heading with the per-level counters and the page-size selector.
      *
      * @param LogCounts $counts Message counts by level.
-     * @param string|null $pageSizeSelector Rendered page-size selector, or `null` to omit it.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param string $pageSizeSelector Rendered page-size selector.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      *
      * @return string Rendered heading.
      */
     private static function renderSummary(
         LogCounts $counts,
-        string|null $pageSizeSelector,
-        PanelRenderContext|null $context,
+        string $pageSizeSelector,
+        PanelRenderContext $context,
         array $queryParams,
     ): string {
         unset($queryParams['page']);
@@ -478,9 +435,7 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
             );
         }
 
-        if ($pageSizeSelector !== null) {
-            $items[] = $pageSizeSelector;
-        }
+        $items[] = $pageSizeSelector;
 
         return Header::tag()
             ->class('yii-debug-grid-summary')
@@ -489,18 +444,17 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
     }
 
     /**
-     * Renders one level counter, linking it to the filtered grid when a context is available.
+     * Renders one level counter, linking it to the grid filtered on that level.
      *
      * @param int $count Messages recorded at that level.
      * @param string $label Visible counter label.
      * @param string $levelName PSR-3 level name used in the filter link.
      * @param int $level Numeric level used in the filter link.
      * @param string $class CSS modifier of the counter.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      *
-     * @return A|Span Linked counter, or a plain one when no context is available.
+     * @return A Linked counter.
      */
     private static function renderSummaryLevel(
         int $count,
@@ -508,17 +462,11 @@ final readonly class LogPanel implements ContextAwarePanelInterface, ToolbarPane
         string $levelName,
         int $level,
         string $class,
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $queryParams,
-    ): A|Span {
+    ): A {
         $value = (string) $count;
         $text = " {$label}";
-
-        if ($context === null) {
-            $item = SummaryChip::render($value, $text);
-
-            return $level === LogLevel::INFO ? $item : $item->class($class);
-        }
 
         $queryParams[FilterPrefix::LOG] = ['level' => (string) $level];
 

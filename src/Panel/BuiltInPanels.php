@@ -26,8 +26,6 @@ final class BuiltInPanels
     /**
      * Returns whether a panel ID belongs to the built-in navigation.
      *
-     * Usage example: `\Yii3\Debug\Panel\BuiltInPanels::isBuiltIn('db');`.
-     *
      * @param string $id Panel ID to classify.
      *
      * @return bool `true` when the ID is built-in; `false` when the panel is an extension.

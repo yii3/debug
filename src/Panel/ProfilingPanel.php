@@ -20,7 +20,6 @@ use UIAwesome\Html\Phrasing\{Code, Label};
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\ProfileSearch;
 use Yii3\Debug\Web\{
-    FilterInput,
     FilterRemoval,
     GridColumn,
     GridFooter,
@@ -40,11 +39,7 @@ use function strcasecmp;
 /**
  * Presents captured profiling spans and contributes the processing-time and peak-memory toolbar metrics.
  */
-final readonly class ProfilingPanel implements
-    ContextAndSummaryAwarePanelInterface,
-    ContextAwarePanelInterface,
-    ToolbarPanelProviderInterface,
-    ToolbarTitleProviderInterface
+final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, ToolbarTitleProviderInterface
 {
     /**
      * Defines the sortable attributes for the profiling grid.
@@ -101,45 +96,15 @@ final readonly class ProfilingPanel implements
     }
 
     /**
-     * Renders the profiling grid without debugger navigation.
+     * Renders the unified Timeline and profiling details with navigation, filters, sorting, and pagination.
      *
-     * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
      * @return string Rendered detail content.
      */
-    public function render(array $payload): string
+    public function render(PanelRenderInput $input): string
     {
-        return $this->renderPanel($payload);
-    }
-
-    /**
-     * Renders the profiling grid with debugger navigation, filters, sorting, and pagination.
-     *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext $context State of the debugger request being rendered.
-     *
-     * @return string Rendered detail content.
-     */
-    public function renderWithContext(array $payload, PanelRenderContext $context): string
-    {
-        return $this->renderPanel($payload, $context);
-    }
-
-    /**
-     * Renders the unified Timeline and profiling details, which need the request geometry.
-     *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext $context State of the debugger request being rendered.
-     * @param RequestSummary $summary Summary of the capture being rendered.
-     *
-     * @return string Rendered detail content.
-     */
-    public function renderWithContextAndSummary(
-        array $payload,
-        PanelRenderContext $context,
-        RequestSummary $summary,
-    ): string {
-        return $this->renderPanel($payload, $context, $summary);
+        return $this->renderPanel($input->payload, $input->context, $input->summary);
     }
 
     /**
@@ -175,28 +140,20 @@ final readonly class ProfilingPanel implements
      * Builds the grid columns for the captured spans.
      *
      * @param float $maxDuration Longest span of the whole capture, scaling the duration gauge.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
-     * @param array<string, string> $filters Active filter values keyed by attribute.
-     * @param bool $renderFilters Whether to emit the filter row.
      *
      * @return list<GridColumn<ProfileRow>> Columns in display order.
      */
     private static function columns(
         float $maxDuration,
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $queryParams,
-        array $filters,
-        bool $renderFilters,
     ): array {
-        $filterCells = $context !== null && $renderFilters;
-
         return [
             new GridColumn(
                 header: self::header('seq', 'Time', $context, $queryParams),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderTimeCell($row),
-                filter: $filterCells ? '' : null,
                 bodyClass: 'yii-debug-cell-mono yii-debug-nowrap',
             ),
             new GridColumn(
@@ -205,22 +162,15 @@ final readonly class ProfilingPanel implements
                     $row,
                     $maxDuration,
                 ),
-                filter: $filterCells ? '' : null,
             ),
             new GridColumn(
                 header: self::header('category', 'Category', $context, $queryParams),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderCategoryCell($row),
-                filter: $filterCells
-                    ? FilterInput::text(FilterPrefix::PROFILE, 'category', 'Category', $filters)
-                    : null,
                 bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
             ),
             new GridColumn(
                 header: self::header('info', ProfileMessage::INFO->value, $context, $queryParams),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderInfoCell($row),
-                filter: $filterCells
-                    ? FilterInput::text(FilterPrefix::PROFILE, 'info', ProfileMessage::INFO->value, $filters)
-                    : null,
             ),
         ];
     }
@@ -251,12 +201,11 @@ final readonly class ProfilingPanel implements
     }
 
     /**
-     * Renders the header cell content as a sort link, or as the plain label for context-free rendering.
+     * Renders the header cell content as the sort link toggling that column's direction.
      *
      * @param string $attribute Attribute the column sorts on.
      * @param string $label Visible column label.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      *
      * @return string Rendered header cell.
@@ -264,13 +213,9 @@ final readonly class ProfilingPanel implements
     private static function header(
         string $attribute,
         string $label,
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $queryParams,
     ): string {
-        if ($context === null) {
-            return $label;
-        }
-
         $state = SortState::fromQuery(
             QueryInput::scalar($queryParams, 'sort'),
             self::SORT_ATTRIBUTES,
@@ -390,33 +335,28 @@ final readonly class ProfilingPanel implements
      *
      * @param OffsetPaginator<int, ProfileRow> $paginator Paginator clamped to the visible page.
      * @param float $maxDuration Longest span of the whole capture, scaling the duration gauge.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
-     * @param bool $renderFilters Whether to emit the filter row.
      *
      * @return string Rendered grid.
      */
     private static function renderGrid(
         OffsetPaginator $paginator,
         float $maxDuration,
-        PanelRenderContext|null $context = null,
-        array $filters = [],
-        bool $renderFilters = true,
+        PanelRenderContext $context,
+        array $filters,
     ): string {
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup(
-                $context->queryParams,
-                FilterPrefix::PROFILE,
-                $filters,
-                ['view', FilterPrefix::TIMELINE],
-            );
+        $queryParams = FilterRemoval::withGroup(
+            $context->queryParams,
+            FilterPrefix::PROFILE,
+            $filters,
+            ['view', FilterPrefix::TIMELINE],
+        );
 
         /** @var GridView<ProfileRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-profile-filters')
-            ->columns(...self::columns($maxDuration, $context, $queryParams, $filters, $renderFilters))
-            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
+            ->columns(...self::columns($maxDuration, $context, $queryParams))
+            ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
         $footer = GridFooter::renderForPanel(
             $paginator,
@@ -451,7 +391,6 @@ final readonly class ProfilingPanel implements
      * @param list<ProfileRow> $entries Every captured span, scaling the duration gauge.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
-     * @param bool $renderFilters Whether to emit the filter row.
      *
      * @return string Rendered grid.
      */
@@ -460,7 +399,6 @@ final readonly class ProfilingPanel implements
         array $entries,
         PanelRenderContext $context,
         array $filters = [],
-        bool $renderFilters = true,
     ): string {
         $queryParams = FilterRemoval::withGroup(
             $context->queryParams,
@@ -477,86 +415,25 @@ final readonly class ProfilingPanel implements
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        return self::renderGrid($paginator, ProfileRow::maxDuration($entries), $context, $filters, $renderFilters);
+        return self::renderGrid($paginator, ProfileRow::maxDuration($entries), $context, $filters);
     }
 
     /**
-     * Renders the Profiling panel, switching to the unified Timeline view when a summary is available.
+     * Renders the Profiling panel as the unified Timeline and span-details view.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
-     * @param RequestSummary|null $summary Summary of the capture, or `null` when it is unavailable.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
+     * @param RequestSummary $summary Summary of the capture being rendered.
      *
      * @return string Rendered detail content.
      */
     private function renderPanel(
         array $payload,
-        PanelRenderContext|null $context = null,
-        RequestSummary|null $summary = null,
+        PanelRenderContext $context,
+        RequestSummary $summary,
     ): string {
-        $snapshot = self::snapshot($payload);
-
-        $title = PanelHeading::render(PanelTitle::PROFILING_DETAILS);
-
-        if ($context === null || $summary === null) {
-            return $title . $this->renderProfilingView($snapshot, $context);
-        }
-
-        return $title . self::renderUnifiedView($snapshot, $context, $summary);
-    }
-
-    /**
-     * Renders the profiling grid view for a capture.
-     *
-     * @param ProfilingSnapshot $snapshot Typed snapshot of the capture.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
-     *
-     * @return string Rendered detail content.
-     */
-    private function renderProfilingView(
-        ProfilingSnapshot $snapshot,
-        PanelRenderContext|null $context,
-    ): string {
-        $entries = $snapshot->entries();
-
-        $search = ProfileSearch::fromQueryParams($context->queryParams ?? []);
-
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup(
-                $context->queryParams,
-                FilterPrefix::PROFILE,
-                $search->activeFilters,
-                ['view', FilterPrefix::TIMELINE],
-            );
-
-        $filteredRows = $search->filter($entries);
-
-        $content = self::renderSummary(
-            count($filteredRows),
-            count($entries),
-            $snapshot,
-            $context === null || $filteredRows === [] ? null : PageSize::selectorFor($queryParams),
-        );
-
-        if ($entries === []) {
-            return $content . self::renderEmptyState();
-        }
-
-        if ($context === null) {
-            return $content . self::renderGrid(PageWindow::single($filteredRows), ProfileRow::maxDuration($entries));
-        }
-
-        $filterBanner = FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::PROFILE);
-
-        if ($filteredRows === []) {
-            return $content . $filterBanner . self::renderNoMatchState();
-        }
-
-        return "{$content}{$filterBanner}"
-            . self::renderPaginatedGrid($filteredRows, $entries, $context, $search->activeFilters);
+        return PanelHeading::render(PanelTitle::PROFILING_DETAILS)
+            . self::renderUnifiedView(self::snapshot($payload), $context, $summary);
     }
 
     /**
@@ -565,7 +442,6 @@ final readonly class ProfilingPanel implements
      * @param int $filteredCount Spans matching the active filters.
      * @param int $totalCount Spans captured in total.
      * @param ProfilingSnapshot $snapshot Typed snapshot of the capture.
-     * @param string|null $pageSizeSelector Rendered page-size selector, or `null` to omit it.
      * @param int $memoryPrecision Decimal places used for the memory readout.
      *
      * @return string Rendered heading.
@@ -574,7 +450,6 @@ final readonly class ProfilingPanel implements
         int $filteredCount,
         int $totalCount,
         ProfilingSnapshot $snapshot,
-        string|null $pageSizeSelector,
         int $memoryPrecision = 3,
     ): string {
         $spanLabel = $totalCount === 1
@@ -592,10 +467,6 @@ final readonly class ProfilingPanel implements
                 ProfileMessage::PEAK_SUFFIX->value,
             ),
         ];
-
-        if ($pageSizeSelector !== null) {
-            $items[] = $pageSizeSelector;
-        }
 
         return Header::tag()
             ->class('yii-debug-grid-summary')
@@ -692,7 +563,6 @@ final readonly class ProfilingPanel implements
             count($filteredRows),
             count($entries),
             $profiling,
-            null,
             2,
         );
 
@@ -722,7 +592,6 @@ final readonly class ProfilingPanel implements
             $entries,
             $context,
             $search->activeFilters,
-            renderFilters: false,
         );
     }
 

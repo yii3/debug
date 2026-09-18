@@ -514,6 +514,80 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotKeepsExtensionChipsAfterBuiltInsInRegisteredOrder(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels(
+                [new ProviderPanel(new VitePanel()), new ProviderPanel(new InertiaPanel()), new RequestPanel()],
+            );
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'vite' => $this->vitePayload(),
+                'inertia' => $this->inertiaPayload('Site/Index'),
+                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['request', 'vite', 'inertia'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Order: built-ins first, extensions as registered.',
+        );
+    }
+
+    public function testCreateForSnapshotKeepsExtensionChipsInRegisteredOrderRegardlessOfNameCase(): void
+    {
+        $panels = [];
+
+        foreach (['beta' => 'Beta', 'alpha' => 'alpha'] as $id => $name) {
+            $panel = self::createStub(ToolbarPanelProviderInterface::class);
+
+            $panel
+                ->method('id')
+                ->willReturn($id);
+            $panel
+                ->method('name')
+                ->willReturn($name);
+            $panel
+                ->method('toolbarItems')
+                ->willReturn([ToolbarItem::create($name)]);
+
+            $panels[] = $panel;
+        }
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'beta' => ['value' => true],
+                'alpha' => ['value' => true],
+            ],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels($panels)
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['beta', 'alpha'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Name case must not reorder registered chips.',
+        );
+    }
+
     public function testCreateForSnapshotKeepsFailedBuiltInChipsInline(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
@@ -745,81 +819,6 @@ final class ToolbarDataFactoryTest extends TestCase
             '/application/logs?severity=error',
             $payload['items'][0]['items'][0]['url'] ?? null,
             'Built-in Logs filter links must not overwrite an application panel override with the same stable ID.',
-        );
-    }
-
-    public function testCreateForSnapshotSortsExtensionChipsByName(): void
-    {
-        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels(
-                [new ProviderPanel(new VitePanel()), new ProviderPanel(new InertiaPanel()), new RequestPanel()],
-            );
-
-        $snapshot = new DebugSnapshot(
-            RequestSummary::create('request-1'),
-            [
-                'vite' => $this->vitePayload(),
-                'inertia' => $this->inertiaPayload('Site/Index'),
-                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
-            ],
-            [],
-        );
-
-        $payload = $toolbarDataFactory
-            ->createForSnapshot($snapshot)
-            ->jsonSerialize();
-
-        self::assertSame(
-            ['request', 'inertia', 'vite'],
-            array_map(
-                static fn(array $panel): string => $panel['id'],
-                $payload['items'],
-            ),
-            'Extensions must follow built-ins, sorted by name.',
-        );
-    }
-
-    public function testCreateForSnapshotSortsExtensionChipsCaseInsensitively(): void
-    {
-        $panels = [];
-
-        foreach (['beta' => 'Beta', 'alpha' => 'alpha'] as $id => $name) {
-            $panel = self::createStub(ToolbarPanelProviderInterface::class);
-
-            $panel
-                ->method('id')
-                ->willReturn($id);
-            $panel
-                ->method('name')
-                ->willReturn($name);
-            $panel
-                ->method('toolbarItems')
-                ->willReturn([ToolbarItem::create($name)]);
-
-            $panels[] = $panel;
-        }
-
-        $snapshot = new DebugSnapshot(
-            RequestSummary::create('request-1'),
-            [
-                'beta' => ['value' => true],
-                'alpha' => ['value' => true],
-            ],
-            [],
-        );
-
-        $payload = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels($panels)
-            ->createForSnapshot($snapshot)
-            ->jsonSerialize();
-
-        self::assertSame(
-            ['alpha', 'beta'],
-            array_map(
-                static fn(array $panel): string => $panel['id'],
-                $payload['items'],
-            ),
-            'Lowercase names must not sort after capitalized ones.',
         );
     }
 

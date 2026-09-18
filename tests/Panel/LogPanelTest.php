@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\LogPanel;
 use Yii3\Debug\Tests\Provider\LogPanelProvider;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_map;
@@ -27,68 +28,6 @@ use function substr_count;
  */
 final class LogPanelTest extends TestCase
 {
-    public function testContextFreeRenderMatchesTheYii2LogGridColumnsAndEscapesCapturedData(): void
-    {
-        $payload = LogSnapshot::capture(
-            [
-                [
-                    '<script>alert(1)</script>',
-                    4,
-                    'Yii3\\Application::run',
-                    1.0,
-                    [['file' => '/tmp/<trace>.php', 'line' => 12]],
-                    1024,
-                ],
-            ],
-        )->jsonSerialize();
-
-        $html = (new LogPanel(Trace::create()))->render($payload);
-
-        foreach (['#', 'Time', 'Delta', 'Level', 'Category', 'Message'] as $heading) {
-            self::assertStringContainsString(
-                $heading,
-                $html,
-                "The context-free grid must render the {$heading} column.",
-            );
-        }
-
-        self::assertStringContainsString(
-            '<span><strong>1</strong> messages</span>',
-            $html,
-            'The summary must report the unfiltered captured total.',
-        );
-        self::assertStringContainsString(
-            'id="log-1" class="yii-debug-row-info"',
-            $html,
-            'Rows must retain the shared severity class and stable anchor.',
-        );
-        self::assertStringContainsString(
-            '&lt;script&gt;alert(1)&lt;/script&gt;',
-            $html,
-            'Captured messages must remain inspectable after escaping.',
-        );
-        self::assertStringContainsString(
-            '/tmp/&lt;trace&gt;.php:12',
-            $html,
-            'Captured trace lines must be escaped before trusted renderer composition.',
-        );
-        self::assertStringContainsString(
-            'href="ide://open?url=file:///tmp/&lt;trace&gt;.php&amp;line=12"',
-            $html,
-            'Captured source locations must use the same IDE deep links as the Yii2 Logs panel.',
-        );
-        self::assertStringNotContainsString(
-            '<script>alert(1)</script>',
-            $html,
-            'Captured messages must never render executable HTML.',
-        );
-        self::assertStringNotContainsString(
-            'name="Log[level]"',
-            $html,
-            'Context-free rendering must not emit query controls.',
-        );
-    }
-
     /**
      * @param array<array-key, mixed> $filters
      * @param list<string> $remainingQueries
@@ -97,7 +36,7 @@ final class LogPanelTest extends TestCase
     public function testFilterRemovalPreservesNavigationFromNormalizedInput(array $filters, array $remainingQueries): void
     {
         $html = (new LogPanel(Trace::create()))
-            ->renderWithContext(
+            ->render(HelperFactory::createPanelRenderInput(
                 self::payload(),
                 self::context(
                     [
@@ -110,7 +49,7 @@ final class LogPanelTest extends TestCase
                         'Other' => ['key' => 'value'],
                     ],
                 ),
-            );
+            ));
 
         preg_match_all('/<a class="yii-debug-active-filter(?:-pill|s-clear)" href="([^"]+)"/', $html, $matches);
 
@@ -132,7 +71,9 @@ final class LogPanelTest extends TestCase
             'Invalid debug snapshot',
         );
 
-        (new LogPanel(Trace::create()))->render(['entries' => 'invalid']);
+        (new LogPanel(Trace::create()))->render(
+            HelperFactory::createPanelRenderInput(['entries' => 'invalid'], self::context([])),
+        );
     }
 
     public function testMetadataVisibilityAndInterfacesIdentifyTheBuiltInPanel(): void
@@ -171,10 +112,10 @@ final class LogPanelTest extends TestCase
     #[DataProviderExternal(LogPanelProvider::class, 'pages')]
     public function testPaginationUsesFilteredRowsAndPreservesNavigation(array $query, array $expectedIds, string $summary): void
     {
-        $html = (new LogPanel(Trace::create()))->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context($query + ['yii_debug_theme' => 'dark', 'return' => 'overview']),
-        );
+        ));
 
         preg_match_all('/id="log-(\d+)"/', $html, $matches);
 
@@ -195,31 +136,12 @@ final class LogPanelTest extends TestCase
         );
     }
 
-    public function testRenderShowsTheDedicatedEmptyCaptureState(): void
+    public function testRenderExplainsWhenNoMessagesMatch(): void
     {
-        self::assertSame(
-            <<<'HTML'
-            <h1 class="yii-debug-sr-only">
-            Log Messages
-            </h1><div class="yii-debug-empty-state">
-            <h2>
-            No log messages captured
-            </h2><p>
-            This request did not emit log messages through the debug log target.
-            </p>
-            </div>
-            HTML,
-            (new LogPanel(Trace::create()))->render(['entries' => []]),
-            'A valid capture without messages must render the complete guidance state.',
-        );
-    }
-
-    public function testRenderWithContextExplainsWhenNoMessagesMatch(): void
-    {
-        $html = (new LogPanel(Trace::create()))->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context(['Log' => ['message' => 'missing'], 'per-page' => '10']),
-        );
+        ));
 
         self::assertStringContainsString(
             'No log messages match the active filters',
@@ -238,9 +160,9 @@ final class LogPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextFiltersRowsAndKeepsSummaryCountsUnfiltered(): void
+    public function testRenderFiltersRowsAndKeepsSummaryCountsUnfiltered(): void
     {
-        $html = (new LogPanel(Trace::create()))->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context(
                 [
@@ -252,7 +174,7 @@ final class LogPanelTest extends TestCase
                     'return' => 'overview',
                 ],
             ),
-        );
+        ));
 
         self::assertSame(
             1,
@@ -375,13 +297,80 @@ final class LogPanelTest extends TestCase
             'The message control must use the shared Log query group.',
         );
     }
+    public function testRenderMatchesTheYii2LogGridColumnsAndEscapesCapturedData(): void
+    {
+        $payload = LogSnapshot::capture(
+            [
+                [
+                    '<script>alert(1)</script>',
+                    4,
+                    'Yii3\\Application::run',
+                    1.0,
+                    [['file' => '/tmp/<trace>.php', 'line' => 12]],
+                    1024,
+                ],
+            ],
+        )->jsonSerialize();
 
-    public function testRenderWithContextOrdersRowsByEverySortableAttribute(): void
+        $html = (new LogPanel(Trace::create()))->render(
+            HelperFactory::createPanelRenderInput($payload, self::context([])),
+        );
+
+        foreach (['#', 'Time', 'Delta', 'Level', 'Category', 'Message'] as $heading) {
+            self::assertStringContainsString(
+                $heading,
+                $html,
+                "The grid must render the {$heading} column.",
+            );
+        }
+
+        self::assertStringContainsString(
+            '<span><strong>1</strong> messages</span>',
+            $html,
+            'The summary must report the unfiltered captured total.',
+        );
+        self::assertStringContainsString(
+            'id="log-1" class="yii-debug-row-info"',
+            $html,
+            'Rows must retain the shared severity class and stable anchor.',
+        );
+        self::assertStringContainsString(
+            '&lt;script&gt;alert(1)&lt;/script&gt;',
+            $html,
+            'Captured messages must remain inspectable after escaping.',
+        );
+        self::assertStringContainsString(
+            '/tmp/&lt;trace&gt;.php:12',
+            $html,
+            'Captured trace lines must be escaped before trusted renderer composition.',
+        );
+        self::assertStringContainsString(
+            'href="ide://open?url=file:///tmp/&lt;trace&gt;.php&amp;line=12"',
+            $html,
+            'Captured source locations must use the same IDE deep links as the Yii2 Logs panel.',
+        );
+        self::assertStringNotContainsString(
+            '<script>alert(1)</script>',
+            $html,
+            'Captured messages must never render executable HTML.',
+        );
+        self::assertStringContainsString(
+            'name="Log[level]"',
+            $html,
+            'The grid must expose the level filter control.',
+        );
+    }
+
+    public function testRenderOrdersRowsByEverySortableAttribute(): void
     {
         $panel = new LogPanel(Trace::create());
 
-        $byCategory = $panel->renderWithContext(self::payload(), self::context(['sort' => 'category']));
-        $byDelta = $panel->renderWithContext(self::payload(), self::context(['sort' => '-timeSincePrevious']));
+        $byCategory = $panel->render(
+            HelperFactory::createPanelRenderInput(self::payload(), self::context(['sort' => 'category'])),
+        );
+        $byDelta = $panel->render(
+            HelperFactory::createPanelRenderInput(self::payload(), self::context(['sort' => '-timeSincePrevious'])),
+        );
 
         self::assertSame(
             ['2', '3', '1', '4'],
@@ -395,7 +384,7 @@ final class LogPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextPaginatesSortsAndPreservesFilterStateInLinks(): void
+    public function testRenderPaginatesSortsAndPreservesFilterStateInLinks(): void
     {
         $payload = LogSnapshot::capture(
             [
@@ -405,7 +394,7 @@ final class LogPanelTest extends TestCase
             ],
         )->jsonSerialize();
 
-        $html = (new LogPanel(Trace::create()))->renderWithContext(
+        $html = (new LogPanel(Trace::create()))->render(HelperFactory::createPanelRenderInput(
             $payload,
             self::context(
                 [
@@ -416,7 +405,7 @@ final class LogPanelTest extends TestCase
                     'yii_debug_theme' => 'light',
                 ],
             ),
-        );
+        ));
 
         self::assertStringContainsString(
             'Bravo',
@@ -460,6 +449,27 @@ final class LogPanelTest extends TestCase
         );
     }
 
+    public function testRenderShowsTheDedicatedEmptyCaptureState(): void
+    {
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Log Messages
+            </h1><div class="yii-debug-empty-state">
+            <h2>
+            No log messages captured
+            </h2><p>
+            This request did not emit log messages through the debug log target.
+            </p>
+            </div>
+            HTML,
+            (new LogPanel(Trace::create()))->render(
+                HelperFactory::createPanelRenderInput(['entries' => []], self::context([])),
+            ),
+            'A valid capture without messages must render the complete guidance state.',
+        );
+    }
+
     /**
      * @param list<int> $expectedIds
      */
@@ -476,7 +486,9 @@ final class LogPanelTest extends TestCase
         )->jsonSerialize();
 
         $html = (new LogPanel(Trace::create()))
-            ->renderWithContext($payload, self::context(['sort' => $sort, 'per-page' => 'all']));
+            ->render(
+                HelperFactory::createPanelRenderInput($payload, self::context(['sort' => $sort, 'per-page' => 'all'])),
+            );
 
         preg_match_all('/id="log-(\d+)"/', $html, $matches);
 
@@ -494,7 +506,7 @@ final class LogPanelTest extends TestCase
     public function testSummaryLinksReplaceFiltersAndPreserveQueryOrder(array $query, string $expectedQuery): void
     {
         $html = (new LogPanel(Trace::create()))
-            ->renderWithContext(self::payload(), self::context($query));
+            ->render(HelperFactory::createPanelRenderInput(self::payload(), self::context($query)));
 
         preg_match_all('/<a class="yii-debug-grid-summary-stat-[^"]+" href="([^"]+)"/', $html, $matches);
 

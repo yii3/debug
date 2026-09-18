@@ -27,7 +27,7 @@
 
 <p align="center">
     <strong>Debugger and toolbar for Yii3 applications</strong><br>
-    <em>Shared Debug Core UI, scoped CSS, light/dark mode, and opt-in Inertia/Vite panels</em>
+    <em>Shared Debug Core UI, scoped CSS, light/dark mode, and application-registered extension panels</em>
 </p>
 
 <p align="center">
@@ -121,16 +121,17 @@ changes, then open either capture for its details. Comparison shows structural c
 ## Configuration
 
 The debugger runs with its default options out of the box. See the
-[configuration reference](docs/configuration.md) for the Inertia and Vite integrations, custom collectors and panels,
-database thresholds, and IDE links.
+[configuration reference](docs/configuration.md) for registering collectors and panels, provider integrations such as
+Inertia and Vite, database thresholds, and IDE links.
 
 ## Security
 
 The toolbar and debugger routes allow `127.0.0.1` and `::1` by default. Access checks use the direct client address,
 not forwarded proxy headers. Add only trusted development addresses to `allowedIPs`; never expose the debugger publicly.
 
-Request and Inertia captures redact sensitive fields and URL query values. Logs preserve original diagnostic values
-and are not redacted by the capture policy; SQL diagnostics can include substituted query values. Treat stored captures
+Request captures redact sensitive fields and URL query values; hand the same capture policy to a provider collector
+that records user data, as the configuration reference shows. Logs preserve original diagnostic values and are not
+redacted by the capture policy; SQL diagnostics can include substituted query values. Treat stored captures
 as sensitive and review them before sharing. In the Events panel, context capture and source traces are disabled by
 default; this does not affect source traces in Logs or Database.
 

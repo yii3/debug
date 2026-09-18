@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\ProfilingPanel;
 use Yii3\Debug\Tests\Provider\ProfilingPanelProvider;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_slice;
@@ -25,78 +26,6 @@ use function substr_count;
  */
 final class ProfilingPanelTest extends TestCase
 {
-    public function testContextFreeRenderShowsCapturedRowsWithoutControls(): void
-    {
-        $html = (new ProfilingPanel())
-            ->render(self::payload());
-
-        self::assertSame(
-            <<<'HTML'
-            <h1 class="yii-debug-sr-only">
-            Performance Profiling
-            </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
-            </header><div class="yii-debug-grid yii-debug-grid-profile">
-            <div class="yii-debug-table-wrap">
-            <table class="yii-debug-table">
-            <thead>
-            <tr>
-            <th scope="col">Time</th>
-            <th scope="col">Duration</th>
-            <th scope="col">Category</th>
-            <th scope="col">Info</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
-            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
-            <td>SLOW application</td>
-            </tr>
-            <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
-            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
-            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
-            <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
-            </div></td>
-            </tr>
-            <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
-            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
-            <td>MIDDLE view</td>
-            </tr>
-            </tbody>
-            </table>
-            </div><div class="yii-debug-grid-footer">
-            <span class="summary yii-debug-grid-count">Showing 1-3 of 3 items.</span>
-            </div>
-            </div>
-            HTML,
-            $html,
-            'Context-free rendering must match the complete profiling grid without query controls.',
-        );
-    }
-
-    public function testContextWithoutSummaryKeepsLegacyTableOnlyRendering(): void
-    {
-        $html = (new ProfilingPanel())
-            ->renderWithContext(self::payload(), self::context([]));
-
-        self::assertStringNotContainsString(
-            'class="yii-debug-tabs"',
-            $html,
-            'The existing context-only contract must retain its Table-only output.',
-        );
-        self::assertStringContainsString(
-            'yii-debug-grid-profile',
-            $html,
-            'Legacy rendering must keep the complete profiling table.',
-        );
-    }
-
     public function testLegacyViewParameterIsIgnoredAndNeverEmitted(): void
     {
         $panel = new ProfilingPanel();
@@ -105,16 +34,16 @@ final class ProfilingPanelTest extends TestCase
             ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
             ->withProfiling(0.1, 2_097_152);
 
-        $unified = $panel->renderWithContextAndSummary(
+        $unified = $panel->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context([]),
             $summary,
-        );
-        $legacyUrl = $panel->renderWithContextAndSummary(
+        ));
+        $legacyUrl = $panel->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context(['Timeline' => ['category' => 'ignored'], 'view' => 'timeline']),
             $summary,
-        );
+        ));
 
         self::assertSame(
             $unified,
@@ -145,7 +74,7 @@ final class ProfilingPanelTest extends TestCase
             'Invalid debug snapshot',
         );
 
-        (new ProfilingPanel())->render(['memory' => '2 MB']);
+        (new ProfilingPanel())->render(HelperFactory::createPanelRenderInput(['memory' => '2 MB'], self::context([])));
     }
 
     public function testMetadataVisibilityAndContractsIdentifyTheBuiltInPanel(): void
@@ -181,23 +110,63 @@ final class ProfilingPanelTest extends TestCase
     public function testRenderEscapesCapturedInformation(): void
     {
         $html = (new ProfilingPanel())
-            ->render(self::payload('<script>alert(1)</script>'));
+            ->render(
+                HelperFactory::createPanelRenderInput(self::payload('<script>alert(1)</script>'), self::context([])),
+            );
 
         self::assertSame(
             <<<'HTML'
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <option value="10">
+            10
+            </option>
+            <option value="25">
+            25
+            </option>
+            <option value="50" selected>
+            50
+            </option>
+            <option value="100">
+            100
+            </option>
+            <option value="all">
+            All
+            </option>
+            </select></label>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">Time</th>
-            <th scope="col">Duration</th>
-            <th scope="col">Category</th>
-            <th scope="col">Info</th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq">Time</a></th>
+            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category">Category</a></th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info">Info</a></th>
             </tr>
             </thead>
             <tbody>
@@ -208,18 +177,18 @@ final class ProfilingPanelTest extends TestCase
             <td>&lt;script&gt;alert(1)&lt;/script&gt;</td>
             </tr>
             <tr>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
+            </tr>
+            <tr>
             <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
             <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
             <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
             </div></td>
-            </tr>
-            <tr>
-            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
-            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
-            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
-            <td>MIDDLE view</td>
             </tr>
             </tbody>
             </table>
@@ -233,53 +202,29 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testRenderShowsSummaryStripAndGuidanceWithoutProfilingData(): void
+    public function testRenderExplainsWhenFiltersMatchNoSpans(): void
     {
         $html = (new ProfilingPanel())
-            ->render(self::emptyPayload());
-
-        self::assertSame(
-            <<<'HTML'
-            <h1 class="yii-debug-sr-only">
-            Performance Profiling
-            </h1><header class="yii-debug-grid-summary">
-            <span><strong>0</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>13 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
-            </header><div class="yii-debug-empty-state">
-            <h2>
-            No profiling data captured
-            </h2><p>
-            This request did not produce any <code>ProfilerInterface::begin()</code> / <code>ProfilerInterface::end()</code> spans, so the Timeline and details are empty.
-            </p><p>
-            To populate this view, wrap interesting sections of code with profile markers:
-            </p><pre class="yii-debug-empty-state-code">
-            $profiler-&gt;begin('my-token');
-            // …work…
-            $profiler-&gt;end('my-token');
-            </pre><p>
-            Database queries are profiled automatically when the DB collector is configured.
-            </p>
-            </div>
-            HTML,
-            $html,
-            'An empty profiling capture must match the complete summary and guidance state.',
-        );
-    }
-
-    public function testRenderWithContextExplainsWhenFiltersMatchNoSpans(): void
-    {
-        $html = (new ProfilingPanel())
-            ->renderWithContext(
+            ->render(HelperFactory::createPanelRenderInput(
                 self::payload(),
                 self::context(['Profile' => ['info' => 'missing'], 'per-page' => '25']),
-            );
+            ));
 
         self::assertSame(
             <<<'HTML'
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>0</strong> of 3 spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
-            </header><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
+            <span><strong>0</strong> of 3 spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><input name="per-page" type="hidden" value="25"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" value="missing" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
             <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=25" title="Remove this filter" aria-label="Remove info: missing filter"><span class="yii-debug-active-filter-attr">info</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">missing</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=25" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
             </div><div class="yii-debug-empty-state">
             <h2>
@@ -294,10 +239,10 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextPaginatesAndPreservesQueryStateInLinks(): void
+    public function testRenderPaginatesAndPreservesQueryStateInLinks(): void
     {
         $html = (new ProfilingPanel())
-            ->renderWithContext(
+            ->render(HelperFactory::createPanelRenderInput(
                 self::payload(),
                 self::context(
                     [
@@ -307,14 +252,38 @@ final class ProfilingPanelTest extends TestCase
                         'page' => '2',
                     ],
                 ),
-            );
+            ));
 
         self::assertSame(
             <<<'HTML'
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><input name="sort" type="hidden" value="-duration"><input name="per-page" type="hidden" value="1"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" value="i" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
+            <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=1" title="Remove this filter" aria-label="Remove category: i filter"><span class="yii-debug-active-filter-attr">category</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">i</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=1" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
+            </div><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -331,23 +300,15 @@ final class ProfilingPanelTest extends TestCase
             All
             </option>
             </select></label>
-            </header><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
-            <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=1" title="Remove this filter" aria-label="Remove category: i filter"><span class="yii-debug-active-filter-attr">category</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">i</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=1" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
-            </div><div class="yii-debug-grid yii-debug-grid-profile">
+            </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
-            <form id="yii-debug-profile-filters" style="display:none" action="/debug/view?tag=request-1&amp;panel=profiling" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
+            <table class="yii-debug-table">
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=seq&amp;per-page=1">Time</a></th>
             <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=duration&amp;per-page=1">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=category&amp;per-page=1">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=info&amp;per-page=1">Info</a></th>
-            </tr>
-            <tr class="filters">
-            <td></td>
-            <td></td>
-            <td><input class="yii-debug-input" name="Profile[category]" type="text" value="i" aria-label="Filter by Category"></td>
-            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
@@ -379,10 +340,10 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextProvidesTheCompleteFilteredGridContract(): void
+    public function testRenderProvidesTheCompleteFilteredGridContract(): void
     {
         $html = (new ProfilingPanel())
-            ->renderWithContext(
+            ->render(HelperFactory::createPanelRenderInput(
                 self::payload(),
                 self::context(
                     [
@@ -391,14 +352,38 @@ final class ProfilingPanelTest extends TestCase
                         'page' => '2',
                     ],
                 ),
-            );
+            ));
 
         self::assertSame(
             <<<'HTML'
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>1</strong> of 3 spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>1</strong> of 3 spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><input name="per-page" type="hidden" value="25"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" value="db\command" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" value="select" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
+            <span class="yii-debug-active-filters-label">2 filters active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Binfo%5D=select&amp;per-page=25" title="Remove this filter" aria-label="Remove category: db\command filter"><span class="yii-debug-active-filter-attr">category</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">db\command</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;per-page=25" title="Remove this filter" aria-label="Remove info: select filter"><span class="yii-debug-active-filter-attr">info</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">select</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=25" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
+            </div><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -415,23 +400,15 @@ final class ProfilingPanelTest extends TestCase
             All
             </option>
             </select></label>
-            </header><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
-            <span class="yii-debug-active-filters-label">2 filters active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Binfo%5D=select&amp;per-page=25" title="Remove this filter" aria-label="Remove category: db\command filter"><span class="yii-debug-active-filter-attr">category</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">db\command</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;per-page=25" title="Remove this filter" aria-label="Remove info: select filter"><span class="yii-debug-active-filter-attr">info</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">select</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=25" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
-            </div><div class="yii-debug-grid yii-debug-grid-profile">
+            </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
-            <form id="yii-debug-profile-filters" style="display:none" action="/debug/view?tag=request-1&amp;panel=profiling" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
+            <table class="yii-debug-table">
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=seq">Time</a></th>
             <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=info">Info</a></th>
-            </tr>
-            <tr class="filters">
-            <td></td>
-            <td></td>
-            <td><input class="yii-debug-input" name="Profile[category]" type="text" value="db\command" aria-label="Filter by Category"></td>
-            <td><input class="yii-debug-input" name="Profile[info]" type="text" value="select" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
@@ -455,30 +432,204 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextSortsRowsAndMarksTheActiveDirection(): void
+    public function testRenderReceivesContextAndSummaryInOneCall(): void
     {
-        $ascending = (new ProfilingPanel())
-            ->renderWithContext(
+        $html = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(
                 self::payload(),
-                self::context(['sort' => 'duration', 'per-page' => 'all']),
-            );
-        $descending = (new ProfilingPanel())
-            ->renderWithContext(
-                self::payload(),
-                self::context(['sort' => '-duration', 'per-page' => 'all']),
-            );
-        $default = (new ProfilingPanel())
-            ->renderWithContext(
-                self::payload(),
-                self::context(['per-page' => 'all']),
-            );
+                self::context(['Profile' => ['category' => 'Yii3']]),
+                RequestSummary::create('request-1')
+                    ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+                    ->withProfiling(0.1, 2_097_152),
+            ));
+
+        self::assertStringContainsString(
+            'value="Yii3"',
+            $html,
+            'Context filters must reach the single entry point.',
+        );
+        self::assertStringContainsString(
+            '<section class="yii-debug-tl">',
+            $html,
+            'Summary geometry must reach the same call.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-grid-profile',
+            $html,
+            'The details table must stay part of the same output.',
+        );
+    }
+    public function testRenderShowsCapturedSpansOrderedByDurationInTheUnifiedView(): void
+    {
+        $html = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(self::payload(), self::context([])));
 
         self::assertSame(
             <<<'HTML'
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <option value="10">
+            10
+            </option>
+            <option value="25">
+            25
+            </option>
+            <option value="50" selected>
+            50
+            </option>
+            <option value="100">
+            100
+            </option>
+            <option value="all">
+            All
+            </option>
+            </select></label>
+            </header><div class="yii-debug-grid yii-debug-grid-profile">
+            <div class="yii-debug-table-wrap">
+            <table class="yii-debug-table">
+            <thead>
+            <tr>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq">Time</a></th>
+            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category">Category</a></th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info">Info</a></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.000">00:00:01.000</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">100.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\Application::handle"><span class="yii-debug-muted">Yii3\</span><wbr><strong>Application::handle</strong></span></td>
+            <td>SLOW application</td>
+            </tr>
+            <tr>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.050">00:00:01.050</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 50%;'><span class="yii-debug-gauge-value">50.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yii3\View::render"><span class="yii-debug-muted">Yii3\</span><wbr><strong>View::render</strong></span></td>
+            <td>MIDDLE view</td>
+            </tr>
+            <tr>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span title="1970-01-01 00:00:01.025">00:00:01.025</span></td>
+            <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 10%;'><span class="yii-debug-gauge-value">10.0 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
+            <td class="yii-debug-cell-mono yii-debug-cell-fqcn"><span title="Yiisoft\Db\Command::query"><span class="yii-debug-muted">Yiisoft\Db\</span><wbr><strong>Command::query</strong></span></td>
+            <td><span class="yii-debug-indent">→</span><div class="yii-debug-db-sql">
+            <span class="yii-debug-sql-kw">SELECT</span> <span class="yii-debug-sql-num">1</span>
+            </div></td>
+            </tr>
+            </tbody>
+            </table>
+            </div><div class="yii-debug-grid-footer">
+            <span class="summary yii-debug-grid-count">Showing 1-3 of 3 items.</span>
+            </div>
+            </div>
+            HTML,
+            $html,
+            'The unified view must match the complete profiling page.',
+        );
+    }
+
+    public function testRenderShowsSummaryStripAndGuidanceWithoutProfilingData(): void
+    {
+        $html = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(self::emptyPayload(), self::context([])));
+
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Performance Profiling
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>0</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>13 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><div class="yii-debug-empty-state">
+            <h2>
+            No profiling data captured
+            </h2><p>
+            This request did not produce any <code>ProfilerInterface::begin()</code> / <code>ProfilerInterface::end()</code> spans, so the Timeline and details are empty.
+            </p><p>
+            To populate this view, wrap interesting sections of code with profile markers:
+            </p><pre class="yii-debug-empty-state-code">
+            $profiler-&gt;begin('my-token');
+            // …work…
+            $profiler-&gt;end('my-token');
+            </pre><p>
+            Database queries are profiled automatically when the DB collector is configured.
+            </p>
+            </div>
+            HTML,
+            $html,
+            'An empty profiling capture must match the complete summary and guidance state.',
+        );
+    }
+
+    public function testRenderSortsRowsAndMarksTheActiveDirection(): void
+    {
+        $ascending = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(
+                self::payload(),
+                self::context(['sort' => 'duration', 'per-page' => 'all']),
+            ));
+        $descending = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(
+                self::payload(),
+                self::context(['sort' => '-duration', 'per-page' => 'all']),
+            ));
+        $default = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(
+                self::payload(),
+                self::context(['per-page' => 'all']),
+            ));
+
+        self::assertSame(
+            <<<'HTML'
+            <h1 class="yii-debug-sr-only">
+            Performance Profiling
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><input name="sort" type="hidden" value="duration"><input name="per-page" type="hidden" value="all"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -497,19 +648,13 @@ final class ProfilingPanelTest extends TestCase
             </select></label>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
-            <form id="yii-debug-profile-filters" style="display:none" action="/debug/view?tag=request-1&amp;panel=profiling" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
+            <table class="yii-debug-table">
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq&amp;per-page=all">Time</a></th>
             <th scope="col"><a class="asc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=all">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category&amp;per-page=all">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info&amp;per-page=all">Info</a></th>
-            </tr>
-            <tr class="filters">
-            <td></td>
-            <td></td>
-            <td><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
-            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
@@ -548,7 +693,29 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><input name="sort" type="hidden" value="-duration"><input name="per-page" type="hidden" value="all"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -567,19 +734,13 @@ final class ProfilingPanelTest extends TestCase
             </select></label>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
-            <form id="yii-debug-profile-filters" style="display:none" action="/debug/view?tag=request-1&amp;panel=profiling" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
+            <table class="yii-debug-table">
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq&amp;per-page=all">Time</a></th>
             <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration&amp;per-page=all">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category&amp;per-page=all">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info&amp;per-page=all">Info</a></th>
-            </tr>
-            <tr class="filters">
-            <td></td>
-            <td></td>
-            <td><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
-            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
@@ -618,7 +779,29 @@ final class ProfilingPanelTest extends TestCase
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <span><strong>3</strong> spans</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><input name="per-page" type="hidden" value="all"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
             <option value="10">
             10
             </option>
@@ -637,19 +820,13 @@ final class ProfilingPanelTest extends TestCase
             </select></label>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
-            <form id="yii-debug-profile-filters" style="display:none" action="/debug/view?tag=request-1&amp;panel=profiling" method="GET"><button type="submit">Submit</button></form><table class="yii-debug-table">
+            <table class="yii-debug-table">
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=seq">Time</a></th>
             <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=info">Info</a></th>
-            </tr>
-            <tr class="filters">
-            <td></td>
-            <td></td>
-            <td><input class="yii-debug-input" name="Profile[category]" type="text" aria-label="Filter by Category"></td>
-            <td><input class="yii-debug-input" name="Profile[info]" type="text" aria-label="Filter by Info"></td>
             </tr>
             </thead>
             <tbody>
@@ -689,16 +866,16 @@ final class ProfilingPanelTest extends TestCase
      * @param list<string> $categories
      */
     #[DataProviderExternal(ProfilingPanelProvider::class, 'sortAttributeProvider')]
-    public function testRenderWithContextSortsRowsBySequenceCategoryAndInfo(
+    public function testRenderSortsRowsBySequenceCategoryAndInfo(
         string $sort,
         string $firstInfo,
         array $categories,
     ): void {
         $html = (new ProfilingPanel())
-            ->renderWithContext(
+            ->render(HelperFactory::createPanelRenderInput(
                 self::payload(firstInfo: $firstInfo),
                 self::context(['sort' => $sort, 'per-page' => 'all']),
-            );
+            ));
 
         $previousPosition = -1;
 
@@ -729,7 +906,7 @@ final class ProfilingPanelTest extends TestCase
         ];
 
         $html = (new ProfilingPanel())
-            ->renderWithContextAndSummary(
+            ->render(HelperFactory::createPanelRenderInput(
                 $payload,
                 self::context(
                     [
@@ -748,7 +925,7 @@ final class ProfilingPanelTest extends TestCase
                 RequestSummary::create('request-1')
                     ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
                     ->withProfiling(0.1, 2_097_152),
-            );
+            ));
 
         $tableOffset = strpos($html, '<div class="yii-debug-grid yii-debug-grid-profile">');
         $timelineOffset = strpos($html, '<section class="yii-debug-tl">');
@@ -930,23 +1107,61 @@ final class ProfilingPanelTest extends TestCase
     public function testSummaryUsesTheSingularSpanLabel(): void
     {
         $html = (new ProfilingPanel())
-            ->render(self::payload(entryCount: 1));
+            ->render(HelperFactory::createPanelRenderInput(self::payload(entryCount: 1), self::context([])));
 
         self::assertSame(
             <<<'HTML'
             <h1 class="yii-debug-sr-only">
             Performance Profiling
             </h1><header class="yii-debug-grid-summary">
-            <span><strong>1</strong> span</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.000 MB</strong> peak</span>
+            <span><strong>1</strong> span</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>100 ms</strong> total</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>2.00 MB</strong> peak</span>
+            </header><form class="yii-debug-tl-filter" action="/debug/view?tag=request-1&amp;panel=profiling" method="get" aria-label="Profiling filters">
+            <input name="tag" type="hidden" value="request-1"><input name="panel" type="hidden" value="profiling"><div class="yii-debug-tl-field">
+            <label for="profile-duration">Min duration (ms)</label><input id="profile-duration" name="Profile[duration]" type="number" min="0" placeholder="0" step="0.1">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-category">Category</label><input id="profile-category" name="Profile[category]" type="text" placeholder="yii\db\Command::query">
+            </div><div class="yii-debug-tl-field yii-debug-tl-field-grow">
+            <label for="profile-info">Info</label><input id="profile-info" name="Profile[info]" type="text" placeholder="SELECT">
+            </div><button class="yii-debug-btn yii-debug-btn-primary yii-debug-btn-sm" type="submit">Apply</button>
+            </form><h2>
+            Timeline
+            </h2><div class="yii-debug-empty-state">
+            <h2>
+            Timeline unavailable
+            </h2><p>
+            This capture does not contain the valid request start, duration, and peak-memory values required to position the chart.
+            </p><p>
+            The profiling details remain available below.
+            </p>
+            </div><header class="yii-debug-section-header">
+            <h2>
+            Details
+            </h2><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <option value="10">
+            10
+            </option>
+            <option value="25">
+            25
+            </option>
+            <option value="50" selected>
+            50
+            </option>
+            <option value="100">
+            100
+            </option>
+            <option value="all">
+            All
+            </option>
+            </select></label>
             </header><div class="yii-debug-grid yii-debug-grid-profile">
             <div class="yii-debug-table-wrap">
             <table class="yii-debug-table">
             <thead>
             <tr>
-            <th scope="col">Time</th>
-            <th scope="col">Duration</th>
-            <th scope="col">Category</th>
-            <th scope="col">Info</th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq">Time</a></th>
+            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category">Category</a></th>
+            <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info">Info</a></th>
             </tr>
             </thead>
             <tbody>
@@ -977,13 +1192,13 @@ final class ProfilingPanelTest extends TestCase
             ['time' => 1_100.0, 'memory' => 2_097_152],
         ];
         $html = (new ProfilingPanel())
-            ->renderWithContextAndSummary(
+            ->render(HelperFactory::createPanelRenderInput(
                 $payload,
                 self::context([], ['log' => ['entries' => [['invalid']]]]),
                 RequestSummary::create('request-1')
                     ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
                     ->withProfiling(0.1, 2_097_152),
-            );
+            ));
 
         self::assertStringContainsString(
             '<section class="yii-debug-tl">',
@@ -1027,11 +1242,11 @@ final class ProfilingPanelTest extends TestCase
                 'peak memory' => [$missingMemory, $validSummary],
             ] as $missing => [$payload, $summary]
         ) {
-            $html = $panel->renderWithContextAndSummary(
+            $html = $panel->render(HelperFactory::createPanelRenderInput(
                 $payload,
                 self::context([]),
                 $summary,
-            );
+            ));
 
             self::assertStringContainsString(
                 'Timeline unavailable',
@@ -1064,13 +1279,13 @@ final class ProfilingPanelTest extends TestCase
         );
 
         $html = (new ProfilingPanel())
-            ->renderWithContextAndSummary(
+            ->render(HelperFactory::createPanelRenderInput(
                 $payload,
                 self::context([]),
                 RequestSummary::create('request-1')
                     ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
                     ->withProfiling(0.1, 2_097_152),
-            );
+            ));
 
         self::assertStringContainsString(
             '<span class="yii-debug-tl-name" title="App\\Web\\Workbench\\HomeAction::__invoke">'
@@ -1090,13 +1305,13 @@ final class ProfilingPanelTest extends TestCase
         ];
 
         $html = (new ProfilingPanel())
-            ->renderWithContextAndSummary(
+            ->render(HelperFactory::createPanelRenderInput(
                 $payload,
                 self::context([]),
                 RequestSummary::create('request-1')
                     ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
                     ->withProfiling(0.1, 2_097_152),
-            );
+            ));
 
         self::assertStringContainsString(
             '<strong>100 ms</strong> total',
@@ -1169,12 +1384,12 @@ final class ProfilingPanelTest extends TestCase
 
         $panel = new ProfilingPanel();
 
-        $captureEmpty = $panel->renderWithContextAndSummary(
+        $captureEmpty = $panel->render(HelperFactory::createPanelRenderInput(
             self::emptyPayload(),
             self::context([]),
             $summary,
-        );
-        $filterEmpty = $panel->renderWithContextAndSummary(
+        ));
+        $filterEmpty = $panel->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context(
                 [
@@ -1182,7 +1397,7 @@ final class ProfilingPanelTest extends TestCase
                 ],
             ),
             $summary,
-        );
+        ));
 
         self::assertStringContainsString(
             'No profiling data captured',

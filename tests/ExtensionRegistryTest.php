@@ -4,15 +4,27 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests;
 
+use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
+use PHPForge\Debug\Registration\PanelOverride;
 use PHPForge\Inertia\Debug\InertiaPanel;
+use PHPForge\Vite\Debug\VitePanel;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Collector\{DbCollector, EventCollector, LogCollector, ProfilingCollector, RequestCollector};
 use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\ExtensionRegistry;
 use Yii3\Debug\Log\DebugLogTarget;
-use Yii3\Debug\Panel\{DbPanel, EventPanel, LogPanel, ProfilingPanel, ProviderPanel, RequestPanel};
-use Yii3\Debug\Tests\Support\Stubs\ExtensionCollectorStub;
+use Yii3\Debug\Panel\{
+    DbPanel,
+    EventPanel,
+    ExtensionPanelInterface,
+    LogPanel,
+    ProfilingPanel,
+    ProviderPanel,
+    RequestPanel,
+};
+use Yii3\Debug\Tests\Support\Stubs\Cache\{CacheCollector, CachePanel};
+use Yii3\Debug\Tests\Support\Stubs\{ContainerStub, ExtensionCollectorStub};
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 /**
@@ -20,6 +32,29 @@ use Yii3\Debug\Web\DebugUrlGenerator;
  */
 final class ExtensionRegistryTest extends TestCase
 {
+    public function testAppendedRegistrationsKeepPreviouslyRegisteredEntries(): void
+    {
+        $firstCollector = new ExtensionCollectorStub();
+        $secondCollector = new DbCollector();
+        $firstPanel = new ProviderPanel(new InertiaPanel());
+        $secondPanel = new ProviderPanel(new VitePanel());
+
+        $registry = ExtensionRegistry::create(collectors: [$firstCollector], panels: [$firstPanel])
+            ->withCollector($secondCollector)
+            ->withPanel($secondPanel);
+
+        self::assertSame(
+            [$firstCollector, $secondCollector],
+            $registry->collectors(),
+            'Order: already registered collector first, appended one last.',
+        );
+        self::assertSame(
+            [$firstPanel, $secondPanel],
+            $registry->panels(),
+            'Order: already registered panel first, appended one last.',
+        );
+    }
+
     public function testBuiltInCompositionReplacesOverriddenIdsAndKeepsTheRegistryIntact(): void
     {
         $collector = new ExtensionCollectorStub();
@@ -72,10 +107,10 @@ final class ExtensionRegistryTest extends TestCase
         self::assertSame(
             [
                 $requestPanelOverride,
-                $panel,
                 $logPanelOverride,
                 $eventPanelOverride,
                 $profilingPanelOverride,
+                $panel,
             ],
             $registry->panelsWithBuiltIn($builtInRequestPanel),
             'Panel override must replace the built-in and stay first.',
@@ -113,15 +148,34 @@ final class ExtensionRegistryTest extends TestCase
         );
         self::assertSame(
             [
-                $panel,
                 $requestPanelOverride,
                 $logPanelOverride,
                 $eventPanelOverride,
                 $profilingPanelOverride,
+                $panel,
             ],
             $registry->panels(),
             'Composition must not mutate the panel registry.',
         );
+    }
+
+    public function testConfiguredOverrideRenamesPortablePanelAndLeadsByPosition(): void
+    {
+        $registry = ExtensionRegistry::create(
+            panels: ['inertia' => new InertiaPanel(), 'vite' => new VitePanel()],
+            overrides: [
+                'vite' => PanelOverride::fromArray(['title' => 'Vite assets', 'icon' => 'asset', 'position' => 1]),
+            ],
+        );
+
+        $panels = $registry->panels();
+
+        self::assertCount(2, $panels, 'Both registrations must survive an override.');
+        self::assertSame('vite', $panels[0]->id(), 'Order: positioned entry first.');
+        self::assertSame('Vite assets', $panels[0]->name(), 'Title override must beat the provider default.');
+        self::assertSame('asset', $panels[0]->icon(), 'Icon override must beat the provider default.');
+        self::assertSame('inertia', $panels[1]->id(), 'Entry without a position must follow.');
+        self::assertSame('Inertia', $panels[1]->name(), 'Provider default must survive an unrelated override.');
     }
 
     public function testCreateNormalizesIterablesAndPreservesOrder(): void
@@ -152,9 +206,9 @@ final class ExtensionRegistryTest extends TestCase
             'Collector iterables must keep their order.',
         );
         self::assertSame(
-            [$inertiaPanel, $profilingPanel],
+            [$profilingPanel, $inertiaPanel],
             $registry->panels(),
-            'Panel iterables must keep their order.',
+            'Order: built-in IDs first, extensions last.',
         );
     }
 
@@ -188,6 +242,96 @@ final class ExtensionRegistryTest extends TestCase
         );
     }
 
+    public function testDisabledIdsAreReportedSortedWithoutDuplicates(): void
+    {
+        $registry = ExtensionRegistry::create(
+            panels: ['inertia' => new InertiaPanel()],
+            overrides: ['inertia' => PanelOverride::fromArray(['enabled' => false])],
+            disabled: ['vite', 'ghost', 'vite'],
+        );
+
+        self::assertSame([], $registry->panels(), 'A disabled entry must not stay listed.');
+        self::assertSame(
+            ['ghost', 'inertia', 'vite'],
+            $registry->disabled(),
+            'Disabled IDs must be unique and sorted.',
+        );
+    }
+
+    public function testFromParamsAppliesArrayEntryOptions(): void
+    {
+        $collector = new CacheCollector();
+        $panel = new CachePanel();
+
+        $registry = ExtensionRegistry::fromParams(
+            ['cache' => ['class' => CacheCollector::class, 'enabled' => true]],
+            ['cache' => ['class' => CachePanel::class, 'title' => 'Cache operations', 'icon' => 'asset']],
+            new ContainerStub([CacheCollector::class => $collector, CachePanel::class => $panel]),
+        );
+
+        $panels = $registry->panels();
+
+        self::assertSame([$collector], $registry->collectors(), 'An `enabled` entry must stay registered.');
+        self::assertCount(1, $panels, 'One configured entry must produce one panel.');
+        self::assertSame('cache', $panels[0]->id(), 'Stable ID must come from the configuration key.');
+        self::assertSame('Cache operations', $panels[0]->name(), 'Title option must beat the provider default.');
+        self::assertSame('asset', $panels[0]->icon(), 'Icon option must beat the provider default.');
+        self::assertSame([], $registry->disabled(), 'No ID may be reported disabled.');
+    }
+
+    public function testFromParamsRecordsDisabledEntriesWithoutResolvingTheirClass(): void
+    {
+        $collector = new CacheCollector();
+        $panel = new CachePanel();
+
+        $registry = ExtensionRegistry::fromParams(
+            [
+                'ghost' => ['class' => 'Acme\\Missing\\GhostCollector', 'enabled' => false],
+                'cache' => CacheCollector::class,
+            ],
+            [
+                'phantom' => ['class' => 'Acme\\Missing\\PhantomPanel', 'enabled' => false],
+                'cache' => CachePanel::class,
+            ],
+            new ContainerStub([CacheCollector::class => $collector, CachePanel::class => $panel]),
+        );
+
+        self::assertSame([$collector], $registry->collectors(), 'Entries after a disabled one must still register.');
+        self::assertCount(1, $registry->panels(), 'Entries after a disabled one must still register.');
+        self::assertSame(['ghost', 'phantom'], $registry->disabled(), 'Disabled IDs must be unique and sorted.');
+    }
+
+    public function testFromParamsReportsDisabledIdsAsStrings(): void
+    {
+        $registry = ExtensionRegistry::fromParams(
+            [0 => ['class' => 'Acme\\Missing\\GhostCollector', 'enabled' => false]],
+            [1 => ['class' => 'Acme\\Missing\\PhantomPanel', 'enabled' => false]],
+            new ContainerStub(),
+        );
+
+        self::assertSame(['0', '1'], $registry->disabled(), 'Numeric keys must be reported as `string` IDs.');
+    }
+
+    public function testFromParamsResolvesClassStringEntriesThroughTheContainer(): void
+    {
+        $collector = new CacheCollector();
+        $panel = new CachePanel();
+
+        $registry = ExtensionRegistry::fromParams(
+            ['cache' => CacheCollector::class],
+            ['cache' => CachePanel::class],
+            new ContainerStub([CacheCollector::class => $collector, CachePanel::class => $panel]),
+        );
+
+        $panels = $registry->panels();
+
+        self::assertSame([$collector], $registry->collectors(), 'Container instance must be registered as is.');
+        self::assertCount(1, $panels, 'One configured entry must produce one panel.');
+        self::assertSame('cache', $panels[0]->id(), 'Stable ID must come from the configuration key.');
+        self::assertSame('Cache', $panels[0]->name(), 'Provider default title must survive a bare class string.');
+        self::assertSame([], $registry->disabled(), 'No ID may be reported disabled.');
+    }
+
     public function testRegistrationIsExplicitOrderedAndImmutable(): void
     {
         $collector = new ExtensionCollectorStub();
@@ -197,7 +341,7 @@ final class ExtensionRegistryTest extends TestCase
         $withCollector = $empty->withCollector($collector);
         $complete = $withCollector->withPanel($panel);
 
-        $fromKeyedIterables = new ExtensionRegistry(['collector' => $collector], ['panel' => $panel]);
+        $fromKeyedIterables = new ExtensionRegistry(['extension' => $collector], ['inertia' => $panel]);
 
         self::assertSame(
             [],
@@ -238,6 +382,91 @@ final class ExtensionRegistryTest extends TestCase
             [$panel],
             $fromKeyedIterables->panels(),
             'Panel iterables must be normalized to an ordered list.',
+        );
+    }
+
+    public function testThrowInvalidArgumentExceptionForArrayEntryWithoutAClassKey(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Debug registration "cache" must be a class string or an array declaring a "class" string.',
+        );
+
+        ExtensionRegistry::fromParams(['cache' => ['enabled' => true]], [], new ContainerStub());
+    }
+
+    public function testThrowInvalidArgumentExceptionForCollectorKeyNotMatchingItsId(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Debug collector registered as "wrong" must match its ID "extension".');
+
+        ExtensionRegistry::create(collectors: ['wrong' => new ExtensionCollectorStub()]);
+    }
+
+    public function testThrowInvalidArgumentExceptionForEntryThatIsNeitherStringNorArray(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Debug registration "cache" must be a class string or an array declaring a "class" string.',
+        );
+
+        ExtensionRegistry::fromParams(['cache' => 42], [], new ContainerStub());
+    }
+
+    public function testThrowInvalidArgumentExceptionForNonBooleanCollectorEnabled(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Debug collector option "enabled" for "cache" must be a boolean.');
+
+        ExtensionRegistry::fromParams(
+            ['cache' => ['class' => CacheCollector::class, 'enabled' => 'yes']],
+            [],
+            new ContainerStub(),
+        );
+    }
+
+    public function testThrowInvalidArgumentExceptionForPanelKeyNotMatchingItsId(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Debug panel registered as "wrong" must match its ID "vite".');
+
+        ExtensionRegistry::create(panels: ['wrong' => new VitePanel()]);
+    }
+
+    public function testThrowInvalidArgumentExceptionForUnknownCollectorOption(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Unknown debug collector option "colour" for "cache". Available option: enabled.',
+        );
+
+        ExtensionRegistry::fromParams(
+            ['cache' => ['class' => CacheCollector::class, 'colour' => 'red']],
+            [],
+            new ContainerStub(),
+        );
+    }
+
+    public function testThrowInvalidArgumentExceptionWhenRenamingPanelRenderingItsOwnPresentation(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('icon')
+            ->willReturn('db');
+        $panel
+            ->method('id')
+            ->willReturn('acme');
+        $panel
+            ->method('name')
+            ->willReturn('Acme');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Panel acme renders its own title and icon');
+
+        ExtensionRegistry::create(
+            panels: ['acme' => $panel],
+            overrides: ['acme' => PanelOverride::fromArray(['title' => 'Renamed'])],
         );
     }
 }

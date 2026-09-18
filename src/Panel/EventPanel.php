@@ -43,7 +43,7 @@ use function strcasecmp;
 /**
  * Presents dispatched PSR-14 events and contributes their total to the debug toolbar.
  */
-final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPanelProviderInterface
+final readonly class EventPanel implements ToolbarPanelProviderInterface
 {
     /**
      * Defines the sortable attributes for the event grid.
@@ -99,28 +99,15 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     }
 
     /**
-     * Renders the detail view for a capture opened without page context.
-     *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @return string Rendered panel markup.
-     */
-    public function render(array $payload): string
-    {
-        return $this->renderPanel($payload);
-    }
-
-    /**
      * Renders the detail view, letting the page context drive filtering, sorting, and paging.
      *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext $context Query parameters and theme of the page being rendered.
+     * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
      * @return string Rendered panel markup.
      */
-    public function renderWithContext(array $payload, PanelRenderContext $context): string
+    public function render(PanelRenderInput $input): string
     {
-        return $this->renderPanel($payload, $context);
+        return $this->renderPanel($input->payload, $input->context);
     }
 
     /**
@@ -143,8 +130,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      * Builds the grid columns for the captured events.
      *
      * @param EventSequence $sequence Ordering of every captured event, so row numbers survive pagination.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
@@ -152,7 +138,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      */
     private static function columns(
         EventSequence $sequence,
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $queryParams,
         array $filters,
     ): array {
@@ -165,10 +151,6 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             $queryParams,
             $state,
         ): string {
-            if ($context === null) {
-                return $label;
-            }
-
             $isActive = $state->isActive($attribute);
 
             $queryParams['sort'] = $state->next($attribute);
@@ -184,31 +166,27 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             new GridColumn(
                 header: EventMessage::NUMBER->value,
                 content: static fn(EventRow $row): string => (string) $sequence->index($row),
-                filter: $context === null ? null : '',
+                filter: '',
                 encodeContent: true,
                 class: 'yii-debug-col-num',
             ),
             new GridColumn(
                 header: $header('time', EventMessage::TIME->value),
                 content: static fn(EventRow $row): string => EventInspectorRenderer::renderTimeCell($row, $sequence),
-                filter: $context === null ? null : '',
+                filter: '',
                 headerClass: 'sort-numerical',
                 bodyClass: 'yii-debug-event-time-cell',
             ),
             new GridColumn(
                 header: $header('class', EventMessage::EVENT->value),
                 content: static fn(EventRow $row): string => EventInspectorRenderer::renderEventCell($row, $sequence),
-                filter: $context === null
-                    ? null
-                    : FilterInput::text(FilterPrefix::EVENT, 'class', EventMessage::EVENT->value, $filters),
+                filter: FilterInput::text(FilterPrefix::EVENT, 'class', EventMessage::EVENT->value, $filters),
                 bodyClass: 'yii-debug-event-cell',
             ),
             new GridColumn(
                 header: $header('senderClass', 'Source'),
                 content: static fn(EventRow $row): string => EventCellRenderer::renderSenderCell($row),
-                filter: $context === null
-                    ? null
-                    : FilterInput::text(FilterPrefix::EVENT, 'senderClass', 'Source', $filters),
+                filter: FilterInput::text(FilterPrefix::EVENT, 'senderClass', 'Source', $filters),
                 bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
             ),
         ];
@@ -236,8 +214,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      *
      * @param OffsetPaginator<int, EventRow> $paginator Paginator clamped to the visible page.
      * @param list<EventRow> $allRows Every captured event, numbering the rows.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
      * @return string Rendered grid.
@@ -245,17 +222,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
     private static function renderGrid(
         OffsetPaginator $paginator,
         array $allRows,
-        PanelRenderContext|null $context = null,
-        array $filters = [],
+        PanelRenderContext $context,
+        array $filters,
     ): string {
         $sequence = new EventSequence($allRows);
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup(
-                $context->queryParams,
-                FilterPrefix::EVENT,
-                $filters,
-            );
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
 
         /** @var GridView<EventRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-event-filters')
@@ -269,7 +240,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
                     ),
             )
             ->columns(...self::columns($sequence, $context, $queryParams, $filters))
-            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
+            ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
         $table = $grid->render();
 
@@ -280,20 +251,15 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             ->html(
                 EventInspectorRenderer::renderControls(
                     $allRows,
-                    $context === null
-                        ? null
-                        : static function (
-                            string $attribute,
-                            string $value,
-                        ) use ($context, $queryParams, $filters): string {
-                            $params = $queryParams;
+                    static function (string $attribute, string $value) use ($context, $queryParams, $filters): string {
+                        $params = $queryParams;
 
-                            unset($params['page']);
+                        unset($params['page']);
 
-                            $params[FilterPrefix::EVENT] = [...$filters, $attribute => $value];
+                        $params[FilterPrefix::EVENT] = [...$filters, $attribute => $value];
 
-                            return $context->panelUrl(queryParams: $params);
-                        },
+                        return $context->panelUrl(queryParams: $params);
+                    },
                     'class',
                     AdapterMessage::EVENT_CAPTURE_SCOPE->value,
                 ),
@@ -336,12 +302,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      * Renders the complete Events panel for a capture.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      *
      * @return string Rendered detail content.
      */
-    private function renderPanel(array $payload, PanelRenderContext|null $context = null): string
+    private function renderPanel(array $payload, PanelRenderContext $context): string
     {
         $entries = self::snapshot($payload)->entries();
 
@@ -351,25 +316,13 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             return $title . self::renderEmptyCaptureState();
         }
 
-        $search = EventSearch::fromQueryParams($context->queryParams ?? []);
+        $search = EventSearch::fromQueryParams($context->queryParams);
 
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup(
-                $context->queryParams,
-                FilterPrefix::EVENT,
-                $search->activeFilters,
-            );
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $search->activeFilters);
 
         $filteredRows = $search->filter($entries);
 
-        $pageSizeSelector = $context === null ? null : PageSize::selectorFor($queryParams);
-
-        $content = $title . self::renderSummary($filteredRows, $pageSizeSelector);
-
-        if ($context === null) {
-            return $content . self::renderGrid(PageWindow::single($filteredRows), $entries);
-        }
+        $content = $title . self::renderSummary($filteredRows, PageSize::selectorFor($queryParams));
 
         $content .= FilterRemoval::banner(
             $search->activeFilters,
@@ -392,11 +345,11 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
      * Renders the grid heading with the event total and the page-size selector.
      *
      * @param list<EventRow> $rows Events matching the active filters, before pagination.
-     * @param string|null $pageSizeSelector Rendered page-size selector, or `null` to omit it.
+     * @param string $pageSizeSelector Rendered page-size selector.
      *
      * @return string Rendered heading.
      */
-    private static function renderSummary(array $rows, string|null $pageSizeSelector): string
+    private static function renderSummary(array $rows, string $pageSizeSelector): string
     {
         $items = [
             SummaryChip::render((string) count($rows), EventMessage::EVENTS_SUFFIX->value),
@@ -411,9 +364,7 @@ final readonly class EventPanel implements ContextAwarePanelInterface, ToolbarPa
             $items[] = SummaryChip::render((string) $staticCount, EventMessage::STATIC_SUFFIX->value);
         }
 
-        if ($pageSizeSelector !== null) {
-            $items[] = $pageSizeSelector;
-        }
+        $items[] = $pageSizeSelector;
 
         return Header::tag()
             ->class('yii-debug-grid-summary')

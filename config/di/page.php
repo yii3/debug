@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
-use Yii3\Debug\Panel\{AssetPanel, DbPanel, EventPanel, LogPanel, ProfilingPanel, RequestPanel};
+use Yii3\Debug\Panel\BuiltInPanelList;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Definitions\DynamicReference;
@@ -31,15 +31,8 @@ return [
             DynamicReference::to(
                 static fn(
                     ExtensionRegistry $extensions,
-                    RequestPanel $requestPanel,
-                    LogPanel $logPanel,
-                    EventPanel $eventPanel,
-                    ProfilingPanel $profilingPanel,
-                    DbPanel $dbPanel,
-                    AssetPanel $assetPanel,
-                ): array => $extensions->panelsWithBuiltIns(
-                    [$requestPanel, $logPanel, $eventPanel, $profilingPanel, $dbPanel, $assetPanel],
-                ),
+                    BuiltInPanelList $builtInPanels,
+                ): array => $extensions->panelsWithBuiltIns($builtInPanels->panels()),
             ),
         ],
         'withRoutePrefix()' => [$config['routePrefix']],

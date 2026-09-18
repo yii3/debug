@@ -7,6 +7,7 @@ namespace Yii3\Debug\Tests\Panel;
 use PHPForge\Inertia\Debug\InertiaPanel;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\ProviderPanel;
+use Yii3\Debug\Tests\Support\HelperFactory;
 
 /**
  * Unit tests for the provider-owned {@see InertiaPanel} adapted by the host {@see ProviderPanel}.
@@ -17,7 +18,7 @@ final class InertiaPanelTest extends TestCase
 
     public function testCapturedPageHeadersPropsAndRawPayloadAreEscaped(): void
     {
-        $html = $this->panel->render(
+        $html = $this->panel->render(HelperFactory::createPanelRenderInput(
             $this->payload(
                 [
                     'component' => '<script>alert("component")</script>',
@@ -32,7 +33,7 @@ final class InertiaPanelTest extends TestCase
                     'X-Inertia-Partial-Data' => '<iframe src=javascript:alert(1)>',
                 ],
             ),
-        );
+        ));
 
         self::assertSame(
             <<<'HTML'
@@ -173,7 +174,7 @@ final class InertiaPanelTest extends TestCase
 
     public function testFullPageLoadRendersSummaryInformationPropsAndRawPayload(): void
     {
-        $html = $this->panel->render(
+        $html = $this->panel->render(HelperFactory::createPanelRenderInput(
             $this->payload(
                 [
                     'component' => 'Site/Index',
@@ -183,7 +184,7 @@ final class InertiaPanelTest extends TestCase
                 ],
                 statusCode: 201,
             ),
-        );
+        ));
 
         self::assertSame(
             <<<'HTML'
@@ -287,10 +288,12 @@ final class InertiaPanelTest extends TestCase
 
     public function testMissingPageAndEmptyPropsRenderDistinctEmptyStates(): void
     {
-        $missingPage = $this->panel->render($this->payload(null, ['X-Inertia' => 'true']));
-        $emptyProps = $this->panel->render(
-            $this->payload(['component' => 'Site/Index', 'props' => [], 'url' => '/', 'version' => 'v1']),
+        $missingPage = $this->panel->render(
+            HelperFactory::createPanelRenderInput($this->payload(null, ['X-Inertia' => 'true'])),
         );
+        $emptyProps = $this->panel->render(HelperFactory::createPanelRenderInput(
+            $this->payload(['component' => 'Site/Index', 'props' => [], 'url' => '/', 'version' => 'v1']),
+        ));
 
         self::assertSame(
             <<<'HTML'
@@ -379,7 +382,7 @@ final class InertiaPanelTest extends TestCase
 
     public function testPartialReloadRendersVisitAndNegotiationHeaders(): void
     {
-        $html = $this->panel->render(
+        $html = $this->panel->render(HelperFactory::createPanelRenderInput(
             $this->payload(
                 [
                     'component' => 'Users/Index',
@@ -394,7 +397,7 @@ final class InertiaPanelTest extends TestCase
                     'X-Inertia-Version' => 'v2',
                 ],
             ),
-        );
+        ));
 
         self::assertSame(
             <<<'HTML'
@@ -518,7 +521,7 @@ final class InertiaPanelTest extends TestCase
 
     public function testPropsExposeSharedAndPageOriginsAndScalarTypes(): void
     {
-        $html = $this->panel->render(
+        $html = $this->panel->render(HelperFactory::createPanelRenderInput(
             $this->payload(
                 [
                     'component' => 'Site/Index',
@@ -535,7 +538,7 @@ final class InertiaPanelTest extends TestCase
                 ],
                 sharedKeys: ['auth'],
             ),
-        );
+        ));
 
         self::assertSame(
             <<<'HTML'
@@ -750,14 +753,14 @@ final class InertiaPanelTest extends TestCase
 
     public function testVersionConflictRendersReloadExplanationAndEscapedLocation(): void
     {
-        $html = $this->panel->render(
+        $html = $this->panel->render(HelperFactory::createPanelRenderInput(
             $this->payload(
                 null,
                 ['X-Inertia' => 'true', 'X-Inertia-Version' => 'stale'],
                 statusCode: 409,
                 location: 'https://example.test/<script>alert(1)</script>',
             ),
-        );
+        ));
 
         self::assertSame(
             <<<'HTML'

@@ -18,10 +18,8 @@ return [
             'criticalQueryThreshold' => null,
             'excessiveCallerThreshold' => null,
         ],
-        'extensions' => [
-            'inertia' => false,
-            'vite' => false,
-        ],
+        'collectors' => [],
+        'panels' => [],
         'allowedIPs' => ['127.0.0.1', '::1'],
         'historySize' => 50,
         'routePrefix' => '/debug',

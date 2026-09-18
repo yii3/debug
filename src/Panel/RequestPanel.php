@@ -6,7 +6,6 @@ namespace Yii3\Debug\Panel;
 
 use PHPForge\Debug\Panel\{PanelIcon, PanelTitle};
 use PHPForge\Debug\Panel\Request\{RequestDataNormalizer, RequestRenderer, RequestSnapshot, RequestToolbarItemFactory};
-use PHPForge\Debug\Storage\RequestSummary;
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use Yii3\Debug\Routing\RequestRoutingViewFactory;
 use Yiisoft\Http\Status;
@@ -17,7 +16,7 @@ use function is_string;
 /**
  * Presents the captured PSR-7 request and response with the shared Yii Request panel UI.
  */
-final readonly class RequestPanel implements SummaryAwarePanelInterface, ToolbarPanelProviderInterface
+final readonly class RequestPanel implements ToolbarPanelProviderInterface
 {
     /**
      * @param RouteCollectionInterface|null $routes Live route collection the overview reads its matched definition and
@@ -68,28 +67,20 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
     }
 
     /**
-     * Renders the detail view for a capture whose manifest entry is unavailable.
-     *
-     * @param array<string, mixed> $payload Serialized Request panel payload.
-     *
-     * @return string Rendered panel markup.
-     */
-    public function render(array $payload): string
-    {
-        return $this->renderView($payload, null);
-    }
-
-    /**
      * Renders the detail view, letting the manifest entry fill the identity the capture omitted.
      *
-     * @param array<string, mixed> $payload Serialized Request panel payload.
-     * @param RequestSummary $summary Manifest entry of the loaded capture.
+     * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
      * @return string Rendered panel markup.
      */
-    public function renderWithSummary(array $payload, RequestSummary $summary): string
+    public function render(PanelRenderInput $input): string
     {
-        return $this->renderView($payload, $summary);
+        $data = self::snapshot($input->payload)->data();
+
+        return RequestRenderer::render(
+            RequestDataNormalizer::fromPanelData($data, $input->summary),
+            RequestRoutingViewFactory::fromRequestData($data, $this->routes),
+        );
     }
 
     /**
@@ -109,23 +100,6 @@ final readonly class RequestPanel implements SummaryAwarePanelInterface, Toolbar
             statusCode: $snapshot->statusCode,
             statusText: Status::TEXTS[$snapshot->statusCode] ?? '',
         );
-    }
-
-    /**
-     * Composes the captured request with the routing diagnostics the live route collection supplies.
-     *
-     * @param array<string, mixed> $payload Serialized Request panel payload.
-     * @param RequestSummary|null $summary Manifest entry of the loaded capture, or `null` when it is unavailable.
-     *
-     * @return string Rendered panel markup.
-     */
-    private function renderView(array $payload, RequestSummary|null $summary): string
-    {
-        $data = self::snapshot($payload)->data();
-
-        $routing = RequestRoutingViewFactory::fromRequestData($data, $this->routes);
-
-        return RequestRenderer::render(RequestDataNormalizer::fromPanelData($data, $summary), $routing);
     }
 
     /**

@@ -14,6 +14,13 @@ use function sprintf;
 enum Message: string
 {
     /**
+     * Indicates that a collector registration key does not match the ID the collector declares.
+     *
+     * Format: "Debug collector registered as \"%s\" must match its ID \"%s\"."
+     */
+    case COLLECTOR_ID_MISMATCH = 'Debug collector registered as "%s" must match its ID "%s".';
+
+    /**
      * Indicates that the requested capture holds no payload for the requested panel.
      *
      * Format: "Debug panel was not captured."
@@ -40,6 +47,29 @@ enum Message: string
      * Format: "Debug snapshot not found."
      */
     case DEBUG_SNAPSHOT_NOT_FOUND = 'Debug snapshot not found.';
+
+    /**
+     * Indicates that a collector entry declares a non-boolean "enabled" option.
+     *
+     * Format: "Debug collector option \"enabled\" for \"%s\" must be a boolean."
+     */
+    case EXTENSION_COLLECTOR_ENABLED_INVALID = 'Debug collector option "enabled" for "%s" must be a boolean.';
+
+    /**
+     * Indicates that a collector entry declares an option other than "enabled".
+     *
+     * Format: "Unknown debug collector option \"%s\" for \"%s\". Available option: enabled."
+     */
+    case EXTENSION_COLLECTOR_OPTION_UNKNOWN
+        = 'Unknown debug collector option "%s" for "%s". Available option: enabled.';
+
+    /**
+     * Indicates that a registration entry is neither a class string nor an array declaring a class string.
+     *
+     * Format: "Debug registration \"%s\" must be a class string or an array declaring a \"class\" string."
+     */
+    case EXTENSION_ENTRY_INVALID
+        = 'Debug registration "%s" must be a class string or an array declaring a "class" string.';
 
     /**
      * Indicates that an extension panel ID is registered more than once.
@@ -75,6 +105,20 @@ enum Message: string
      * Format: "Expected an HTTP response or null."
      */
     case HTTP_RESPONSE_EXPECTED = 'Expected an HTTP response or null.';
+
+    /**
+     * Indicates that a panel registration key does not match the ID the panel declares.
+     *
+     * Format: "Debug panel registered as \"%s\" must match its ID \"%s\"."
+     */
+    case PANEL_ID_MISMATCH = 'Debug panel registered as "%s" must match its ID "%s".';
+
+    /**
+     * Indicates that the configuration overrides the title or icon of a panel rendering its own presentation.
+     *
+     * Format: "Panel %s renders its own title and icon, which configuration cannot override."
+     */
+    case PANEL_METADATA_UNSUPPORTED = 'Panel %s renders its own title and icon, which configuration cannot override.';
 
     /**
      * Indicates that request capture was attempted before starting the collector.

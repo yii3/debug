@@ -39,7 +39,7 @@ final class GridFooter
      * @param int $visible Rows rendered on the current page.
      * @param int $page Current page number.
      * @param int $pageCount Total number of pages.
-     * @param (Closure(int): string)|null $pageUrl Omit for context-free rendering without navigation.
+     * @param (Closure(int): string)|null $pageUrl Builds the URL of a page number, or `null` to omit the page links.
      *
      * @return Div Rendered footer.
      */
@@ -105,7 +105,7 @@ final class GridFooter
      *
      * @param OffsetPaginator<TKey, TValue> $paginator Paginator backing the grid.
      * @param int $visible Number of rows rendered on the current page.
-     * @param PanelRenderContext|null $context Omit for context-free rendering without navigation.
+     * @param PanelRenderContext|null $context State of the debugger request, or `null` to omit the page links.
      * @param array<array-key, mixed> $queryParams Query parameters the page links are built from.
      *
      * @return Div Rendered footer.

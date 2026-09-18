@@ -10,6 +10,7 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\ProviderPanel;
+use Yii3\Debug\Tests\Support\HelperFactory;
 
 use function array_map;
 use function array_values;
@@ -72,14 +73,14 @@ final class VitePanelTest extends TestCase
             </p>
             </div>
             HTML,
-            $this->panel->render($payload),
+            $this->panel->render(HelperFactory::createPanelRenderInput($payload)),
             'Direct access to an empty capture must render the complete shared diagnostic state.',
         );
     }
 
     public function testProductionDetailRendersConfigurationAndChunks(): void
     {
-        $html = $this->panel->render(
+        $html = $this->panel->render(HelperFactory::createPanelRenderInput(
             $this->payload(
                 $this->component(
                     id: 'frontend',
@@ -95,7 +96,7 @@ final class VitePanelTest extends TestCase
                     ],
                 ),
             ),
-        );
+        ));
 
         self::assertSame(
             <<<'HTML'

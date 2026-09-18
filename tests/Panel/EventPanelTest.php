@@ -12,6 +12,7 @@ use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\EventPanel;
 use Yii3\Debug\Tests\Provider\EventPanelProvider;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_map;
@@ -19,6 +20,7 @@ use function array_slice;
 use function preg_match_all;
 use function sprintf;
 use function str_pad;
+use function strip_tags;
 use function strpos;
 use function substr;
 use function substr_count;
@@ -31,69 +33,6 @@ use const STR_PAD_LEFT;
  */
 final class EventPanelTest extends TestCase
 {
-    public function testContextFreeRenderUsesTheSharedGridAndEscapesCapturedMetadata(): void
-    {
-        $payload = (
-            new EventSnapshot(
-                [
-                    new EventRow(
-                        1_700_000_000.123,
-                        '<script>alert("name")</script>',
-                        'App\\Event\\<script>alert("class")</script>',
-                        '0',
-                        'App\\Source\\<script>alert("source")</script>',
-                    ),
-                ],
-            )
-        )->jsonSerialize();
-
-        $html = (new EventPanel())->render($payload);
-
-        preg_match_all('~<th[^>]*>\s*([^<]+?)\s*</th>~s', $html, $headerMatches);
-
-        self::assertSame(
-            ['#', 'Time', 'Event', 'Source'],
-            array_map(static fn(string $heading): string => trim($heading), $headerMatches[1]),
-            'The Yii3 grid must omit the duplicate Name and invariant Sender and Static columns.',
-        );
-
-        self::assertStringContainsString(
-            'yii-debug-grid yii-debug-grid-event',
-            $html,
-            'The shared Events grid variant must be applied.',
-        );
-        self::assertStringContainsString(
-            '<strong>1</strong> events',
-            $html,
-            'The summary must report the captured total.',
-        );
-        self::assertStringContainsString(
-            '<strong>1</strong> classes',
-            $html,
-            'The summary must report distinct event classes.',
-        );
-        self::assertStringContainsString(
-            '&lt;script&gt;alert(&quot;class&quot;)&lt;/script&gt;',
-            $html,
-            'Event classes must be HTML-escaped by the shared renderer.',
-        );
-        self::assertStringContainsString(
-            '&lt;script&gt;alert(&quot;source&quot;)&lt;/script&gt;',
-            $html,
-            'Source classes must be HTML-escaped by the shared renderer.',
-        );
-        self::assertStringNotContainsString(
-            '<script>',
-            $html,
-            'Captured metadata must never render executable markup.',
-        );
-        self::assertStringNotContainsString(
-            'name="Event[class]"',
-            $html,
-            'Context-free rendering must not emit query controls.',
-        );
-    }
-
     #[DataProviderExternal(EventPanelProvider::class, 'columnSorts')]
     public function testEveryVisibleColumnSortsAndDefaultOrderIsTimeAscending(string|null $sort, string $firstEvent): void
     {
@@ -113,7 +52,9 @@ final class EventPanelTest extends TestCase
             $query['sort'] = $sort;
         }
 
-        $body = self::tbody((new EventPanel())->renderWithContext($payload, self::context($query)));
+        $body = self::tbody(
+            (new EventPanel())->render(HelperFactory::createPanelRenderInput($payload, self::context($query))),
+        );
 
         self::assertStringContainsString(
             '<strong>' . $firstEvent . '</strong>',
@@ -126,7 +67,7 @@ final class EventPanelTest extends TestCase
             'A one-row page must render exactly one sorted row.',
         );
 
-        $html = (new EventPanel())->renderWithContext($payload, self::context([]));
+        $html = (new EventPanel())->render(HelperFactory::createPanelRenderInput($payload, self::context([])));
 
         foreach (['sort=-time', 'sort=class', 'sort=senderClass'] as $sortUrl) {
             self::assertStringContainsString(
@@ -152,7 +93,7 @@ final class EventPanelTest extends TestCase
     {
         $html = (
             new EventPanel())
-                ->renderWithContext(
+                ->render(HelperFactory::createPanelRenderInput(
                     self::payload(),
                     self::context(
                         [
@@ -169,7 +110,7 @@ final class EventPanelTest extends TestCase
                             'Other' => ['key' => 'value'],
                         ],
                     ),
-                );
+                ));
 
         self::assertStringContainsString(
             'href="/debug/view?tag=request-1&amp;panel=event&amp;Event%5BisStatic%5D=0&amp;sort=-class'
@@ -200,11 +141,39 @@ final class EventPanelTest extends TestCase
         );
     }
 
+    public function testGroupFilterLinksAddTheGroupedValueToTheActiveFilters(): void
+    {
+        $html = (new EventPanel())->render(HelperFactory::createPanelRenderInput(
+            self::payload(),
+            self::context(['Event' => ['name' => 'User'], 'yii_debug_theme' => 'dark', 'page' => '2']),
+        ));
+
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=event&amp;Event%5Bname%5D=User'
+                . '&amp;Event%5BsenderClass%5D=App%5CService%5CUserWriter&amp;yii_debug_theme=dark"',
+            $html,
+            'Grouped value must join the active filters instead of replacing them.',
+        );
+    }
+
+    public function testHeadingPrecedesTheGridSummary(): void
+    {
+        $html = (new EventPanel())->render(
+            HelperFactory::createPanelRenderInput(self::payload(), self::context([])),
+        );
+
+        self::assertStringContainsString(
+            '<h1 class="yii-debug-sr-only">' . "\nEvents\n" . '</h1><header class="yii-debug-grid-summary">',
+            $html,
+            'Order: heading, then summary.',
+        );
+    }
+
     public function testMalformedAndUnknownFiltersAreIgnored(): void
     {
         $html = (
             new EventPanel())
-                ->renderWithContext(
+                ->render(HelperFactory::createPanelRenderInput(
                     self::payload(),
                     self::context(
                         [
@@ -215,7 +184,7 @@ final class EventPanelTest extends TestCase
                             ],
                         ],
                     ),
-                );
+                ));
 
         self::assertStringContainsString(
             '<strong>3</strong> events',
@@ -242,7 +211,7 @@ final class EventPanelTest extends TestCase
         );
 
         (new EventPanel())
-            ->render(['entries' => 'invalid']);
+            ->render(HelperFactory::createPanelRenderInput(['entries' => 'invalid'], self::context([])));
     }
 
     public function testMetadataVisibilityAndInterfacesIdentifyTheBuiltInPanel(): void
@@ -285,7 +254,7 @@ final class EventPanelTest extends TestCase
         }
 
         $payload = (new EventSnapshot($rows))->jsonSerialize();
-        $defaultHtml = (new EventPanel())->renderWithContext($payload, self::context([]));
+        $defaultHtml = (new EventPanel())->render(HelperFactory::createPanelRenderInput($payload, self::context([])));
 
         self::assertSame(
             50,
@@ -311,10 +280,10 @@ final class EventPanelTest extends TestCase
             );
         }
 
-        $allHtml = (new EventPanel())->renderWithContext(
+        $allHtml = (new EventPanel())->render(HelperFactory::createPanelRenderInput(
             (new EventSnapshot(array_slice($rows, 0, 51)))->jsonSerialize(),
             self::context(['per-page' => 'all']),
-        );
+        ));
 
         self::assertSame(
             51,
@@ -327,7 +296,9 @@ final class EventPanelTest extends TestCase
             'All must restore its selector state.',
         );
 
-        $cappedHtml = (new EventPanel())->renderWithContext($payload, self::context(['per-page' => '5000']));
+        $cappedHtml = (new EventPanel())->render(
+            HelperFactory::createPanelRenderInput($payload, self::context(['per-page' => '5000'])),
+        );
 
         self::assertSame(
             1_000,
@@ -341,38 +312,12 @@ final class EventPanelTest extends TestCase
         );
     }
 
-    public function testRenderShowsThePsr14EmptyCaptureState(): void
+    public function testRenderExplainsWhenNoEventsMatch(): void
     {
-        $html = (new EventPanel())->render(['entries' => []]);
-
-        self::assertStringContainsString(
-            'No events dispatched in this request',
-            $html,
-            'A valid capture without events must use the PSR-14 empty-state heading.',
-        );
-        self::assertStringContainsString(
-            '$dispatcher-&gt;dispatch(new MyEvent());',
-            $html,
-            'The empty state must show a safe PSR-14 dispatch example.',
-        );
-        self::assertStringNotContainsString(
-            'wildcard',
-            $html,
-            'The Yii3 empty state must not describe the Yii2 wildcard listener.',
-        );
-        self::assertStringNotContainsString(
-            'yii-debug-grid-event',
-            $html,
-            'A truly empty capture must not render a misleading table.',
-        );
-    }
-
-    public function testRenderWithContextExplainsWhenNoEventsMatch(): void
-    {
-        $html = (new EventPanel())->renderWithContext(
+        $html = (new EventPanel())->render(HelperFactory::createPanelRenderInput(
             self::payload(),
             self::context(['Event' => ['name' => 'missing']]),
-        );
+        ));
 
         self::assertStringContainsString(
             '<strong>0</strong> events',
@@ -406,11 +351,11 @@ final class EventPanelTest extends TestCase
         );
     }
 
-    public function testRenderWithContextFiltersRowsAndScopesTheCompleteSummaryToMatches(): void
+    public function testRenderFiltersRowsAndScopesTheCompleteSummaryToMatches(): void
     {
         $html = (
             new EventPanel())
-                ->renderWithContext(
+                ->render(HelperFactory::createPanelRenderInput(
                     self::payload(),
                     self::context(
                         [
@@ -422,7 +367,7 @@ final class EventPanelTest extends TestCase
                             ],
                         ],
                     ),
-                );
+                ));
 
         $body = self::tbody($html);
 
@@ -493,6 +438,94 @@ final class EventPanelTest extends TestCase
         );
     }
 
+    public function testRenderShowsThePsr14EmptyCaptureState(): void
+    {
+        $html = (new EventPanel())->render(HelperFactory::createPanelRenderInput(['entries' => []], self::context([])));
+
+        self::assertStringContainsString(
+            'No events dispatched in this request',
+            $html,
+            'A valid capture without events must use the PSR-14 empty-state heading.',
+        );
+        self::assertStringContainsString(
+            '$dispatcher-&gt;dispatch(new MyEvent());',
+            $html,
+            'The empty state must show a safe PSR-14 dispatch example.',
+        );
+        self::assertStringNotContainsString(
+            'wildcard',
+            $html,
+            'The Yii3 empty state must not describe the Yii2 wildcard listener.',
+        );
+        self::assertStringNotContainsString(
+            'yii-debug-grid-event',
+            $html,
+            'A truly empty capture must not render a misleading table.',
+        );
+    }
+    public function testRenderUsesTheSharedGridAndEscapesCapturedMetadata(): void
+    {
+        $payload = (
+            new EventSnapshot(
+                [
+                    new EventRow(
+                        1_700_000_000.123,
+                        '<script>alert("name")</script>',
+                        'App\\Event\\<script>alert("class")</script>',
+                        '0',
+                        'App\\Source\\<script>alert("source")</script>',
+                    ),
+                ],
+            )
+        )->jsonSerialize();
+
+        $html = (new EventPanel())->render(HelperFactory::createPanelRenderInput($payload, self::context([])));
+
+        preg_match_all('~<th[^>]*>(.*?)</th>~s', $html, $headerMatches);
+
+        self::assertSame(
+            ['#', 'Time', 'Event', 'Source'],
+            array_map(static fn(string $heading): string => trim(strip_tags($heading)), $headerMatches[1]),
+            'The Yii3 grid must omit the duplicate Name and invariant Sender and Static columns.',
+        );
+
+        self::assertStringContainsString(
+            'yii-debug-grid yii-debug-grid-event',
+            $html,
+            'The shared Events grid variant must be applied.',
+        );
+        self::assertStringContainsString(
+            '<strong>1</strong> events',
+            $html,
+            'The summary must report the captured total.',
+        );
+        self::assertStringContainsString(
+            '<strong>1</strong> classes',
+            $html,
+            'The summary must report distinct event classes.',
+        );
+        self::assertStringContainsString(
+            '&lt;script&gt;alert(&quot;class&quot;)&lt;/script&gt;',
+            $html,
+            'Event classes must be HTML-escaped by the shared renderer.',
+        );
+        self::assertStringContainsString(
+            '&lt;script&gt;alert(&quot;source&quot;)&lt;/script&gt;',
+            $html,
+            'Source classes must be HTML-escaped by the shared renderer.',
+        );
+        self::assertStringNotContainsString(
+            '<script>',
+            $html,
+            'Captured metadata must never render executable markup.',
+        );
+        self::assertStringContainsString(
+            'name="Event[class]"',
+            $html,
+            'The grid must expose the class filter control.',
+        );
+    }
+
     public function testToolbarItemsExposeOneCounterOnlyWhenEventsExist(): void
     {
         $panel = new EventPanel();
@@ -531,7 +564,7 @@ final class EventPanelTest extends TestCase
             ],
         );
         $html = (new EventPanel())
-            ->renderWithContext($snapshot->jsonSerialize(), self::context($query));
+            ->render(HelperFactory::createPanelRenderInput($snapshot->jsonSerialize(), self::context($query)));
 
         self::assertSame(
             1,

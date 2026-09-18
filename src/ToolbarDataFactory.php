@@ -26,11 +26,9 @@ use function array_is_list;
 use function array_key_exists;
 use function rawurlencode;
 use function rtrim;
-use function strcasecmp;
 use function strlen;
 use function substr;
 use function trim;
-use function uasort;
 
 use const PHP_VERSION;
 
@@ -336,7 +334,7 @@ final class ToolbarDataFactory
 
     /**
      * Orders the registered panels the way the sidebar lists them: built-ins keep their registration order and come
-     * first, extensions follow sorted case-insensitively by display name.
+     * first, extensions follow in the order the registration policy already resolved.
      *
      * @param array<string, ExtensionPanelInterface> $panels Registered panels keyed by ID.
      *
@@ -356,14 +354,6 @@ final class ToolbarDataFactory
 
             $extensions[$id] = $panel;
         }
-
-        uasort(
-            $extensions,
-            static fn(ExtensionPanelInterface $left, ExtensionPanelInterface $right): int => strcasecmp(
-                $left->name(),
-                $right->name(),
-            ),
-        );
 
         return $builtIns + $extensions;
     }

@@ -42,9 +42,9 @@ interface ExtensionPanelInterface
     /**
      * Renders the detail content for a captured payload.
      *
-     * @param array<string, mixed> $payload Serialized panel payload.
+     * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
      * @return string Rendered detail content.
      */
-    public function render(array $payload): string;
+    public function render(PanelRenderInput $input): string;
 }

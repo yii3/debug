@@ -9,6 +9,7 @@ use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Panel\ProviderPanel;
+use Yii3\Debug\Tests\Support\HelperFactory;
 
 /**
  * Unit tests for {@see ProviderPanel} adapting a provider-owned declarative panel to the Yii3 debugger.
@@ -93,7 +94,7 @@ final class ProviderPanelTest extends TestCase
         );
         self::assertStringContainsString(
             'yii-debug-table',
-            $panel->render(['hits' => 1]),
+            $panel->render(HelperFactory::createPanelRenderInput(['hits' => 1])),
             'External panels must use the shared frontend.'
         );
 
@@ -154,6 +155,44 @@ final class ProviderPanelTest extends TestCase
         $panel->hasContent(['hits' => 1]);
     }
 
+    public function testWithMetadataReplacesProviderTitleAndIconAndKeepsTheStableId(): void
+    {
+        $panel = new ProviderPanel($this->provider());
+
+        $renamed = $panel->withMetadata('Cache operations', 'db');
+
+        self::assertSame(
+            'Custom',
+            $panel->name(),
+            'Source adapter must stay untouched.',
+        );
+        self::assertSame(
+            'inertia',
+            $panel->icon(),
+            'Source adapter must stay untouched.',
+        );
+        self::assertSame(
+            'Cache operations',
+            $renamed->name(),
+            'Configured title must win.',
+        );
+        self::assertSame(
+            'db',
+            $renamed->icon(),
+            'Configured icon must win.',
+        );
+        self::assertSame(
+            'custom',
+            $renamed->id(),
+            'Stable ID must survive the rename.',
+        );
+        self::assertStringContainsString(
+            'Cache operations',
+            $renamed->render(HelperFactory::createPanelRenderInput(['hits' => 1])),
+            'Detail heading must read the configured title.',
+        );
+    }
+
     private function provider(): Panel
     {
         return new class extends Panel {
@@ -166,8 +205,7 @@ final class ProviderPanelTest extends TestCase
                 return PanelView::create()
                     ->summary('', 1)
                     ->overview(['Driver' => 'local'])
-                    ->toolbar('Hits', 1)
-                    ->active($data !== []);
+                    ->toolbar('Hits', 1);
             }
         };
     }

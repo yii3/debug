@@ -44,7 +44,7 @@ use function strcasecmp;
 /**
  * Presents the shared Database grid with Yii3 navigation, filters, page-scoped N+1 groups, and optional query plans.
  */
-final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderInterface
+final class DbPanel implements ToolbarPanelProviderInterface
 {
     /**
      * Defines the sortable attributes for the database grid.
@@ -148,28 +148,15 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     }
 
     /**
-     * Renders the detail view for a capture opened without page context.
-     *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @return string Rendered panel markup.
-     */
-    public function render(array $payload): string
-    {
-        return $this->renderPanel($payload);
-    }
-
-    /**
      * Renders the detail view, letting the page context drive filtering, sorting, and paging.
      *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext $context Query parameters and theme of the page being rendered.
+     * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
      * @return string Rendered panel markup.
      */
-    public function renderWithContext(array $payload, PanelRenderContext $context): string
+    public function render(PanelRenderInput $input): string
     {
-        return $this->renderPanel($payload, $context);
+        return $this->renderPanel($input->payload, $input->context);
     }
 
     /**
@@ -227,8 +214,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
      *
      * @param DbSummary $summary Query metrics of the capture.
      * @param array<int, NPlusOneFinding> $findings N+1 groups detected on the visible page.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
@@ -237,7 +223,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     private function columns(
         DbSummary $summary,
         array $findings,
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $queryParams,
         array $filters,
     ): array {
@@ -246,7 +232,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
         unset($queryParams['page']);
 
         $columns = [];
-        $tag = $context->tag ?? '';
+        $tag = $context->tag;
 
         foreach (self::SORT_ATTRIBUTES as $attribute) {
             $label = (match ($attribute) {
@@ -258,14 +244,10 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
                 'query' => DbMessage::QUERY,
             })->value;
 
-            $header = $label;
-
-            if ($context !== null) {
-                $link = A::tag()
-                    ->href($context->panelUrl(queryParams: [...$queryParams, 'sort' => $state->next($attribute)]))
-                    ->content($label);
-                $header = ($state->isActive($attribute) ? $link->class($state->direction) : $link)->render();
-            }
+            $link = A::tag()
+                ->href($context->panelUrl(queryParams: [...$queryParams, 'sort' => $state->next($attribute)]))
+                ->content($label);
+            $header = ($state->isActive($attribute) ? $link->class($state->direction) : $link)->render();
 
             $filter = match ($attribute) {
                 'type' => FilterInput::select(FilterPrefix::DB, 'type', $label, $filters, $summary->types),
@@ -284,12 +266,12 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
                     default => DbQueryRenderer::renderQueryCell(
                         $row,
                         $this->trace->render(...),
-                        $context !== null && $this->explain->available(),
+                        $this->explain->available(),
                         fn(int $seq): string => $this->urls->dbExplain($tag, $seq),
                         $findings[$row->getSequence()] ?? null,
                     ),
                 },
-                filter: $context === null ? null : $filter,
+                filter: $filter,
                 headerClass: $attribute === 'type' || $attribute === 'query' ? null : 'sort-numerical',
                 bodyClass: $attribute === 'query' ? null : 'yii-debug-cell-mono yii-debug-nowrap',
                 headerAttributes: $state->isActive($attribute) ? ['aria-sort' => $state->ariaSort()] : [],
@@ -304,8 +286,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
      *
      * @param OffsetPaginator<int, QueryRow> $paginator Paginator clamped to the visible page.
      * @param DbSummary $summary Query metrics of the capture.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      *
@@ -314,7 +295,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
     private function renderGrid(
         OffsetPaginator $paginator,
         DbSummary $summary,
-        PanelRenderContext|null $context,
+        PanelRenderContext $context,
         array $filters,
         array $queryParams,
     ): string {
@@ -324,9 +305,9 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
         /** @var GridView<QueryRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-db-filters')
             ->columns(...$this->columns($summary, $bySequence, $context, $queryParams, $filters))
-            ->urlCreator($context === null ? null : static fn(): string => $context->panelUrl(queryParams: []));
+            ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
-        $explainAll = $context !== null && $this->explain->available()
+        $explainAll = $this->explain->available()
             ? Div::tag()->class('yii-debug-db-explain-all')->html(
                 Button::tag()
                     ->addAriaAttribute('expanded', 'false')
@@ -356,26 +337,22 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
      * Renders the complete Database panel for a capture.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
-     * @param PanelRenderContext|null $context State of the debugger request, or `null` when the panel renders
-     * standalone.
+     * @param PanelRenderContext $context State of the debugger request being rendered.
      *
      * @return string Rendered detail content.
      */
-    private function renderPanel(array $payload, PanelRenderContext|null $context = null): string
+    private function renderPanel(array $payload, PanelRenderContext $context): string
     {
         $entries = self::snapshot($payload)->entries();
 
         $summary = new DbSummary($entries);
 
-        $search = DbSearch::fromQueryParams($context->queryParams ?? []);
-
-        $queryParams = $context === null
-            ? []
-            : FilterRemoval::withGroup($context->queryParams, FilterPrefix::DB, $search->activeFilters);
+        $search = DbSearch::fromQueryParams($context->queryParams);
+        $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::DB, $search->activeFilters);
         $content = PanelHeading::render(PanelTitle::DATABASE)
             . DbSummaryRenderer::render(
                 $summary,
-                $context !== null && $entries !== [] ? PageSize::selectorFor($queryParams) : null,
+                $entries === [] ? null : PageSize::selectorFor($queryParams),
             );
 
         if ($entries === []) {
@@ -388,9 +365,7 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
 
         $filtered = $search->filter($entries);
 
-        if ($context !== null) {
-            $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::DB);
-        }
+        $content .= FilterRemoval::banner($search->activeFilters, $context, $queryParams, FilterPrefix::DB);
 
         if ($filtered === []) {
             return $content
@@ -419,13 +394,11 @@ final class DbPanel implements ContextAwarePanelInterface, ToolbarPanelProviderI
             static fn(QueryRow $a, QueryRow $b): int => $a->getSequence() <=> $b->getSequence(),
         );
 
-        $paginator = $context === null
-            ? PageWindow::single($sorted)
-            : PageWindow::paginate(
-                $sorted,
-                QueryInput::scalar($queryParams, 'per-page'),
-                QueryInput::scalar($queryParams, 'page'),
-            );
+        $paginator = PageWindow::paginate(
+            $sorted,
+            QueryInput::scalar($queryParams, 'per-page'),
+            QueryInput::scalar($queryParams, 'page'),
+        );
 
         return $content . $this->renderGrid($paginator, $summary, $context, $search->activeFilters, $queryParams);
     }

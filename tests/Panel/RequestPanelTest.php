@@ -9,6 +9,7 @@ use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Panel\RequestPanel;
+use Yii3\Debug\Tests\Support\HelperFactory;
 use Yiisoft\Router\{Route, RouteCollection, RouteCollectionInterface, RouteCollector};
 
 use function strpos;
@@ -25,7 +26,81 @@ final class RequestPanelTest extends TestCase
             'Invalid debug snapshot',
         );
 
-        (new RequestPanel())->render(['statusCode' => '200']);
+        (new RequestPanel())->render(HelperFactory::createPanelRenderInput(['statusCode' => '200']));
+    }
+
+    public function testManifestEntryKeepsRequestAndRouteIdentityAboveTheCanonicalTabs(): void
+    {
+        $summary = RequestSummary::create('request-1')
+            ->withRequest(
+                'https://example.test/orders?page=2',
+                'GET',
+                '127.0.0.1',
+                0.0,
+            )
+            ->withResponse(200)
+            ->withProfiling(0.009, 1_145_324);
+
+        $html = (new RequestPanel())->render(
+            HelperFactory::createPanelRenderInput($this->payload(), null, $summary),
+        );
+
+        $overview = strpos($html, 'yii-debug-request-overview');
+        $tabs = strpos($html, 'yii-debug-request-tabs');
+
+        self::assertNotFalse(
+            $overview,
+            'The shared request execution overview must be rendered.'
+        );
+        self::assertNotFalse(
+            $tabs,
+            'The canonical Request tabs must be rendered.',
+        );
+        self::assertLessThan(
+            $tabs,
+            $overview,
+            'The execution overview must remain visible above every tab.',
+        );
+        self::assertStringContainsString(
+            'https://example.test/orders?page=2',
+            $html,
+            'The overview must expose the selected request URL.',
+        );
+        self::assertStringContainsString(
+            '127.0.0.1',
+            $html,
+            'The overview must expose the captured client IP.',
+        );
+        self::assertStringContainsString(
+            '9.0 ms',
+            $html,
+            'The overview must expose request duration.',
+        );
+        self::assertStringContainsString(
+            'orders/view',
+            $html,
+            'The overview must expose the resolved route.',
+        );
+        self::assertStringContainsString(
+            'App\\Web\\OrderAction',
+            $html,
+            'The overview must expose the dispatched action.',
+        );
+        self::assertStringContainsString(
+            'yii-debug-status-2xx',
+            $html,
+            'The overview must retain the semantic HTTP status treatment.',
+        );
+        self::assertMatchesRegularExpression(
+            '~>Input</a>.*>Headers</a>.*>Session</a>.*>Server</a>~s',
+            $html,
+            'The shared panel must retain the canonical Request tab order.',
+        );
+        self::assertStringNotContainsString(
+            "<h2>\nRouting\n</h2>",
+            $html,
+            'The overview must remain the sole route execution summary.',
+        );
     }
 
     public function testMetadataAndVisibilityMatchTheBuiltInRequestPanel(): void
@@ -72,7 +147,9 @@ final class RequestPanelTest extends TestCase
             'middlewares' => ['App\\Middleware\\<Authentication>'],
         ];
 
-        $html = (new RequestPanel())->render(RequestSnapshot::capture($data)->jsonSerialize());
+        $html = (new RequestPanel())->render(
+            HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)->jsonSerialize()),
+        );
 
         self::assertStringContainsString(
             '&lt;script&gt;alert(1)&lt;/script&gt;',
@@ -113,7 +190,7 @@ final class RequestPanelTest extends TestCase
 
     public function testRenderLegacySnapshotUsesCanonicalOverviewWithoutInventingAnInventory(): void
     {
-        $html = (new RequestPanel())->render($this->payload());
+        $html = (new RequestPanel())->render(HelperFactory::createPanelRenderInput($this->payload()));
 
         self::assertStringContainsString(
             'yii-debug-request-overview',
@@ -156,7 +233,7 @@ final class RequestPanelTest extends TestCase
             ->action('App\\Web\\<OrderAction>');
 
         $routes = new RouteCollection((new RouteCollector())->addRoute($route));
-        $html = (new RequestPanel($routes))->render($this->payload());
+        $html = (new RequestPanel($routes))->render(HelperFactory::createPanelRenderInput($this->payload()));
 
         self::assertStringNotContainsString(
             '>Routes (',
@@ -178,9 +255,18 @@ final class RequestPanelTest extends TestCase
         $headers = strpos($html, '>Headers</a>');
         $server = strpos($html, '>Server</a>');
 
-        self::assertNotFalse($input, 'Input must be present.');
-        self::assertNotFalse($headers, 'Headers must be present.');
-        self::assertNotFalse($server, 'Server must be present.');
+        self::assertNotFalse(
+            $input,
+            'Input must be present.',
+        );
+        self::assertNotFalse(
+            $headers,
+            'Headers must be present.',
+        );
+        self::assertNotFalse(
+            $server,
+            'Server must be present.',
+        );
         self::assertTrue(
             $input < $headers && $headers < $server,
             'Canonical Request tabs must keep their order.',
@@ -194,8 +280,8 @@ final class RequestPanelTest extends TestCase
         unset($data['SESSION'], $data['flashes']);
 
         $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringNotContainsString(
             '>Session</a>',
@@ -223,8 +309,8 @@ final class RequestPanelTest extends TestCase
         ];
 
         $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringContainsString(
             'class="yii-debug-request-overview yii-debug-verb-get"',
@@ -312,8 +398,8 @@ final class RequestPanelTest extends TestCase
         $data['routeDefinition'] = null;
 
         $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringContainsString(
             'health',
@@ -335,7 +421,7 @@ final class RequestPanelTest extends TestCase
             ->method('getRoutes')
             ->willThrowException(new RuntimeException('Unable to load <routes>.'));
 
-        $html = (new RequestPanel($routes))->render($this->payload());
+        $html = (new RequestPanel($routes))->render(HelperFactory::createPanelRenderInput($this->payload()));
 
         self::assertStringContainsString(
             'class="yii-debug-callout yii-debug-callout-danger yii-debug-request-routing-error"',
@@ -366,8 +452,8 @@ final class RequestPanelTest extends TestCase
         $data['routeDefinition'] = ['name' => 'orders/view'];
 
         $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringContainsString(
             'class="yii-debug-callout yii-debug-callout-danger yii-debug-request-routing-error"',
@@ -399,7 +485,9 @@ final class RequestPanelTest extends TestCase
         $data['route'] = '';
         $data['routeDefinition'] = '<invalid>';
 
-        $html = (new RequestPanel())->render(RequestSnapshot::capture($data)->jsonSerialize());
+        $html = (new RequestPanel())->render(
+            HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)->jsonSerialize()),
+        );
 
         self::assertStringContainsString(
             'yii-debug-request-routing-error',
@@ -434,8 +522,8 @@ final class RequestPanelTest extends TestCase
         ];
 
         $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringContainsString(
             'orders/fallback',
@@ -464,8 +552,8 @@ final class RequestPanelTest extends TestCase
         $data['routeDefinition'] = null;
 
         $html = (new RequestPanel(new RouteCollection(new RouteCollector())))
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringContainsString(
             'yii-debug-request-overview',
@@ -519,8 +607,8 @@ final class RequestPanelTest extends TestCase
         ];
 
         $html = (new RequestPanel())
-            ->render(RequestSnapshot::capture($data)
-            ->jsonSerialize());
+            ->render(HelperFactory::createPanelRenderInput(RequestSnapshot::capture($data)
+            ->jsonSerialize()));
 
         self::assertStringContainsString(
             'yii-debug-header-exchange',
@@ -577,78 +665,6 @@ final class RequestPanelTest extends TestCase
             . '<span class="yii-debug-disclosure-title">Get</span>~s',
             $html,
             'A populated Yii3 Input bucket must start open.',
-        );
-    }
-
-    public function testRenderWithSummaryKeepsRequestAndRouteIdentityAboveTheCanonicalTabs(): void
-    {
-        $summary = RequestSummary::create('request-1')
-            ->withRequest(
-                'https://example.test/orders?page=2',
-                'GET',
-                '127.0.0.1',
-                0.0,
-            )
-            ->withResponse(200)
-            ->withProfiling(0.009, 1_145_324);
-
-        $html = (new RequestPanel())->renderWithSummary($this->payload(), $summary);
-
-        $overview = strpos($html, 'yii-debug-request-overview');
-        $tabs = strpos($html, 'yii-debug-request-tabs');
-
-        self::assertNotFalse(
-            $overview,
-            'The shared request execution overview must be rendered.'
-        );
-        self::assertNotFalse(
-            $tabs,
-            'The canonical Request tabs must be rendered.',
-        );
-        self::assertLessThan(
-            $tabs,
-            $overview,
-            'The execution overview must remain visible above every tab.',
-        );
-        self::assertStringContainsString(
-            'https://example.test/orders?page=2',
-            $html,
-            'The overview must expose the selected request URL.',
-        );
-        self::assertStringContainsString(
-            '127.0.0.1',
-            $html,
-            'The overview must expose the captured client IP.',
-        );
-        self::assertStringContainsString(
-            '9.0 ms',
-            $html,
-            'The overview must expose request duration.',
-        );
-        self::assertStringContainsString(
-            'orders/view',
-            $html,
-            'The overview must expose the resolved route.',
-        );
-        self::assertStringContainsString(
-            'App\\Web\\OrderAction',
-            $html,
-            'The overview must expose the dispatched action.',
-        );
-        self::assertStringContainsString(
-            'yii-debug-status-2xx',
-            $html,
-            'The overview must retain the semantic HTTP status treatment.',
-        );
-        self::assertMatchesRegularExpression(
-            '~>Input</a>.*>Headers</a>.*>Session</a>.*>Server</a>~s',
-            $html,
-            'The shared panel must retain the canonical Request tab order.',
-        );
-        self::assertStringNotContainsString(
-            "<h2>\nRouting\n</h2>",
-            $html,
-            'The overview must remain the sole route execution summary.',
         );
     }
 
