@@ -105,6 +105,120 @@ return [
 ];
 ```
 
+## Upgrading from the extensions flags
+
+The `extensions` block is gone, and `config/di-web.php` reads `collectors` and `panels` alone. An application that
+still sets `yii3/debug.extensions` loses those captures silently: the key is ignored, and no collector, panel, or
+listener is wired.
+
+Before:
+
+```php
+return [
+    'yii3/debug' => [
+        'extensions' => [
+            'inertia' => true,
+            'vite' => true,
+        ],
+    ],
+];
+```
+
+After, in the application parameters, keyed by the stable ID each class reports from `id()`:
+
+```php
+use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
+use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
+
+return [
+    'yii3/debug' => [
+        'collectors' => [
+            'vite' => ViteCollector::class,
+            'inertia' => InertiaCollector::class,
+        ],
+        'panels' => [
+            'vite' => VitePanel::class,
+            'inertia' => InertiaPanel::class,
+        ],
+    ],
+];
+```
+
+Each flag also attached the collector as a PSR-14 listener. The debugger packages no listener for a provider package
+any more, so declare them in the application's `events-web` group:
+
+```php
+use PHPForge\Inertia\Debug\InertiaCollector;
+use PHPForge\Inertia\Event\ProtocolResultCreated;
+use PHPForge\Vite\Debug\ViteCollector;
+use PHPForge\Vite\Event\AssetsResolved;
+
+return [
+    AssetsResolved::class => [ViteCollector::class],
+    ProtocolResultCreated::class => [InertiaCollector::class],
+];
+```
+
+Vite needs nothing else. The `inertia` flag also built `InertiaCollector` with the capture policy, so add that
+definition to the application's `di-web` group to keep the redaction the flag applied:
+
+```php
+use PHPForge\Debug\Capture\CapturePolicy;
+use PHPForge\Inertia\Debug\InertiaCollector;
+
+return [
+    InertiaCollector::class => static fn(CapturePolicy $capturePolicy): InertiaCollector => new InertiaCollector(
+        $capturePolicy->redact(...),
+        $capturePolicy->redactUrl(...),
+    ),
+];
+```
+
+### Upgrading a custom panel
+
+`SummaryAwarePanelInterface`, `ContextAwarePanelInterface`, and `ContextAndSummaryAwarePanelInterface` are gone, with
+their `renderWithSummary()`, `renderWithContext()`, and `renderWithContextAndSummary()` methods. A panel implements
+`Yii3\Debug\Panel\ExtensionPanelInterface` alone, and its single `render()` receives a
+`Yii3\Debug\Panel\PanelRenderInput` exposing `$input->payload`, `$input->context`, and `$input->summary`.
+
+Before:
+
+```php
+use PHPForge\Debug\Panel\PanelRenderContext;
+use Yii3\Debug\Panel\ContextAwarePanelInterface;
+
+final class CachePanel implements ContextAwarePanelInterface
+{
+    public function render(array $payload): string
+    {
+        // renders without the debugger request context
+    }
+
+    public function renderWithContext(array $payload, PanelRenderContext $context): string
+    {
+        // renders with the debugger request context
+    }
+}
+```
+
+After:
+
+```php
+use Yii3\Debug\Panel\{ExtensionPanelInterface, PanelRenderInput};
+
+final class CachePanel implements ExtensionPanelInterface
+{
+    public function render(PanelRenderInput $input): string
+    {
+        // reads $input->payload, and $input->context or $input->summary when it needs them
+    }
+}
+```
+
+`Yii3\Debug\Web\PageWindow::single()` is gone; `PageWindow::paginate($rows, null, null)` keeps every row on one page.
+`php-forge/vite` moved from `require` to `require-dev`, so an application registering the Vite panel installs the
+package itself.
+
 ## Custom collectors and panels
 
 A collector implements `PHPForge\Debug\CollectorInterface` — the single contract shared by the built-in collectors,

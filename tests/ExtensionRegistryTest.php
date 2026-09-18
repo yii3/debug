@@ -55,6 +55,34 @@ final class ExtensionRegistryTest extends TestCase
         );
     }
 
+    public function testBuiltInCollectorDisabledByConfigurationIsAbsentFromComposition(): void
+    {
+        $builtIn = new RequestCollector();
+        $laterBuiltIn = new DbCollector();
+
+        $registry = ExtensionRegistry::fromParams(
+            ['request' => ['class' => RequestCollector::class, 'enabled' => false]],
+            [],
+            new ContainerStub(),
+        );
+
+        self::assertSame(
+            ['request'],
+            $registry->disabled(),
+            'Disabled ID must be reported.',
+        );
+        self::assertSame(
+            [],
+            $registry->collectorsWithBuiltIn($builtIn),
+            'Disabled built-in must not come back.',
+        );
+        self::assertSame(
+            [$laterBuiltIn],
+            $registry->collectorsWithBuiltIns([$builtIn, $laterBuiltIn]),
+            'Only the disabled built-in must be dropped.',
+        );
+    }
+
     public function testBuiltInCompositionReplacesOverriddenIdsAndKeepsTheRegistryIntact(): void
     {
         $collector = new ExtensionCollectorStub();
@@ -159,6 +187,34 @@ final class ExtensionRegistryTest extends TestCase
         );
     }
 
+    public function testBuiltInPanelDisabledByConfigurationIsAbsentFromComposition(): void
+    {
+        $builtIn = new RequestPanel();
+        $laterBuiltIn = new EventPanel();
+
+        $registry = ExtensionRegistry::fromParams(
+            [],
+            ['request' => ['class' => RequestPanel::class, 'enabled' => false]],
+            new ContainerStub(),
+        );
+
+        self::assertSame(
+            ['request'],
+            $registry->disabled(),
+            'Disabled ID must be reported.',
+        );
+        self::assertSame(
+            [],
+            $registry->panelsWithBuiltIn($builtIn),
+            'Disabled built-in must not come back.',
+        );
+        self::assertSame(
+            [$laterBuiltIn],
+            $registry->panelsWithBuiltIns([$builtIn, $laterBuiltIn]),
+            'Only the disabled built-in must be dropped.',
+        );
+    }
+
     public function testConfiguredOverrideRenamesPortablePanelAndLeadsByPosition(): void
     {
         $registry = ExtensionRegistry::create(
@@ -170,12 +226,36 @@ final class ExtensionRegistryTest extends TestCase
 
         $panels = $registry->panels();
 
-        self::assertCount(2, $panels, 'Both registrations must survive an override.');
-        self::assertSame('vite', $panels[0]->id(), 'Order: positioned entry first.');
-        self::assertSame('Vite assets', $panels[0]->name(), 'Title override must beat the provider default.');
-        self::assertSame('asset', $panels[0]->icon(), 'Icon override must beat the provider default.');
-        self::assertSame('inertia', $panels[1]->id(), 'Entry without a position must follow.');
-        self::assertSame('Inertia', $panels[1]->name(), 'Provider default must survive an unrelated override.');
+        self::assertCount(
+            2,
+            $panels,
+            'Both registrations must survive an override.',
+        );
+        self::assertSame(
+            'vite',
+            $panels[0]->id(),
+            'Order: positioned entry first.',
+        );
+        self::assertSame(
+            'Vite assets',
+            $panels[0]->name(),
+            'Title override must beat the provider default.',
+        );
+        self::assertSame(
+            'asset',
+            $panels[0]->icon(),
+            'Icon override must beat the provider default.',
+        );
+        self::assertSame(
+            'inertia',
+            $panels[1]->id(),
+            'Entry without a position must follow.',
+        );
+        self::assertSame(
+            'Inertia',
+            $panels[1]->name(),
+            'Provider default must survive an unrelated override.',
+        );
     }
 
     public function testCreateNormalizesIterablesAndPreservesOrder(): void
@@ -242,6 +322,34 @@ final class ExtensionRegistryTest extends TestCase
         );
     }
 
+    public function testDisabledIdMissingFromTheBuiltInsLeavesCompositionUntouched(): void
+    {
+        $builtInCollector = new RequestCollector();
+        $builtInPanel = new RequestPanel();
+
+        $registry = ExtensionRegistry::fromParams(
+            ['cache' => ['class' => CacheCollector::class, 'enabled' => false]],
+            ['cache' => ['class' => CachePanel::class, 'enabled' => false]],
+            new ContainerStub(),
+        );
+
+        self::assertSame(
+            ['cache'],
+            $registry->disabled(),
+            'Disabled ID must be reported.',
+        );
+        self::assertSame(
+            [$builtInCollector],
+            $registry->collectorsWithBuiltIns([$builtInCollector]),
+            'Unmatched disabled ID must keep the built-in collector.',
+        );
+        self::assertSame(
+            [$builtInPanel],
+            $registry->panelsWithBuiltIns([$builtInPanel]),
+            'Unmatched disabled ID must keep the built-in panel.',
+        );
+    }
+
     public function testDisabledIdsAreReportedSortedWithoutDuplicates(): void
     {
         $registry = ExtensionRegistry::create(
@@ -250,7 +358,11 @@ final class ExtensionRegistryTest extends TestCase
             disabled: ['vite', 'ghost', 'vite'],
         );
 
-        self::assertSame([], $registry->panels(), 'A disabled entry must not stay listed.');
+        self::assertSame(
+            [],
+            $registry->panels(),
+            'A disabled entry must not stay listed.',
+        );
         self::assertSame(
             ['ghost', 'inertia', 'vite'],
             $registry->disabled(),
@@ -271,12 +383,36 @@ final class ExtensionRegistryTest extends TestCase
 
         $panels = $registry->panels();
 
-        self::assertSame([$collector], $registry->collectors(), 'An `enabled` entry must stay registered.');
-        self::assertCount(1, $panels, 'One configured entry must produce one panel.');
-        self::assertSame('cache', $panels[0]->id(), 'Stable ID must come from the configuration key.');
-        self::assertSame('Cache operations', $panels[0]->name(), 'Title option must beat the provider default.');
-        self::assertSame('asset', $panels[0]->icon(), 'Icon option must beat the provider default.');
-        self::assertSame([], $registry->disabled(), 'No ID may be reported disabled.');
+        self::assertSame(
+            [$collector],
+            $registry->collectors(),
+            'An `enabled` entry must stay registered.',
+        );
+        self::assertCount(
+            1,
+            $panels,
+            'One configured entry must produce one panel.',
+        );
+        self::assertSame(
+            'cache',
+            $panels[0]->id(),
+            'Stable ID must come from the configuration key.',
+        );
+        self::assertSame(
+            'Cache operations',
+            $panels[0]->name(),
+            'Title option must beat the provider default.',
+        );
+        self::assertSame(
+            'asset',
+            $panels[0]->icon(),
+            'Icon option must beat the provider default.',
+        );
+        self::assertSame(
+            [],
+            $registry->disabled(),
+            'No ID may be reported disabled.',
+        );
     }
 
     public function testFromParamsRecordsDisabledEntriesWithoutResolvingTheirClass(): void
@@ -296,9 +432,21 @@ final class ExtensionRegistryTest extends TestCase
             new ContainerStub([CacheCollector::class => $collector, CachePanel::class => $panel]),
         );
 
-        self::assertSame([$collector], $registry->collectors(), 'Entries after a disabled one must still register.');
-        self::assertCount(1, $registry->panels(), 'Entries after a disabled one must still register.');
-        self::assertSame(['ghost', 'phantom'], $registry->disabled(), 'Disabled IDs must be unique and sorted.');
+        self::assertSame(
+            [$collector],
+            $registry->collectors(),
+            'Entries after a disabled one must still register.',
+        );
+        self::assertCount(
+            1,
+            $registry->panels(),
+            'Entries after a disabled one must still register.',
+        );
+        self::assertSame(
+            ['ghost', 'phantom'],
+            $registry->disabled(),
+            'Disabled IDs must be unique and sorted.',
+        );
     }
 
     public function testFromParamsReportsDisabledIdsAsStrings(): void
@@ -309,7 +457,11 @@ final class ExtensionRegistryTest extends TestCase
             new ContainerStub(),
         );
 
-        self::assertSame(['0', '1'], $registry->disabled(), 'Numeric keys must be reported as `string` IDs.');
+        self::assertSame(
+            ['0', '1'],
+            $registry->disabled(),
+            'Numeric keys must be reported as `string` IDs.',
+        );
     }
 
     public function testFromParamsResolvesClassStringEntriesThroughTheContainer(): void
@@ -325,11 +477,60 @@ final class ExtensionRegistryTest extends TestCase
 
         $panels = $registry->panels();
 
-        self::assertSame([$collector], $registry->collectors(), 'Container instance must be registered as is.');
-        self::assertCount(1, $panels, 'One configured entry must produce one panel.');
-        self::assertSame('cache', $panels[0]->id(), 'Stable ID must come from the configuration key.');
-        self::assertSame('Cache', $panels[0]->name(), 'Provider default title must survive a bare class string.');
-        self::assertSame([], $registry->disabled(), 'No ID may be reported disabled.');
+        self::assertSame(
+            [$collector],
+            $registry->collectors(),
+            'Container instance must be registered as is.',
+        );
+        self::assertCount(
+        1,
+            $panels,
+            'One configured entry must produce one panel.',
+        );
+        self::assertSame(
+            'cache',
+            $panels[0]->id(),
+            'Stable ID must come from the configuration key.',
+        );
+        self::assertSame(
+            'Cache',
+            $panels[0]->name(),
+            'Provider default title must survive a bare class string.',
+        );
+        self::assertSame(
+            [],
+            $registry->disabled(),
+            'No ID may be reported disabled.',
+        );
+    }
+
+    public function testRegisteredEntryWinsOverADisabledBuiltInOfTheSameId(): void
+    {
+        $builtIn = new ProviderPanel(new CachePanel());
+
+        $registry = ExtensionRegistry::fromParams(
+            ['cache' => ['class' => CacheCollector::class, 'enabled' => false]],
+            ['cache' => CachePanel::class],
+            new ContainerStub([CachePanel::class => new CachePanel()]),
+        );
+
+        $panels = $registry->panels();
+
+        self::assertSame(
+            ['cache'],
+            $registry->disabled(),
+            'Collector entry must report its ID disabled.',
+        );
+        self::assertCount(
+            1,
+            $panels,
+            'An enabled panel entry must survive a disabled collector of the same ID.',
+        );
+        self::assertSame(
+            $panels,
+            $registry->panelsWithBuiltIns([$builtIn]),
+            'Registered panel must win over the disabled built-in.',
+        );
     }
 
     public function testRegistrationIsExplicitOrderedAndImmutable(): void
@@ -416,7 +617,9 @@ final class ExtensionRegistryTest extends TestCase
     public function testThrowInvalidArgumentExceptionForNonBooleanCollectorEnabled(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Debug collector option "enabled" for "cache" must be a boolean.');
+        $this->expectExceptionMessage(
+            'Debug collector option "enabled" for "cache" must be a boolean.',
+        );
 
         ExtensionRegistry::fromParams(
             ['cache' => ['class' => CacheCollector::class, 'enabled' => 'yes']],
@@ -428,7 +631,9 @@ final class ExtensionRegistryTest extends TestCase
     public function testThrowInvalidArgumentExceptionForPanelKeyNotMatchingItsId(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Debug panel registered as "wrong" must match its ID "vite".');
+        $this->expectExceptionMessage(
+            'Debug panel registered as "wrong" must match its ID "vite".',
+        );
 
         ExtensionRegistry::create(panels: ['wrong' => new VitePanel()]);
     }
@@ -462,7 +667,9 @@ final class ExtensionRegistryTest extends TestCase
             ->willReturn('Acme');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Panel acme renders its own title and icon');
+        $this->expectExceptionMessage(
+            'Panel acme renders its own title and icon',
+        );
 
         ExtensionRegistry::create(
             panels: ['acme' => $panel],

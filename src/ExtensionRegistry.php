@@ -14,6 +14,7 @@ use Yii3\Debug\Panel\{BuiltInPanels, ExtensionPanelInterface, ProviderPanel};
 use function array_keys;
 use function array_unique;
 use function array_values;
+use function in_array;
 use function is_array;
 use function is_bool;
 use function is_string;
@@ -160,6 +161,8 @@ final readonly class ExtensionRegistry
     /**
      * Returns the built-in collector first, unless the application explicitly registered an override with the same ID.
      *
+     * A built-in whose ID the configuration disabled is dropped instead of placed first.
+     *
      * @param CollectorInterface $builtIn Built-in collector to place first.
      *
      * @return list<CollectorInterface> Built-in and enabled collectors in capture order.
@@ -172,13 +175,15 @@ final readonly class ExtensionRegistry
     /**
      * Returns built-in collectors first, replacing each one with an explicitly registered collector of the same ID.
      *
+     * A built-in whose ID the configuration disabled is dropped instead of placed first.
+     *
      * @param iterable<CollectorInterface> $builtIns Built-in collectors in capture order.
      *
      * @return list<CollectorInterface> Built-in and enabled collectors in capture order.
      */
     public function collectorsWithBuiltIns(iterable $builtIns): array
     {
-        return self::compose($this->collectors, $builtIns);
+        return self::compose($this->collectors, $builtIns, $this->disabled);
     }
 
     /**
@@ -284,6 +289,8 @@ final readonly class ExtensionRegistry
     /**
      * Returns the built-in panel first, unless the application explicitly registered an override with the same ID.
      *
+     * A built-in whose ID the configuration disabled is dropped instead of placed first.
+     *
      * @param ExtensionPanelInterface $builtIn Built-in panel to place first.
      *
      * @return list<ExtensionPanelInterface> Built-in and enabled panels in navigation order.
@@ -296,13 +303,15 @@ final readonly class ExtensionRegistry
     /**
      * Returns built-in panels first, replacing each one with an explicitly registered panel of the same ID.
      *
+     * A built-in whose ID the configuration disabled is dropped instead of placed first.
+     *
      * @param iterable<ExtensionPanelInterface> $builtIns Built-in panels in navigation order.
      *
      * @return list<ExtensionPanelInterface> Built-in and enabled panels in navigation order.
      */
     public function panelsWithBuiltIns(iterable $builtIns): array
     {
-        return self::compose($this->panels, $builtIns);
+        return self::compose($this->panels, $builtIns, $this->disabled);
     }
 
     /**
@@ -368,19 +377,24 @@ final readonly class ExtensionRegistry
      * Places every built-in first, replacing it with a registered entry of the same ID, and appends the remaining
      * registrations.
      *
+     * A built-in no registered entry replaced is skipped once the configuration disabled its ID; one disabled list
+     * serves collectors and panels alike, because the same ID names both here and the renderer already skips a panel
+     * whose capture is absent.
+     *
      * @template TEntry of CollectorInterface|ExtensionPanelInterface
      *
      * @param array<int, TEntry> $registered Registered entries in registration order.
      * @param iterable<TEntry> $builtIns Built-in entries in display order.
+     * @param list<string> $disabled IDs the configuration disabled.
      *
      * @return list<TEntry> Built-in and registered entries in display order.
      */
-    private static function compose(array $registered, iterable $builtIns): array
+    private static function compose(array $registered, iterable $builtIns, array $disabled): array
     {
         $resolved = [];
 
         foreach ($builtIns as $builtIn) {
-            $match = $builtIn;
+            $match = null;
 
             foreach ($registered as $index => $entry) {
                 if ($entry->id() !== $builtIn->id()) {
@@ -394,6 +408,14 @@ final readonly class ExtensionRegistry
                 // Registered IDs are unique, so the remaining entries cannot match; the guard is a shortcut only.
                 // @infection-ignore-all
                 break;
+            }
+
+            if ($match === null) {
+                if (in_array($builtIn->id(), $disabled, true)) {
+                    continue;
+                }
+
+                $match = $builtIn;
             }
 
             $resolved[] = $match;
