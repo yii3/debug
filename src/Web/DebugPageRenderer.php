@@ -411,21 +411,7 @@ final class DebugPageRenderer
                 continue;
             }
 
-            $hasFailure = isset($snapshot->failures[$id]);
-
-            $payload = $snapshot->panels[$id] ?? null;
-            $hasContent = false;
-
-            if ($payload !== null) {
-                try {
-                    $hasContent = $panel->hasContent($payload);
-                } catch (Throwable) {
-                    // Keep malformed captured panels discoverable so the detail page can expose the render failure.
-                    $hasContent = true;
-                }
-            }
-
-            if ($hasFailure === false && $hasContent === false) {
+            if (self::lists($panel, $snapshot, $id) === false) {
                 continue;
             }
 
@@ -545,6 +531,37 @@ final class DebugPageRenderer
     }
 
     /**
+     * Returns whether the sidebar lists a panel for a capture.
+     *
+     * A failed capture is always listed, so the detail page can explain it. A captured payload is listed only when the
+     * panel reports content, which keeps a structurally valid but semantically empty capture out of the navigation.
+     * A panel that throws while deciding is listed too, so the detail page can expose the render failure.
+     *
+     * @param ExtensionPanelInterface $panel Panel presenting the capture.
+     * @param DebugSnapshot $snapshot Capture backing the sidebar.
+     * @param string $id Panel ID to look up in the capture.
+     *
+     * @return bool `true` when the panel earns a navigation entry; `false` otherwise.
+     */
+    private static function lists(ExtensionPanelInterface $panel, DebugSnapshot $snapshot, string $id): bool
+    {
+        if (array_key_exists($id, $snapshot->failures)) {
+            return true;
+        }
+
+        if (!array_key_exists($id, $snapshot->panels)) {
+            return false;
+        }
+
+        try {
+            return $panel->hasContent($snapshot->panels[$id]);
+        } catch (Throwable) {
+            // Keep malformed captured panels discoverable so the detail page can expose the render failure.
+            return true;
+        }
+    }
+
+    /**
      * Renders the debugger shell around already-composed page content.
      *
      * @param string $title Document title.
@@ -622,11 +639,7 @@ final class DebugPageRenderer
         foreach (BuiltInPanels::IDS as $id) {
             $panel = $this->extensionPanels[$id] ?? null;
 
-            if (
-                $panel === null
-                || (!array_key_exists($id, $snapshot->panels)
-                    && !array_key_exists($id, $snapshot->failures))
-            ) {
+            if ($panel === null || self::lists($panel, $snapshot, $id) === false) {
                 continue;
             }
 

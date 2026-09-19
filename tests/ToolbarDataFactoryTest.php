@@ -6,10 +6,12 @@ namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
+use PHPForge\Debug\Panel\Asset\AssetSnapshot;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
+use PHPForge\Debug\{Panel, PanelView};
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPForge\Inertia\Debug\InertiaPanel;
@@ -19,6 +21,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Panel\{
+    AssetPanel,
     EventPanel,
     ExtensionPanelInterface,
     LogPanel,
@@ -552,6 +555,9 @@ final class ToolbarDataFactoryTest extends TestCase
             $panel = self::createStub(ToolbarPanelProviderInterface::class);
 
             $panel
+                ->method('hasContent')
+                ->willReturn(true);
+            $panel
                 ->method('id')
                 ->willReturn($id);
             $panel
@@ -629,6 +635,55 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotKeepsIdleExtensionChip(): void
+    {
+        $snapshot = new DebugSnapshot(RequestSummary::create('request-1'), ['idle' => []], []);
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new ProviderPanel($this->idleProvider())])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['idle'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'An enabled extension must stay visible on an idle capture.',
+        );
+        self::assertSame(
+            '0',
+            $payload['items'][0]['items'][0]['value'] ?? null,
+            'The idle metric must reach the chip.',
+        );
+    }
+
+    public function testCreateForSnapshotKeepsMalformedAssetChip(): void
+    {
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['asset' => ['bundles' => 'broken', 'vite' => null]],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new AssetPanel()])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            'asset',
+            $payload['items'][0]['id'] ?? null,
+            'A malformed capture must keep its chip.',
+        );
+        self::assertSame(
+            'danger',
+            $payload['items'][0]['items'][0]['status'] ?? null,
+            'The failure must surface as a danger metric.',
+        );
+    }
+
     public function testCreateForSnapshotLinksLogSeverityMetricsToTheirFilters(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
@@ -684,6 +739,32 @@ final class ToolbarDataFactoryTest extends TestCase
             ],
             $payload['items'],
             'Logs toolbar severity metrics must open the corresponding filtered panel without changing the total.',
+        );
+    }
+
+    public function testCreateForSnapshotOmitsAssetChipWithoutBundlesAndWithoutVite(): void
+    {
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'asset' => (new AssetSnapshot([], null))->jsonSerialize(),
+                'idle' => [],
+            ],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([new AssetPanel(), new ProviderPanel($this->idleProvider())])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['idle'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'A capture describing nothing must drop out without hiding the chips that follow.',
         );
     }
 
@@ -793,6 +874,7 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $panel = self::createStub(ToolbarPanelProviderInterface::class);
 
+        $panel->method('hasContent')->willReturn(true);
         $panel->method('id')->willReturn('log');
         $panel->method('name')->willReturn('Application Logs');
         $panel->method('toolbarItems')->willReturn(
@@ -916,6 +998,9 @@ final class ToolbarDataFactoryTest extends TestCase
             $panel = self::createStub(ToolbarPanelProviderInterface::class);
 
             $panel
+                ->method('hasContent')
+                ->willReturn(true);
+            $panel
                 ->method('id')
                 ->willReturn($case);
             $panel
@@ -1000,6 +1085,25 @@ final class ToolbarDataFactoryTest extends TestCase
                 $payload['items'],
             ),
         ];
+    }
+
+    /**
+     * Builds a provider that always declares a toolbar metric, the way an enabled extension reports an idle capture.
+     *
+     * @return Panel Declarative panel exposing one zero-valued metric.
+     */
+    private function idleProvider(): Panel
+    {
+        return new class extends Panel {
+            protected const string ICON = 'inertia';
+            protected const string ID = 'idle';
+            protected const string TITLE = 'Idle';
+
+            public function present(array $data): PanelView
+            {
+                return PanelView::create()->toolbar('Calls', 0);
+            }
+        };
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Yii3\Debug\Tests\Web;
 use Closure;
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
+use PHPForge\Debug\Panel\Asset\AssetSnapshot;
 use PHPForge\Debug\Panel\Config\ConfigPanel;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
@@ -21,7 +22,15 @@ use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\ConfigDataFactory;
-use Yii3\Debug\Panel\{EventPanel, ExtensionPanelInterface, LogPanel, ProfilingPanel, ProviderPanel, RequestPanel};
+use Yii3\Debug\Panel\{
+    AssetPanel,
+    EventPanel,
+    ExtensionPanelInterface,
+    LogPanel,
+    ProfilingPanel,
+    ProviderPanel,
+    RequestPanel,
+};
 use Yii3\Debug\Tests\Provider\UrlPathProvider;
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
@@ -77,6 +86,76 @@ final class DebugPageRendererTest extends TestCase
             $original,
             $summary->jsonSerialize(),
             'Presentation must not mutate the request summary.',
+        );
+    }
+
+    public function testConfigHidesAssetNavItemForCaptureWithoutBundles(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            [
+                'asset' => $this->assetPayload(),
+                'request' => $this->requestPayload(),
+            ],
+            [],
+        );
+
+        $html = $this->rendererWithAssets()->config('request-1', 'light', $manifest, $snapshot);
+
+        self::assertStringNotContainsString(
+            'panel=asset',
+            $html,
+            'A capture with neither bundles nor Vite must not be linked.',
+        );
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=request" title="View Request panel"',
+            $html,
+            'The other built-ins must keep their entry.',
+        );
+    }
+
+    public function testConfigKeepsAssetNavItemForFailedCapture(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            [],
+            [
+                'asset' => PanelFailure::fromThrowable(
+                    PanelFailure::CAPTURE,
+                    new RuntimeException('Asset capture failed.'),
+                ),
+            ],
+        );
+
+        $html = $this->rendererWithAssets()->config('request-1', 'light', $manifest, $snapshot);
+
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=asset" title="View Asset Bundles panel"',
+            $html,
+            'A failed capture must stay reachable.',
+        );
+    }
+
+    public function testConfigKeepsAssetNavItemForMalformedCapture(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            ['asset' => ['bundles' => 'broken', 'vite' => null]],
+            [],
+        );
+
+        $html = $this->rendererWithAssets()->config('request-1', 'light', $manifest, $snapshot);
+
+        self::assertStringContainsString(
+            'href="/debug/view?tag=request-1&amp;panel=asset" title="View Asset Bundles panel"',
+            $html,
+            'A malformed capture must stay reachable.',
         );
     }
 
@@ -1252,6 +1331,26 @@ final class DebugPageRendererTest extends TestCase
             'title="View Unstable panel" aria-current="page"',
             $html,
             'A panel whose visibility check fails must remain discoverable in the sidebar.',
+        );
+    }
+
+    public function testExtensionRendersHiddenAssetPanelOnDirectNavigation(): void
+    {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot($manifest['request-1'], ['asset' => $this->assetPayload()], []);
+
+        $html = $this->rendererWithAssets()->extension($snapshot, 'asset', 'light', $manifest);
+
+        self::assertStringContainsString(
+            'No asset bundles loaded',
+            $html,
+            'Detail page must still render the empty state.',
+        );
+        self::assertStringNotContainsString(
+            'title="View Asset Bundles panel"',
+            $html,
+            'Only the navigation entry disappears.',
         );
     }
 
@@ -2497,6 +2596,16 @@ final class DebugPageRendererTest extends TestCase
     }
 
     /**
+     * Builds an Asset Bundles capture that registered neither a bundle nor a Vite build.
+     *
+     * @return array<string, mixed> Serialized Asset Bundles payload.
+     */
+    private function assetPayload(): array
+    {
+        return (new AssetSnapshot([], null))->jsonSerialize();
+    }
+
+    /**
      * Builds the Configuration panel fragment the page embeds.
      *
      * The panel markup itself is covered by the shared presenter's own tests; this helper pins only that the page
@@ -2617,6 +2726,14 @@ final class DebugPageRendererTest extends TestCase
         return $this->rendererWithPanels(
             'page-renderer-assets',
             [new RequestPanel()],
+        );
+    }
+
+    private function rendererWithAssets(): DebugPageRenderer
+    {
+        return $this->rendererWithPanels(
+            'page-renderer-asset-panel-assets',
+            [new RequestPanel(), new AssetPanel()],
         );
     }
 

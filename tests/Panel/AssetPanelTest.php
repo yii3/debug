@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Panel;
 
+use PHPForge\Debug\Panel\Asset\{AssetBundleRow, AssetSnapshot, ViteManifest};
+use PHPForge\Debug\Storage\HydrationException;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Panel\AssetPanel;
 
@@ -12,6 +14,40 @@ use Yii3\Debug\Panel\AssetPanel;
  */
 final class AssetPanelTest extends TestCase
 {
+    public function testHasContentRejectsCaptureWithoutBundlesAndWithoutVite(): void
+    {
+        self::assertFalse(
+            (new AssetPanel())->hasContent((new AssetSnapshot([], null))->jsonSerialize()),
+            'A capture describing nothing must stay hidden.',
+        );
+    }
+
+    public function testHasContentReportsCapturedBundle(): void
+    {
+        $payload = (new AssetSnapshot(
+            [new AssetBundleRow('App\\Asset\\AppAsset', '@app/assets', '/public/assets', '/assets', [], [], [])],
+            null,
+        ))->jsonSerialize();
+
+        self::assertTrue(
+            (new AssetPanel())->hasContent($payload),
+            'One bundle must be enough to list the panel.',
+        );
+    }
+
+    public function testHasContentReportsCapturedViteSection(): void
+    {
+        $payload = (new AssetSnapshot(
+            [],
+            new ViteManifest('/build', true, 'http://127.0.0.1:5173', '', []),
+        ))->jsonSerialize();
+
+        self::assertTrue(
+            (new AssetPanel())->hasContent($payload),
+            'A Vite section must be enough to list the panel.',
+        );
+    }
+
     public function testPanelIdentityMatchesAssetCollector(): void
     {
         $panel = new AssetPanel();
@@ -31,5 +67,13 @@ final class AssetPanelTest extends TestCase
             $panel->icon(),
             'Icon must match the portable panel declaration.',
         );
+    }
+
+    public function testThrowHydrationExceptionForMalformedPayload(): void
+    {
+        $this->expectException(HydrationException::class);
+        $this->expectExceptionMessage("Invalid debug snapshot value at '\$.asset.bundles': expected a list.");
+
+        (new AssetPanel())->hasContent(['bundles' => 'broken', 'vite' => null]);
     }
 }
