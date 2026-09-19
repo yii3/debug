@@ -223,6 +223,27 @@ final class ToolbarDataFactory
     }
 
     /**
+     * Returns whether the toolbar shows a chip for a captured payload.
+     *
+     * A panel that throws while deciding keeps its chip, so building the metrics can surface the failure as a danger
+     * item instead of the chip disappearing.
+     *
+     * @param ExtensionPanelInterface $panel Panel presenting the capture.
+     * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @return bool `true` when the panel earns a chip; `false` otherwise.
+     */
+    private static function hasContent(ExtensionPanelInterface $panel, array $payload): bool
+    {
+        try {
+            return $panel->hasContent($payload);
+        } catch (Throwable) {
+            // Keep malformed captured panels discoverable so the chip can expose the failure.
+            return true;
+        }
+    }
+
+    /**
      * Adds Logs panel filter URLs to its error and warning toolbar metrics.
      *
      * @param string $tag Tag of the capture the toolbar links to.
@@ -292,6 +313,10 @@ final class ToolbarDataFactory
             }
 
             if (!$panel instanceof ToolbarPanelProviderInterface) {
+                continue;
+            }
+
+            if (self::hasContent($panel, $snapshot->panels[$id]) === false) {
                 continue;
             }
 
