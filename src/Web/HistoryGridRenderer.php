@@ -12,7 +12,6 @@ use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, 
 use PHPForge\Debug\View\ViewMessage;
 use Stringable;
 use UIAwesome\Html\Flow\Div;
-use UIAwesome\Html\Palpable\A;
 use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Search\HistorySearch;
 use Yii3\Debug\View\ViewMessage as AdapterMessage;
@@ -157,6 +156,12 @@ final class HistoryGridRenderer
             'desc',
         );
 
+        $url = static fn(string $sort): string => self::url(
+            $routePrefix,
+            $queryParams,
+            ['sort' => $sort, 'page' => null],
+        );
+
         $columns = [
             new GridColumn(
                 header: '#',
@@ -176,16 +181,8 @@ final class HistoryGridRenderer
                 default => null,
             };
 
-            $active = $state->isActive($attribute);
-            $nextSort = $state->next($attribute);
-
-            $link = A::tag()
-                ->href(self::url($routePrefix, $queryParams, ['sort' => $nextSort, 'page' => null]))
-                ->class($active ? $state->direction : null)
-                ->content($label);
-
             $columns[] = new GridColumn(
-                header: $link->render(),
+                header: $state->header($attribute, $label, $url),
                 content: static fn(HistoryRow $row): string => self::renderCell(
                     $row,
                     $attribute,
@@ -196,7 +193,6 @@ final class HistoryGridRenderer
                 filter: self::filter($attribute, $filters),
                 encodeContent: $attribute === 'ip' || $attribute === 'ajax',
                 class: $class,
-                headerAttributes: $active ? ['aria-sort' => $state->ariaSort()] : [],
             );
         }
 
@@ -380,12 +376,9 @@ final class HistoryGridRenderer
             ->render();
 
         $footer = GridFooter::render(
-            $paginator->getTotalItems(),
-            $paginator->getOffset(),
+            $paginator,
             count($rows),
-            $paginator->getCurrentPage(),
-            $paginator->getTotalPages(),
-            static fn(int $number): string => self::url($routePrefix, $queryParams, ['page' => $number]),
+            static fn(string $page): string => self::url($routePrefix, $queryParams, ['page' => $page]),
         );
 
         return Div::tag()

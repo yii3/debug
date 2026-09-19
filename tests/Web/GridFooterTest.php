@@ -5,61 +5,24 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use Closure;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
-use Yii3\Debug\Web\GridFooter;
+use Yii3\Debug\Tests\Provider\GridFooterProvider;
+use Yii3\Debug\Web\{GridFooter, PageWindow};
+use Yiisoft\Data\Paginator\OffsetPaginator;
 
+use function array_fill;
 use function implode;
 use function preg_match_all;
 use function substr_count;
 
 /**
- * Unit tests for the bounded page window and item range summary rendered by {@see GridFooter}.
+ * Unit tests for the item range summary and the bounded page window rendered by {@see GridFooter}.
+ *
+ * {@see GridFooterProvider} for pagination and item range cases.
  */
 final class GridFooterTest extends TestCase
 {
-    public function testDefaultsToASinglePageOnTheFirstPage(): void
-    {
-        $html = GridFooter::render(100, 0, 10, pageCount: 25, pageUrl: self::url())->render();
-
-        self::assertSame(
-            '1 2 3 4 5 6 7 8 9 10 … 25',
-            self::labels($html),
-            'The window must open on the first page.',
-        );
-        self::assertMatchesRegularExpression(
-            '#<li class="yii-debug-pager-item is-active">\s*<a class="yii-debug-pager-link" '
-            . 'href="/debug\?page=1" aria-label="Page 1" aria-current="page">1</a>#',
-            $html,
-            'Page 1 must be the current one.',
-        );
-        self::assertStringNotContainsString(
-            '<nav',
-            GridFooter::render(100, 0, 10, pageUrl: self::url())->render(),
-            'A defaulted page count must not add navigation.',
-        );
-    }
-
-    public function testLinksFirstAndLastPagesWithLabelsAndGeneratedUrls(): void
-    {
-        $html = self::pager(13, 25);
-
-        self::assertStringContainsString(
-            '<a class="yii-debug-pager-link" href="/debug?page=1" aria-label="Page 1">1</a>',
-            $html,
-            'Edge link must address the first page.',
-        );
-        self::assertStringContainsString(
-            '<a class="yii-debug-pager-link" href="/debug?page=25" aria-label="Page 25">25</a>',
-            $html,
-            'Edge link must address the last page.',
-        );
-        self::assertSame(
-            14,
-            substr_count($html, '<li class="yii-debug-pager-item'),
-            'Ten window links, two gaps, and two edges make fourteen items.',
-        );
-    }
-
     public function testMarksOnlyTheCurrentPageAsCurrent(): void
     {
         $html = self::pager(13, 25);
@@ -74,9 +37,9 @@ final class GridFooterTest extends TestCase
             substr_count($html, 'is-active'),
             'Only one item may be highlighted.',
         );
-        self::assertMatchesRegularExpression(
-            '#<li class="yii-debug-pager-item is-active">\s*<a class="yii-debug-pager-link" '
-            . 'href="/debug\?page=13" aria-label="Page 13" aria-current="page">13</a>#',
+        self::assertStringContainsString(
+            '<li class="yii-debug-pager-item is-active"><a aria-label="Page 13" aria-current="page" '
+            . 'class="yii-debug-pager-link" href="/debug?page=13">13</a></li>',
             $html,
             'Current markers must sit on page 13.',
         );
@@ -91,114 +54,100 @@ final class GridFooterTest extends TestCase
         );
         self::assertStringNotContainsString(
             '<nav',
-            GridFooter::render(500, 0, 10, 3, 50)->render(),
+            GridFooter::render(self::paginator(500, 10, 3), 10)->render(),
             'A missing URL builder must not add navigation.',
         );
     }
 
-    public function testRendersBoundedPageWindowWithFirstAndLastPageLinks(): void
+    #[DataProviderExternal(GridFooterProvider::class, 'pageWindows')]
+    public function testRendersBoundedPageWindowAroundTheCurrentPage(int $pageCount, int $page, string $expected): void
     {
-        $cases = [
-            '25 pages on page 1' => [25, 1, '1 2 3 4 5 6 7 8 9 10 … 25'],
-            '25 pages on page 6' => [25, 6, '1 2 3 4 5 6 7 8 9 10 … 25'],
-            '25 pages on page 7' => [25, 7, '1 2 3 4 5 6 7 8 9 10 11 … 25'],
-            '25 pages on page 8' => [25, 8, '1 … 3 4 5 6 7 8 9 10 11 12 … 25'],
-            '25 pages on page 13' => [25, 13, '1 … 8 9 10 11 12 13 14 15 16 17 … 25'],
-            '25 pages on page 25' => [25, 25, '1 … 16 17 18 19 20 21 22 23 24 25'],
-            '11 pages on page 1' => [11, 1, '1 2 3 4 5 6 7 8 9 10 11'],
-            '12 pages on page 1' => [12, 1, '1 2 3 4 5 6 7 8 9 10 … 12'],
-            '10 pages on page 1' => [10, 1, '1 2 3 4 5 6 7 8 9 10'],
-            '10 pages on page 7' => [10, 7, '1 2 3 4 5 6 7 8 9 10'],
-            '10 pages on page 10' => [10, 10, '1 2 3 4 5 6 7 8 9 10'],
-            '3 pages on page 2' => [3, 2, '1 2 3'],
-            '2 pages on page 2' => [2, 2, '1 2'],
-            '2000 pages on page 1000' => [2000, 1000, '1 … 995 996 997 998 999 1000 1001 1002 1003 1004 … 2000'],
-        ];
-
-        foreach ($cases as $label => [$pageCount, $page, $expected]) {
-            self::assertSame(
-                $expected,
-                self::labels(self::pager($page, $pageCount)),
-                "Window mismatch for {$label}.",
-            );
-        }
+        self::assertSame(
+            $expected,
+            self::pages(self::pager($page, $pageCount)),
+            'Window must hold ten pages around the current one.',
+        );
     }
 
-    public function testSeparatesSkippedPagesWithInertEllipsisItems(): void
+    public function testRendersUnreachableControlsAsInertSpans(): void
     {
-        $html = self::pager(13, 25);
+        $first = self::pager(1, 25);
 
-        self::assertSame(
-            2,
-            substr_count($html, '<li class="yii-debug-pager-item is-disabled" aria-hidden="true">'),
-            'Both gaps must be inert and hidden.',
+        self::assertStringContainsString(
+            '<li class="yii-debug-pager-item is-disabled"><span aria-label="First page" role="link" '
+            . 'aria-disabled="true" class="yii-debug-pager-link">⟪</span></li>',
+            $first,
+            'Backward controls must be inert on the first page.',
         );
         self::assertSame(
             2,
-            substr_count($html, '<span class="yii-debug-pager-link">…</span>'),
-            'Gaps must carry a raw ellipsis character.',
+            substr_count($first, '<span aria-label'),
+            'Only the backward controls may be inert.',
+        );
+        self::assertStringContainsString(
+            '<a aria-label="Last page" class="yii-debug-pager-link" href="/debug?page=25">⟫</a>',
+            $first,
+            'Forward controls must stay reachable.',
+        );
+
+        $last = self::pager(25, 25);
+
+        self::assertStringContainsString(
+            '<li class="yii-debug-pager-item is-disabled"><span aria-label="Next page" role="link" '
+            . 'aria-disabled="true" class="yii-debug-pager-link">⟩</span></li>',
+            $last,
+            'Forward controls must be inert on the last page.',
         );
         self::assertStringNotContainsString(
-            '&hellip;',
-            $html,
-            'The ellipsis must not be encoded as an entity.',
-        );
-        self::assertStringNotContainsString(
-            'is-disabled',
-            self::pager(1, 11),
-            'A window reaching every page must not add a gap.',
+            '<span aria-label',
+            self::pager(13, 25),
+            'Every control must stay reachable in the middle of the collection.',
         );
     }
 
-    public function testSummarizesTheVisibleItemRange(): void
-    {
+    #[DataProviderExternal(GridFooterProvider::class, 'itemRanges')]
+    public function testSummarizesTheVisibleItemRange(
+        int $total,
+        int $pageSize,
+        int $page,
+        int $visible,
+        string $expected,
+    ): void {
         self::assertStringContainsString(
-            '<span class="summary yii-debug-grid-count">Showing 0-0 of 0 items.</span>',
-            GridFooter::render(0, 0, 0)->render(),
-            'An empty grid must start the range at zero.',
+            "<span class=\"summary yii-debug-grid-count\">{$expected}</span>",
+            GridFooter::render(self::paginator($total, $pageSize, $page), $visible)->render(),
+            'Range must cover the rows on screen.',
         );
-        self::assertStringContainsString(
-            '<span class="summary yii-debug-grid-count">Showing 21-23 of 23 items.</span>',
-            GridFooter::render(23, 20, 3)->render(),
-            'The last page must be offset by one item.',
-        );
-        self::assertStringContainsString(
-            '<span class="summary yii-debug-grid-count">Showing 21-23 of 23 items.</span>',
-            GridFooter::render(23, 20, 5)->render(),
-            'A partially filled page must stop at the total.',
-        );
-        self::assertStringContainsString(
-            '<span class="summary yii-debug-grid-count">Showing 1-1 of 1 item.</span>',
-            GridFooter::render(1, 0, 1)->render(),
-            'A single row must use the shared singular noun.',
-        );
-        self::assertStringContainsString(
-            'Showing 1-10 of 100 items.',
-            self::pager(1, 10),
-            'A full page must span the requested size.',
-        );
-    }
-
-    /**
-     * @return string Page numbers and gaps in the order they appear, separated by a single space.
-     */
-    private static function labels(string $html): string
-    {
-        preg_match_all('#<li[^>]*>\s*<(?:a|span)[^>]*>([^<]*)</#u', $html, $matches);
-
-        return implode(' ', $matches[1]);
     }
 
     private static function pager(int $page, int $pageCount): string
     {
-        return GridFooter::render(100, 0, 10, $page, $pageCount, self::url())->render();
+        return GridFooter::render(self::paginator($pageCount, 1, $page), 1, self::url())->render();
     }
 
     /**
-     * @return Closure(int): string
+     * @return string Page numbers in the order they appear, separated by a single space.
+     */
+    private static function pages(string $html): string
+    {
+        preg_match_all('#aria-label="Page (\d+)"#', $html, $matches);
+
+        return implode(' ', $matches[1]);
+    }
+
+    /**
+     * @return OffsetPaginator<int, array{id: int}> Paginator holding one row per item of the collection.
+     */
+    private static function paginator(int $total, int $pageSize, int $page): OffsetPaginator
+    {
+        return PageWindow::paginate(array_fill(0, $total, ['id' => 1]), (string) $pageSize, (string) $page);
+    }
+
+    /**
+     * @return Closure(string): string Builds the URL of a page from its number.
      */
     private static function url(): Closure
     {
-        return static fn(int $number): string => "/debug?page={$number}";
+        return static fn(string $page): string => "/debug?page={$page}";
     }
 }

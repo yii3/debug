@@ -109,11 +109,13 @@ final class GridColumnRenderer implements FilterableColumnRendererInterface
      */
     public function renderHeader(ColumnInterface $column, Cell $cell, GlobalContext $context): Cell
     {
+        $header = $column->header;
+
         return $cell
-            ->addAttributes($column->headerAttributes)
+            ->addAttributes($header instanceof SortHeader ? $header->attributes : [])
             ->addClass($column->class)
             ->addClass($column->headerClass)
-            ->content($column->header)
+            ->content((string) $header)
             ->encode(false);
     }
 }

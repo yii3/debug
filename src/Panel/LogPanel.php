@@ -160,21 +160,9 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
 
         unset($queryParams['page']);
 
-        $header = static function (string $attribute, string $label) use (
-            $context,
-            $queryParams,
-            $state,
-        ): string {
-            $isActive = $state->isActive($attribute);
-
-            $queryParams['sort'] = $state->next($attribute, $attribute === 'timeSincePrevious');
-
-            $link = A::tag()
-                ->href($context->panelUrl(queryParams: $queryParams))
-                ->content($label);
-
-            return ($isActive ? $link->class($state->direction) : $link)->render();
-        };
+        $url = static fn(string $sort): string => $context->panelUrl(
+            queryParams: [...$queryParams, 'sort' => $sort],
+        );
 
         $traceLine = $this->trace->render(...);
 
@@ -187,7 +175,7 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
                 bodyClass: 'yii-debug-nowrap',
             ),
             new GridColumn(
-                header: $header('time', LogMessage::TIME->value),
+                header: $state->header('time', LogMessage::TIME->value, $url),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderTimeCell($row),
                 filter: '',
                 encodeContent: true,
@@ -195,13 +183,13 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
                 bodyClass: 'yii-debug-nowrap',
             ),
             new GridColumn(
-                header: $header('timeSincePrevious', LogMessage::DELTA->value),
+                header: $state->header('timeSincePrevious', LogMessage::DELTA->value, $url, descendingFirst: true),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderTimeSincePreviousCell($row),
                 filter: '',
                 headerClass: 'sort-numerical',
             ),
             new GridColumn(
-                header: $header('level', LogMessage::LEVEL->value),
+                header: $state->header('level', LogMessage::LEVEL->value, $url),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderLevelCell($row),
                 filter: FilterInput::select(
                     FilterPrefix::LOG,
@@ -212,13 +200,13 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
                 ),
             ),
             new GridColumn(
-                header: $header('category', LogMessage::CATEGORY->value),
+                header: $state->header('category', LogMessage::CATEGORY->value, $url),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderCategoryCell($row),
                 filter: FilterInput::text(FilterPrefix::LOG, 'category', LogMessage::CATEGORY->value, $filters),
                 bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
             ),
             new GridColumn(
-                header: $header('message', LogMessage::MESSAGE->value),
+                header: $state->header('message', LogMessage::MESSAGE->value, $url),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderMessageCell($row, $traceLine),
                 filter: FilterInput::text(FilterPrefix::LOG, 'message', LogMessage::MESSAGE->value, $filters),
             ),

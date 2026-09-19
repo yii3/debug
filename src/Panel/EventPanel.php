@@ -17,7 +17,6 @@ use PHPForge\Debug\Panel\Event\{
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\{Div, P, Pre};
-use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\EventSearch;
 use Yii3\Debug\View\ViewMessage as AdapterMessage;
@@ -146,21 +145,9 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
 
         unset($queryParams['page']);
 
-        $header = static function (string $attribute, string $label) use (
-            $context,
-            $queryParams,
-            $state,
-        ): string {
-            $isActive = $state->isActive($attribute);
-
-            $queryParams['sort'] = $state->next($attribute);
-
-            $link = A::tag()
-                ->href($context->panelUrl(queryParams: $queryParams))
-                ->content($label);
-
-            return ($isActive ? $link->class($state->direction) : $link)->render();
-        };
+        $url = static fn(string $sort): string => $context->panelUrl(
+            queryParams: [...$queryParams, 'sort' => $sort],
+        );
 
         return [
             new GridColumn(
@@ -171,20 +158,20 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
                 class: 'yii-debug-col-num',
             ),
             new GridColumn(
-                header: $header('time', EventMessage::TIME->value),
+                header: $state->header('time', EventMessage::TIME->value, $url),
                 content: static fn(EventRow $row): string => EventInspectorRenderer::renderTimeCell($row, $sequence),
                 filter: '',
                 headerClass: 'sort-numerical',
                 bodyClass: 'yii-debug-event-time-cell',
             ),
             new GridColumn(
-                header: $header('class', EventMessage::EVENT->value),
+                header: $state->header('class', EventMessage::EVENT->value, $url),
                 content: static fn(EventRow $row): string => EventInspectorRenderer::renderEventCell($row, $sequence),
                 filter: FilterInput::text(FilterPrefix::EVENT, 'class', EventMessage::EVENT->value, $filters),
                 bodyClass: 'yii-debug-event-cell',
             ),
             new GridColumn(
-                header: $header('senderClass', 'Source'),
+                header: $state->header('senderClass', 'Source', $url),
                 content: static fn(EventRow $row): string => EventCellRenderer::renderSenderCell($row),
                 filter: FilterInput::text(FilterPrefix::EVENT, 'senderClass', 'Source', $filters),
                 bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
@@ -226,6 +213,7 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
         array $filters,
     ): string {
         $sequence = new EventSequence($allRows);
+
         $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
 
         /** @var GridView<EventRow> $grid */
