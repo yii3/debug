@@ -11,6 +11,9 @@ use Yiisoft\Assets\AssetBundle;
  */
 final class DebugAsset extends AssetBundle
 {
+    /**
+     * Configures the published paths and the CSS and JS assets of the debugger page.
+     */
     public function __construct()
     {
         $this->basePath = '@assets/yii3-debug';

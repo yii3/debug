@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Config;
 
 use PHPForge\Debug\CollectorInterface;
+use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
+use PHPForge\Inertia\Event\ProtocolResultCreated;
+use PHPForge\Inertia\{PageInput, Protocol, RequestContext};
 use PHPUnit\Framework\TestCase;
 use Throwable;
 use Yii3\Debug\ExtensionRegistry;
@@ -32,6 +35,37 @@ final class ExtensionConfigurationTest extends TestCase
      * Value of the `APP_ENV` server entry before the test replaced it, or `null` when it was absent or not a `string`.
      */
     private string|null $serverEnvironment = null;
+
+    public function testApplicationCanDisableTheInertiaProvider(): void
+    {
+        $registry = PackageConfiguration::container(
+            [
+                'collectors' => ['inertia' => ['class' => InertiaCollector::class, 'enabled' => false]],
+                'panels' => ['inertia' => ['class' => InertiaPanel::class, 'enabled' => false]],
+            ],
+        )->get(ExtensionRegistry::class);
+
+        self::assertInstanceOf(
+            ExtensionRegistry::class,
+            $registry,
+            'Packaged definition must build the registry.',
+        );
+        self::assertSame(
+            [],
+            self::collectorIds($registry),
+            'Disabled provider must not collect.',
+        );
+        self::assertSame(
+            [],
+            self::panelIds($registry),
+            'Disabled provider must have no panel.',
+        );
+        self::assertSame(
+            ['inertia'],
+            $registry->disabled(),
+            'Disabled provider must be reported.',
+        );
+    }
 
     public function testDisabledEntryDoesNotRequireItsClass(): void
     {
@@ -156,18 +190,92 @@ final class ExtensionConfigurationTest extends TestCase
         );
     }
 
-    /**
-     * Characterization test: the packaged listeners already exclude provider entries.
-     */
-    public function testPackagedEventsConfigurationDeclaresNoProviderListeners(): void
+    public function testPackagedConfigurationRegistersTheInertiaProviderWhenInstalled(): void
+    {
+        $registry = PackageConfiguration::container()->get(ExtensionRegistry::class);
+
+        self::assertInstanceOf(
+            ExtensionRegistry::class,
+            $registry,
+            'Packaged definition must build the registry.',
+        );
+        self::assertSame(
+            ['inertia'],
+            self::collectorIds($registry),
+            'Installed provider must collect by default.',
+        );
+        self::assertSame(
+            ['inertia'],
+            self::panelIds($registry),
+            'Installed provider must have its panel by default.',
+        );
+    }
+
+    public function testPackagedEventsConfigurationDeclaresOnlyTheShutdownAndInertiaListeners(): void
     {
         $listeners = PackageConfiguration::events(PackageConfiguration::params());
 
         // yiisoft/yii-http is not a dependency of this package; the packaged configuration only names the class.
         self::assertSame(
-            ['Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown'],
+            ['Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown', ProtocolResultCreated::class],
             array_keys($listeners),
-            'Only the shutdown listener may be packaged.',
+            'Only the shutdown and Inertia listeners may be packaged.',
+        );
+    }
+
+    public function testPackagedEventsRouteProtocolResultsToTheInertiaCollector(): void
+    {
+        $events = PackageConfiguration::events(PackageConfiguration::params());
+
+        self::assertSame(
+            [InertiaCollector::class],
+            $events[ProtocolResultCreated::class] ?? null,
+            'Protocol results must reach the packaged collector.',
+        );
+    }
+
+    public function testPackagedInertiaCollectorAppliesTheHostCapturePolicy(): void
+    {
+        $collector = PackageConfiguration::container()->get(InertiaCollector::class);
+
+        self::assertInstanceOf(InertiaCollector::class, $collector, 'Container must build the packaged collector.');
+
+        $collector->startup();
+
+        Protocol::create(eventDispatcher: $collector)->page(
+            new RequestContext('GET', '/home', 'https://example.test/home', ['X-Inertia' => 'true']),
+            PageInput::create('Home', ['answer' => 42, 'password' => 'secret'], ''),
+        );
+
+        $capture = $collector->capture();
+
+        self::assertIsArray(
+            $capture,
+            'A protocol result must be captured.',
+        );
+
+        $page = $capture['page'] ?? null;
+
+        self::assertIsArray(
+            $page,
+            'Capture must carry the page.',
+        );
+
+        $props = $page['props'] ?? null;
+
+        self::assertIsArray(
+            $props,
+            'Capture must carry the page props.',
+        );
+        self::assertSame(
+            42,
+            $props['answer'] ?? null,
+            'Plain props must survive.',
+        );
+        self::assertNotSame(
+            'secret',
+            $props['password'] ?? null,
+            'Sensitive props must follow the host policy.',
         );
     }
 

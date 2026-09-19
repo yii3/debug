@@ -16,6 +16,9 @@ final class ToolbarAsset extends AssetBundle
      */
     public const string SOURCE_PATH = '@vendor/php-forge/debug-core/resources/assets';
 
+    /**
+     * Configures the published paths and the JS asset of the toolbar runtime.
+     */
     public function __construct()
     {
         $this->basePath = '@assets/yii3-debug';

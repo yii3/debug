@@ -28,25 +28,38 @@ wins over the runtime value.
 
 ## Registering collectors and panels
 
-The debugger registers nothing by itself. Declare every collector and panel your application wants under
-`yii3/debug.collectors` and `yii3/debug.panels`, keyed by the stable ID the class reports from `id()`:
+The Inertia provider registers itself: once `php-forge/inertia` is installed, the packaged parameters declare its
+collector and panel under the `inertia` ID, the packaged `events-web` group routes every protocol result to that
+collector, and the packaged `di-web` group builds it with the host redaction policy. Declare every other collector and
+panel your application wants under `yii3/debug.collectors` and `yii3/debug.panels`, keyed by the stable ID the class
+reports from `id()`:
 
 ```php
-use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
 use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
 
 return [
     'yii3/debug' => [
         'collectors' => [
             'vite' => ViteCollector::class,
-            'inertia' => InertiaCollector::class,
             'cache' => ['class' => Acme\Debug\CacheCollector::class, 'enabled' => true],
         ],
         'panels' => [
             'vite' => ['class' => VitePanel::class, 'title' => 'Vite assets', 'icon' => 'asset', 'position' => 1],
-            'inertia' => InertiaPanel::class,
             'cache' => ['class' => Acme\Debug\CachePanel::class, 'title' => 'Cache operations', 'icon' => 'db'],
         ],
+    ],
+];
+```
+
+An application that wants no Inertia capture disables both packaged entries:
+
+```php
+use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
+
+return [
+    'yii3/debug' => [
+        'collectors' => ['inertia' => ['class' => InertiaCollector::class, 'enabled' => false]],
+        'panels' => ['inertia' => ['class' => InertiaPanel::class, 'enabled' => false]],
     ],
 ];
 ```
@@ -69,18 +82,15 @@ means it is inspecting built assets in your development application, not that th
 
 ### Provider event listeners
 
-The debugger packages no listener for a provider package. Declare them in your application's `events-web` group, so
-the instance that captures the event is the same container instance the debugger reads:
+The debugger packages the Inertia listener only. Declare the listener of any other provider in your application's
+`events-web` group, so the instance that captures the event is the same container instance the debugger reads:
 
 ```php
-use PHPForge\Inertia\Debug\InertiaCollector;
-use PHPForge\Inertia\Event\ProtocolResultCreated;
 use PHPForge\Vite\Debug\ViteCollector;
 use PHPForge\Vite\Event\AssetsResolved;
 
 return [
     AssetsResolved::class => [ViteCollector::class],
-    ProtocolResultCreated::class => [InertiaCollector::class],
 ];
 ```
 
@@ -90,8 +100,9 @@ packages up to date together in the application's lock file.
 
 ### Redacting a provider capture
 
-`PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel applies. Hand the same rules to a
-collector that captures user data, in the application's `di-web` group:
+`PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel applies. The packaged Inertia
+collector already receives them. Hand the same rules to any other collector that captures user data, in the
+application's `di-web` group, following the packaged definition:
 
 ```php
 use PHPForge\Debug\Capture\CapturePolicy;
