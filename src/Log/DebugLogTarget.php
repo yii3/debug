@@ -14,10 +14,15 @@ use function array_values;
 final class DebugLogTarget extends Target
 {
     /**
+     * Stores the log messages accumulated for the current request.
+     *
      * @var list<Message>
      */
     private array $captured = [];
 
+    /**
+     * Sets the export interval to `1`, so every logged message reaches the capture as soon as it is collected.
+     */
     public function __construct()
     {
         parent::__construct();
