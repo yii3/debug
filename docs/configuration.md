@@ -101,26 +101,26 @@ packages up to date together in the application's lock file.
 ### Redacting a provider capture
 
 `PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel applies. The packaged Inertia
-collector already receives them. Hand the same rules to any other collector that captures user data, in the
-application's `di-web` group, following the packaged definition:
+collector already receives them. Hand the same rules to an application-owned collector that captures user data, in the
+application's `di-web` group:
 
 ```php
+use Acme\Debug\CacheCollector;
 use PHPForge\Debug\Capture\CapturePolicy;
-use PHPForge\Inertia\Debug\InertiaCollector;
 
 return [
-    InertiaCollector::class => static fn(CapturePolicy $capturePolicy): InertiaCollector => new InertiaCollector(
+    CacheCollector::class => static fn(CapturePolicy $capturePolicy): CacheCollector => new CacheCollector(
         $capturePolicy->redact(...),
-        $capturePolicy->redactUrl(...),
     ),
 ];
 ```
 
 ## Upgrading from the extensions flags
 
-The `extensions` block is gone, and `config/di-web.php` reads `collectors` and `panels` alone. An application that
-still sets `yii3/debug.extensions` loses those captures silently: the key is ignored, and no collector, panel, or
-listener is wired.
+The `extensions` block is gone, and `config/di-web.php` reads `collectors` and `panels` alone. The key is ignored, so
+an application that still sets `yii3/debug.extensions` silently loses the captures of its application-owned
+extensions: no collector, panel, or listener is wired for them. The packaged Inertia provider is not affected, because
+it stays wired whenever `php-forge/inertia` is installed.
 
 Before:
 
@@ -135,53 +135,33 @@ return [
 ];
 ```
 
-After, in the application parameters, keyed by the stable ID each class reports from `id()`:
+After, in the application parameters, keyed by the stable ID each class reports from `id()`; the `inertia` flag needs
+no replacement:
 
 ```php
-use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
 use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
 
 return [
     'yii3/debug' => [
         'collectors' => [
             'vite' => ViteCollector::class,
-            'inertia' => InertiaCollector::class,
         ],
         'panels' => [
             'vite' => VitePanel::class,
-            'inertia' => InertiaPanel::class,
         ],
     ],
 ];
 ```
 
-Each flag also attached the collector as a PSR-14 listener. The debugger packages no listener for a provider package
-any more, so declare them in the application's `events-web` group:
+Each flag also attached the collector as a PSR-14 listener. The debugger packages the Inertia listener only, so
+declare the Vite one in the application's `events-web` group:
 
 ```php
-use PHPForge\Inertia\Debug\InertiaCollector;
-use PHPForge\Inertia\Event\ProtocolResultCreated;
 use PHPForge\Vite\Debug\ViteCollector;
 use PHPForge\Vite\Event\AssetsResolved;
 
 return [
     AssetsResolved::class => [ViteCollector::class],
-    ProtocolResultCreated::class => [InertiaCollector::class],
-];
-```
-
-Vite needs nothing else. The `inertia` flag also built `InertiaCollector` with the capture policy, so add that
-definition to the application's `di-web` group to keep the redaction the flag applied:
-
-```php
-use PHPForge\Debug\Capture\CapturePolicy;
-use PHPForge\Inertia\Debug\InertiaCollector;
-
-return [
-    InertiaCollector::class => static fn(CapturePolicy $capturePolicy): InertiaCollector => new InertiaCollector(
-        $capturePolicy->redact(...),
-        $capturePolicy->redactUrl(...),
-    ),
 ];
 ```
 
