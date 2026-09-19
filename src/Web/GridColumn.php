@@ -17,7 +17,8 @@ use Yiisoft\Yii\DataView\GridView\Column\ColumnInterface;
 final readonly class GridColumn implements ColumnInterface
 {
     /**
-     * @param string $header Header cell HTML, already rendered and encoded by the caller.
+     * @param string|SortHeader $header Header cell HTML, already rendered and encoded by the caller, or the header
+     * cell of a sortable column.
      * @param Closure(TRow, DataContext): string $content Builds the body cell content for one row.
      * @param string|Stringable|null $filter Filter cell content; `null` renders no filter cell at all, `''` renders an
      * empty cell that keeps the column class.
@@ -25,17 +26,15 @@ final readonly class GridColumn implements ColumnInterface
      * @param string|null $class CSS class shared by the header, filter, and body cells, or `null` for none.
      * @param string|null $headerClass Extra CSS class for the header cell only, or `null` for none.
      * @param string|null $bodyClass Extra CSS class for the body cells only, or `null` for none.
-     * @param array<string, string> $headerAttributes Extra header cell attributes, such as `aria-sort`.
      */
     public function __construct(
-        public string $header,
+        public string|SortHeader $header,
         public Closure $content,
         public string|Stringable|null $filter = null,
         public bool $encodeContent = false,
         public string|null $class = null,
         public string|null $headerClass = null,
         public string|null $bodyClass = null,
-        public array $headerAttributes = [],
     ) {}
 
     /**

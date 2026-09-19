@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Tests\Provider\HistoryGridRendererProvider;
-use Yii3\Debug\Web\{DebugUrlGenerator, GridFooter, HistoryGridRenderer};
+use Yii3\Debug\Web\{DebugUrlGenerator, HistoryGridRenderer};
 
 use function preg_match_all;
 use function substr_count;
@@ -52,11 +52,6 @@ final class HistoryGridRendererTest extends TestCase
             '/<a[^>]*aria-label="Page 2"[^>]*aria-current="page"/',
             $html,
             'The second page must be announced as current.',
-        );
-        self::assertStringNotContainsString(
-            '<nav',
-            GridFooter::render(1, 0, 1)->render(),
-            'A single page must not add empty navigation.',
         );
     }
 

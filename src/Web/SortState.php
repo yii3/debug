@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use Closure;
+use UIAwesome\Html\Palpable\A;
 
 use function in_array;
 use function str_starts_with;
@@ -59,16 +60,6 @@ final readonly class SortState
     }
 
     /**
-     * Returns the `aria-sort` token describing the direction of the active header cell.
-     *
-     * @return 'ascending'|'descending' Token matching the resolved direction.
-     */
-    public function ariaSort(): string
-    {
-        return $this->direction === 'asc' ? 'ascending' : 'descending';
-    }
-
-    /**
      * Parses the query value, keeping it only when the attribute is sortable; otherwise applies the default.
      *
      * @param string|null $sort Raw `sort` query value, optionally prefixed with `-` to request a descending order.
@@ -96,13 +87,39 @@ final readonly class SortState
     }
 
     /**
+     * Builds the header cell of a sortable column, linking to the order the next click on it requests.
+     *
+     * @param string $attribute Attribute backing the header cell.
+     * @param string $label Visible column label.
+     * @param Closure(string): string $url Builds the panel URL requesting a `sort` query value.
+     * @param bool $descendingFirst Whether the first click on an inactive attribute requests a descending order.
+     *
+     * @return SortHeader Header cell announcing the active order.
+     */
+    public function header(string $attribute, string $label, Closure $url, bool $descendingFirst = false): SortHeader
+    {
+        $link = A::tag()
+            ->href($url($this->next($attribute, $descendingFirst)))
+            ->content($label);
+
+        if ($this->isActive($attribute) === false) {
+            return new SortHeader($link->render());
+        }
+
+        return new SortHeader(
+            $link->class($this->direction)->render(),
+            ['aria-sort' => $this->direction === 'asc' ? 'ascending' : 'descending'],
+        );
+    }
+
+    /**
      * Determines whether the rows are currently ordered by the attribute.
      *
      * @param string $attribute Attribute backing a header cell.
      *
      * @return bool `true` when the rows are ordered by that attribute; `false` otherwise.
      */
-    public function isActive(string $attribute): bool
+    private function isActive(string $attribute): bool
     {
         return $this->attribute === $attribute;
     }
@@ -115,7 +132,7 @@ final readonly class SortState
      *
      * @return string Value for the `sort` query parameter.
      */
-    public function next(string $attribute, bool $descendingFirst = false): string
+    private function next(string $attribute, bool $descendingFirst): string
     {
         if ($this->isActive($attribute)) {
             return $this->direction === 'asc' ? "-{$attribute}" : $attribute;

@@ -17,7 +17,8 @@ use Yiisoft\Yii\DataView\GridView\GridView;
 final class PanelGrid
 {
     /**
-     * Returns the grid rendering only its items, keeping the column classes on body cells that resolve to no content.
+     * Returns the grid rendering only its items, keeping the column classes on body cells that resolve to no content
+     * and letting DataView add the accessibility attributes of the table.
      *
      * @template TRow of array|object
      *
@@ -31,10 +32,10 @@ final class PanelGrid
         $grid = GridView::widget();
 
         return $grid
+            ->accessibility()
             ->containerClass('yii-debug-table-wrap')
             ->dataReader($dataReader)
             ->emptyCell('')
-            ->headerCellAttributes(['scope' => 'col'])
             ->keepColumnAttributesInEmptyCell()
             ->layout('{items}')
             ->tableClass('yii-debug-table')

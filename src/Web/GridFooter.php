@@ -8,92 +8,43 @@ use Closure;
 use PHPForge\Debug\Panel\PanelRenderContext;
 use PHPForge\Debug\View\Grid\GridCount;
 use UIAwesome\Html\Flow\Div;
-use UIAwesome\Html\List\{Li, Ul};
-use UIAwesome\Html\Palpable\A;
-use UIAwesome\Html\Phrasing\Span;
-use UIAwesome\Html\Sectioning\Nav;
 use Yiisoft\Data\Paginator\OffsetPaginator;
+use Yiisoft\Yii\DataView\Pagination\{OffsetPagination, PaginationContext};
 
 use function array_replace;
-use function intdiv;
-use function max;
 use function min;
-use function range;
 
 /**
- * Renders the shared item count and numbered links without owning panel navigation.
+ * Renders the shared item count and the DataView pager without owning panel navigation.
  */
 final class GridFooter
 {
     /**
-     * Number of consecutive page links rendered around the current page.
-     */
-    private const int WINDOW = 10;
-
-    /**
-     * Renders the item count summary followed by a bounded window of page links around the current page, adding first
-     * and last page links, separated by an ellipsis, whenever the window leaves them out.
+     * Renders the item count summary followed by the page controls of the collection.
      *
-     * @param int $total Rows in the collection.
-     * @param int $offset Index of the first row on the current page.
+     * The pager renders nothing while the rows fit on a single page, and a control leading nowhere renders as an
+     * inert `span` instead of a link.
+     *
+     * @template TKey of array-key
+     * @template TValue of array|object
+     *
+     * @param OffsetPaginator<TKey, TValue> $paginator Paginator backing the grid.
      * @param int $visible Rows rendered on the current page.
-     * @param int $page Current page number.
-     * @param int $pageCount Total number of pages.
-     * @param (Closure(int): string)|null $pageUrl Builds the URL of a page number, or `null` to omit the page links.
+     * @param (Closure(string): string)|null $pageUrl Builds the URL of a page from its number, or `null` to omit the
+     * page controls.
      *
      * @return Div Rendered footer.
      */
-    public static function render(
-        int $total,
-        int $offset,
-        int $visible,
-        int $page = 1,
-        // Read only behind the `> 1` guard, so a default of `0` renders the same markup as `1`.
-        // @infection-ignore-all
-        int $pageCount = 1,
-        Closure|null $pageUrl = null,
-    ): Div {
-        $begin = $total === 0 ? 0 : $offset + 1;
-
-        $end = min($offset + $visible, $total);
-
-        $items = [];
-
-        if ($pageUrl !== null && $pageCount > 1) {
-            $lastPage = min($pageCount, max(self::WINDOW, $page + intdiv(self::WINDOW, 2) - 1));
-
-            $firstPage = $lastPage - min(self::WINDOW, $pageCount) + 1;
-
-            if ($firstPage > 1) {
-                $items[] = self::pageLink(1, $page, $pageUrl);
-
-                if ($firstPage > 2) {
-                    $items[] = self::ellipsis();
-                }
-            }
-
-            foreach (range($firstPage, $lastPage) as $number) {
-                $items[] = self::pageLink($number, $page, $pageUrl);
-            }
-
-            if ($lastPage < $pageCount) {
-                if ($lastPage < $pageCount - 1) {
-                    $items[] = self::ellipsis();
-                }
-
-                $items[] = self::pageLink($pageCount, $page, $pageUrl);
-            }
-        }
+    public static function render(OffsetPaginator $paginator, int $visible, Closure|null $pageUrl = null): Div
+    {
+        $total = $paginator->getTotalItems();
+        $offset = $paginator->getOffset();
 
         return Div::tag()
             ->class('yii-debug-grid-footer')
             ->html(
-                GridCount::render($begin, $end, $total),
-                $items === []
-                    ? ''
-                    : Nav::tag()
-                        ->addAriaAttribute('label', 'Pagination')
-                        ->html(Ul::tag()->class('yii-debug-pager')->html(...$items)),
+                GridCount::render($total === 0 ? 0 : $offset + 1, min($offset + $visible, $total), $total),
+                $pageUrl === null ? '' : self::pager($paginator, $pageUrl),
             );
     }
 
@@ -117,56 +68,40 @@ final class GridFooter
         array $queryParams,
     ): Div {
         return self::render(
-            $paginator->getTotalItems(),
-            $paginator->getOffset(),
+            $paginator,
             $visible,
-            $paginator->getCurrentPage(),
-            $paginator->getTotalPages(),
-            $context === null ? null : static fn(int $number): string => $context->panelUrl(
-                queryParams: array_replace($queryParams, ['page' => $number]),
+            $context === null ? null : static fn(string $page): string => $context->panelUrl(
+                queryParams: array_replace($queryParams, ['page' => $page]),
             ),
         );
     }
 
     /**
-     * Returns the hidden, inert item marking the pages the window leaves out.
+     * Renders the page controls of the collection with the shared pager markup.
      *
-     * @return Li Inert ellipsis item.
+     * @template TKey of array-key
+     * @template TValue of array|object
+     *
+     * @param OffsetPaginator<TKey, TValue> $paginator Paginator backing the grid.
+     * @param Closure(string): string $pageUrl Builds the URL of a page from its number.
+     *
+     * @return string Rendered pager, empty while the rows fit on a single page.
      */
-    private static function ellipsis(): Li
+    private static function pager(OffsetPaginator $paginator, Closure $pageUrl): string
     {
-        return Li::tag()
-            ->class('yii-debug-pager-item')
-            ->class('is-disabled')
-            ->addAriaAttribute('hidden', 'true')
-            ->html(Span::tag()->class('yii-debug-pager-link')->content('…'));
-    }
-
-    /**
-     * Returns the item linking to the given page, marked as current when it matches the active one.
-     *
-     * @param int $number Page the item links to.
-     * @param int $page Current page, deciding whether the item is marked as current.
-     * @param Closure(int): string $pageUrl Builds the target URL of the page.
-     *
-     * @return Li Rendered page item.
-     */
-    private static function pageLink(int $number, int $page, Closure $pageUrl): Li
-    {
-        $link = A::tag()
-            ->class('yii-debug-pager-link')
-            ->addAriaAttribute('label', 'Page ' . $number)
-            ->href($pageUrl($number))
-            ->content((string) $number);
-
-        if ($number === $page) {
-            $link = $link->addAriaAttribute('current', 'page');
-        }
-
-        $item = Li::tag()
-            ->class('yii-debug-pager-item')
-            ->html($link);
-
-        return $number === $page ? $item->class('is-active') : $item;
+        return OffsetPagination::create(
+            $paginator,
+            $pageUrl(PaginationContext::URL_PLACEHOLDER),
+            $pageUrl('1'),
+            accessibility: true,
+        )
+            ->currentItemClass('is-active')
+            ->disabledItemClass('is-disabled')
+            ->itemAttributes(['class' => 'yii-debug-pager-item'])
+            ->itemTag('li')
+            ->linkClass('yii-debug-pager-link')
+            ->listAttributes(['class' => 'yii-debug-pager'])
+            ->listTag('ul')
+            ->render();
     }
 }

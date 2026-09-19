@@ -164,7 +164,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info">Info</a></th>
             </tr>
@@ -306,7 +306,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=seq&amp;per-page=1">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=duration&amp;per-page=1">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=duration&amp;per-page=1">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=category&amp;per-page=1">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=info&amp;per-page=1">Info</a></th>
             </tr>
@@ -323,13 +323,13 @@ final class ProfilingPanelTest extends TestCase
             </div><div class="yii-debug-grid-footer">
             <span class="summary yii-debug-grid-count">Showing 2-2 of 3 items.</span><nav aria-label="Pagination">
             <ul class="yii-debug-pager">
-            <li class="yii-debug-pager-item">
-            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=1" aria-label="Page 1">1</a>
-            </li><li class="yii-debug-pager-item is-active">
-            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=2" aria-label="Page 2" aria-current="page">2</a>
-            </li><li class="yii-debug-pager-item">
-            <a class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=3" aria-label="Page 3">3</a>
-            </li>
+            <li class="yii-debug-pager-item"><a aria-label="First page" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=1">⟪</a></li>
+            <li class="yii-debug-pager-item"><a aria-label="Previous page" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=1">⟨</a></li>
+            <li class="yii-debug-pager-item"><a aria-label="Page 1" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=1">1</a></li>
+            <li class="yii-debug-pager-item is-active"><a aria-label="Page 2" aria-current="page" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=2">2</a></li>
+            <li class="yii-debug-pager-item"><a aria-label="Page 3" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=3">3</a></li>
+            <li class="yii-debug-pager-item"><a aria-label="Next page" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=3">⟩</a></li>
+            <li class="yii-debug-pager-item"><a aria-label="Last page" class="yii-debug-pager-link" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=i&amp;sort=-duration&amp;per-page=1&amp;page=3">⟫</a></li>
             </ul>
             </nav>
             </div>
@@ -406,7 +406,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=seq">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=duration">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;Profile%5Bcategory%5D=db%5Ccommand&amp;Profile%5Binfo%5D=select&amp;per-page=25&amp;sort=info">Info</a></th>
             </tr>
@@ -514,7 +514,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info">Info</a></th>
             </tr>
@@ -652,7 +652,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq&amp;per-page=all">Time</a></th>
-            <th scope="col"><a class="asc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=all">Duration</a></th>
+            <th scope="col" aria-sort="ascending"><a class="asc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=-duration&amp;per-page=all">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category&amp;per-page=all">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info&amp;per-page=all">Info</a></th>
             </tr>
@@ -738,7 +738,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq&amp;per-page=all">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration&amp;per-page=all">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration&amp;per-page=all">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category&amp;per-page=all">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info&amp;per-page=all">Info</a></th>
             </tr>
@@ -824,7 +824,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=seq">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=duration">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;per-page=all&amp;sort=info">Info</a></th>
             </tr>
@@ -1159,7 +1159,7 @@ final class ProfilingPanelTest extends TestCase
             <thead>
             <tr>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=seq">Time</a></th>
-            <th scope="col"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
+            <th scope="col" aria-sort="descending"><a class="desc" href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=duration">Duration</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=category">Category</a></th>
             <th scope="col"><a href="/debug/view?tag=request-1&amp;panel=profiling&amp;sort=info">Info</a></th>
             </tr>

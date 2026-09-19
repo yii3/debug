@@ -20,7 +20,6 @@ use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Form\Button;
-use UIAwesome\Html\Palpable\A;
 use Yii3\Debug\Db\{DbExplain, DebugDbProfiler};
 use Yii3\Debug\Search\DbSearch;
 use Yii3\Debug\Web\{
@@ -234,6 +233,10 @@ final class DbPanel implements ToolbarPanelProviderInterface
         $columns = [];
         $tag = $context->tag;
 
+        $url = static fn(string $sort): string => $context->panelUrl(
+            queryParams: [...$queryParams, 'sort' => $sort],
+        );
+
         foreach (self::SORT_ATTRIBUTES as $attribute) {
             $label = (match ($attribute) {
                 'type' => DbMessage::TYPE,
@@ -244,11 +247,6 @@ final class DbPanel implements ToolbarPanelProviderInterface
                 'query' => DbMessage::QUERY,
             })->value;
 
-            $link = A::tag()
-                ->href($context->panelUrl(queryParams: [...$queryParams, 'sort' => $state->next($attribute)]))
-                ->content($label);
-            $header = ($state->isActive($attribute) ? $link->class($state->direction) : $link)->render();
-
             $filter = match ($attribute) {
                 'type' => FilterInput::select(FilterPrefix::DB, 'type', $label, $filters, $summary->types),
                 'query' => FilterInput::text(FilterPrefix::DB, 'query', $label, $filters),
@@ -256,7 +254,7 @@ final class DbPanel implements ToolbarPanelProviderInterface
             };
 
             $columns[] = new GridColumn(
-                header: $header,
+                header: $state->header($attribute, $label, $url),
                 content: fn(QueryRow $row): string => match ($attribute) {
                     'type' => DbQueryRenderer::renderTypeCell($row),
                     'seq' => DbQueryRenderer::renderTimeCell($row),
@@ -274,7 +272,6 @@ final class DbPanel implements ToolbarPanelProviderInterface
                 filter: $filter,
                 headerClass: $attribute === 'type' || $attribute === 'query' ? null : 'sort-numerical',
                 bodyClass: $attribute === 'query' ? null : 'yii-debug-cell-mono yii-debug-nowrap',
-                headerAttributes: $state->isActive($attribute) ? ['aria-sort' => $state->ariaSort()] : [],
             );
         }
 

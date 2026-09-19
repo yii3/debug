@@ -15,7 +15,6 @@ use PHPForge\Debug\Toolbar\ToolbarItem;
 use UIAwesome\Html\Flow\{Div, P, Pre};
 use UIAwesome\Html\Form\{Button, Form, InputHidden, InputNumber, InputText};
 use UIAwesome\Html\Heading\H2;
-use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\{Code, Label};
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\ProfileSearch;
@@ -150,26 +149,39 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
         PanelRenderContext $context,
         array $queryParams,
     ): array {
+        $state = SortState::fromQuery(
+            QueryInput::scalar($queryParams, 'sort'),
+            self::SORT_ATTRIBUTES,
+            'duration',
+            'desc',
+        );
+
+        unset($queryParams['page']);
+
+        $url = static fn(string $sort): string => $context->panelUrl(
+            queryParams: [...$queryParams, 'sort' => $sort],
+        );
+
         return [
             new GridColumn(
-                header: self::header('seq', 'Time', $context, $queryParams),
+                header: $state->header('seq', 'Time', $url),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderTimeCell($row),
                 bodyClass: 'yii-debug-cell-mono yii-debug-nowrap',
             ),
             new GridColumn(
-                header: self::header('duration', 'Duration', $context, $queryParams),
+                header: $state->header('duration', 'Duration', $url),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderDurationCell(
                     $row,
                     $maxDuration,
                 ),
             ),
             new GridColumn(
-                header: self::header('category', 'Category', $context, $queryParams),
+                header: $state->header('category', 'Category', $url),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderCategoryCell($row),
                 bodyClass: 'yii-debug-cell-mono yii-debug-cell-fqcn',
             ),
             new GridColumn(
-                header: self::header('info', ProfileMessage::INFO->value, $context, $queryParams),
+                header: $state->header('info', ProfileMessage::INFO->value, $url),
                 content: static fn(ProfileRow $row): string => ProfileCellRenderer::renderInfoCell($row),
             ),
         ];
@@ -198,41 +210,6 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
         }
 
         return $params;
-    }
-
-    /**
-     * Renders the header cell content as the sort link toggling that column's direction.
-     *
-     * @param string $attribute Attribute the column sorts on.
-     * @param string $label Visible column label.
-     * @param PanelRenderContext $context State of the debugger request being rendered.
-     * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
-     *
-     * @return string Rendered header cell.
-     */
-    private static function header(
-        string $attribute,
-        string $label,
-        PanelRenderContext $context,
-        array $queryParams,
-    ): string {
-        $state = SortState::fromQuery(
-            QueryInput::scalar($queryParams, 'sort'),
-            self::SORT_ATTRIBUTES,
-            'duration',
-            'desc',
-        );
-
-        unset($queryParams['page']);
-
-        $isActive = $state->isActive($attribute);
-        $queryParams['sort'] = $state->next($attribute);
-
-        $link = A::tag()
-            ->href($context->panelUrl(queryParams: $queryParams))
-            ->content($label);
-
-        return ($isActive ? $link->class($state->direction) : $link)->render();
     }
 
     /**
