@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use Closure;
+use PHPForge\Debug\Panel\PanelRenderContext;
 use UIAwesome\Html\Palpable\A;
 
 use function in_array;
@@ -109,6 +110,21 @@ final readonly class SortState
         return new SortHeader(
             $link->class($this->direction)->render(),
             ['aria-sort' => $this->direction === 'asc' ? 'ascending' : 'descending'],
+        );
+    }
+
+    /**
+     * Builds the header-link factory of a panel grid, carrying the query parameters of the visible page.
+     *
+     * @param PanelRenderContext $context State of the debugger request being rendered.
+     * @param array<array-key, mixed> $queryParams Query parameters the header links are built from.
+     *
+     * @return Closure(string): string Builds the panel URL requesting a `sort` query value.
+     */
+    public static function panelUrl(PanelRenderContext $context, array $queryParams): Closure
+    {
+        return static fn(string $sort): string => $context->panelUrl(
+            queryParams: [...$queryParams, 'sort' => $sort],
         );
     }
 

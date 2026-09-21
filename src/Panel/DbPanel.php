@@ -89,19 +89,16 @@ final class DbPanel implements ToolbarPanelProviderInterface
     /**
      * Reports whether the capture recorded database statements worth opening the panel for.
      *
+     * The capture is listed whenever it carries a payload; the detail page and the toolbar chip surface a malformed
+     * one when they hydrate it.
+     *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
      * @return bool `true` when the capture carried data; `false` otherwise.
      */
     public function hasContent(array $payload): bool
     {
-        if ($payload === []) {
-            return false;
-        }
-
-        self::snapshot($payload);
-
-        return true;
+        return $payload !== [];
     }
 
     /**
@@ -213,6 +210,7 @@ final class DbPanel implements ToolbarPanelProviderInterface
      *
      * @param DbSummary $summary Query metrics of the capture.
      * @param array<int, NPlusOneFinding> $findings N+1 groups detected on the visible page.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      * @param array<string, string> $filters Active filter values keyed by attribute.
@@ -222,20 +220,17 @@ final class DbPanel implements ToolbarPanelProviderInterface
     private function columns(
         DbSummary $summary,
         array $findings,
+        SortState $state,
         PanelRenderContext $context,
         array $queryParams,
         array $filters,
     ): array {
-        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'seq');
-
         unset($queryParams['page']);
 
         $columns = [];
         $tag = $context->tag;
 
-        $url = static fn(string $sort): string => $context->panelUrl(
-            queryParams: [...$queryParams, 'sort' => $sort],
-        );
+        $url = SortState::panelUrl($context, $queryParams);
 
         foreach (self::SORT_ATTRIBUTES as $attribute) {
             $label = (match ($attribute) {
@@ -283,6 +278,7 @@ final class DbPanel implements ToolbarPanelProviderInterface
      *
      * @param OffsetPaginator<int, QueryRow> $paginator Paginator clamped to the visible page.
      * @param DbSummary $summary Query metrics of the capture.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
@@ -292,6 +288,7 @@ final class DbPanel implements ToolbarPanelProviderInterface
     private function renderGrid(
         OffsetPaginator $paginator,
         DbSummary $summary,
+        SortState $state,
         PanelRenderContext $context,
         array $filters,
         array $queryParams,
@@ -301,7 +298,7 @@ final class DbPanel implements ToolbarPanelProviderInterface
 
         /** @var GridView<QueryRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-db-filters')
-            ->columns(...$this->columns($summary, $bySequence, $context, $queryParams, $filters))
+            ->columns(...$this->columns($summary, $bySequence, $state, $context, $queryParams, $filters))
             ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
         $explainAll = $this->explain->available()
@@ -319,12 +316,7 @@ final class DbPanel implements ToolbarPanelProviderInterface
                 ->class('yii-debug-grid yii-debug-grid-db')
                 ->html(
                     $grid->render(),
-                    GridFooter::renderForPanel(
-                        $paginator,
-                        $paginator->getCurrentPageSize(),
-                        $context,
-                        $queryParams,
-                    ),
+                    GridFooter::renderForPanel($paginator, $context, $queryParams),
                 )
                 ->render()
             . $explainAll;
@@ -397,7 +389,14 @@ final class DbPanel implements ToolbarPanelProviderInterface
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        return $content . $this->renderGrid($paginator, $summary, $context, $search->activeFilters, $queryParams);
+        return $content . $this->renderGrid(
+            $paginator,
+            $summary,
+            $state,
+            $context,
+            $search->activeFilters,
+            $queryParams,
+        );
     }
 
     /**

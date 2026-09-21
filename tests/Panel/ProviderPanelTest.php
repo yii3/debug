@@ -112,25 +112,44 @@ final class ProviderPanelTest extends TestCase
         );
     }
 
-    public function testHydrationHookRemainsAvailableToCompatibilityFacades(): void
+    public function testPresentationIsMemoizedUntilThePayloadChanges(): void
     {
-        $panel = new class ($this->provider()) extends ProviderPanel {
-            /** @param array<string, mixed> $payload
-             * @return array<string, mixed> */
-            public function decode(array $payload): array
+        $provider = new class extends Panel {
+            protected const string ICON = 'inertia';
+            protected const string ID = 'custom';
+            protected const string TITLE = 'Custom';
+
+            public int $calls = 0;
+
+            public function present(array $data): PanelView
             {
-                return $this->data($payload);
+                ++$this->calls;
+
+                return PanelView::create()->toolbar('Hits', 1);
             }
         };
 
+        $panel = new ProviderPanel($provider);
+
+        $panel->hasContent(['hits' => 1]);
+        $panel->toolbarItems(['hits' => 1]);
+
         self::assertSame(
-            ['first' => 1, 'second' => 2],
-            $panel->decode(['first' => 1, 'second' => 2]),
-            'Compatibility facades must retain access to complete decoded data.'
+            1,
+            $provider->calls,
+            'Repeating the payload must reuse the memo.',
+        );
+
+        $panel->toolbarItems(['hits' => 2]);
+
+        self::assertSame(
+            2,
+            $provider->calls,
+            'A different payload must present again.',
         );
     }
 
-    public function testThrowRuntimeExceptionWhenPreparedPresentationFailed(): void
+    public function testThrowRuntimeExceptionWhenProviderPresentationFails(): void
     {
         $provider = new class extends Panel {
             protected const string ICON = 'inertia';
@@ -145,7 +164,7 @@ final class ProviderPanelTest extends TestCase
             }
         };
 
-        $panel = (new ProviderPanel($provider))->forPayload(['hits' => 1]);
+        $panel = new ProviderPanel($provider);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage(

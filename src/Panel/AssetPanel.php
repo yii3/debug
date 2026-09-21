@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Panel;
 
-use PHPForge\Debug\Panel\Asset\{AssetPanel as PortableAssetPanel, AssetSnapshot};
-use PHPForge\Debug\Storage\HydrationException;
-
 /**
  * Adapts the framework-neutral PHPForge Asset Bundles panel to the Yii3 debugger.
  */
@@ -17,25 +14,23 @@ final class AssetPanel extends ProviderPanel
      */
     public function __construct()
     {
-        parent::__construct(new PortableAssetPanel());
+        parent::__construct(new \PHPForge\Debug\Panel\Asset\AssetPanel());
     }
 
     /**
      * Reports whether the capture registered an asset bundle or a Vite build, the two things the panel describes.
      *
      * A capture holding neither has nothing to show, so the navigation entry and the toolbar chip stay hidden instead
-     * of announcing a count of `0`. A malformed capture still throws, keeping the failure visible to the host.
+     * of announcing a count of `0`. The answer comes from the raw payload, so a malformed capture carrying a non-empty
+     * `bundles` or `vite` value stays listed and the detail page and the toolbar chip expose the hydration failure
+     * instead of hiding it.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @throws HydrationException when the payload does not match the snapshot schema.
      *
      * @return bool `true` when a bundle or the Vite section was captured; `false` otherwise.
      */
     public function hasContent(array $payload): bool
     {
-        $snapshot = AssetSnapshot::fromArray($payload, '$.asset');
-
-        return $snapshot->bundles() !== [] || $snapshot->vite() !== null;
+        return ($payload['bundles'] ?? []) !== [] || ($payload['vite'] ?? null) !== null;
     }
 }

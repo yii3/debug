@@ -419,17 +419,6 @@ final class DbPanelTest extends TestCase
         );
     }
 
-    public function testThrowHydrationExceptionWhenContentChecksReceiveInvalidPayloads(): void
-    {
-        $this->expectException(HydrationException::class);
-        $this->expectExceptionMessage(
-            Message::SNAPSHOT_VALUE_INVALID->getMessage('$.panels.db.entries', 'a list'),
-        );
-
-        (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))
-            ->hasContent(['entries' => 'invalid']);
-    }
-
     public function testThrowHydrationExceptionWhenDatabasePayloadIsMalformed(): void
     {
         $this->expectException(HydrationException::class);

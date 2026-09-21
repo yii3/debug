@@ -8,6 +8,8 @@ use PHPForge\Debug\CollectorInterface;
 use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
 use PHPForge\Inertia\Event\ProtocolResultCreated;
 use PHPForge\Inertia\{PageInput, Protocol, RequestContext};
+use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
+use PHPForge\Vite\Event\AssetsResolved;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 use Yii3\Debug\ExtensionRegistry;
@@ -23,7 +25,7 @@ use function is_string;
 use function putenv;
 
 /**
- * Integration tests for the packaged `config/*.php` files building {@see ExtensionRegistry} from application params.1
+ * Integration tests for the packaged `config/*.php` files building {@see ExtensionRegistry} from application params.
  */
 final class ExtensionConfigurationTest extends TestCase
 {
@@ -40,8 +42,14 @@ final class ExtensionConfigurationTest extends TestCase
     {
         $registry = PackageConfiguration::container(
             [
-                'collectors' => ['inertia' => ['class' => InertiaCollector::class, 'enabled' => false]],
-                'panels' => ['inertia' => ['class' => InertiaPanel::class, 'enabled' => false]],
+                'collectors' => [
+                    'inertia' => ['class' => InertiaCollector::class, 'enabled' => false],
+                    'vite' => ViteCollector::class,
+                ],
+                'panels' => [
+                    'inertia' => ['class' => InertiaPanel::class, 'enabled' => false],
+                    'vite' => VitePanel::class,
+                ],
             ],
         )->get(ExtensionRegistry::class);
 
@@ -51,19 +59,19 @@ final class ExtensionConfigurationTest extends TestCase
             'Packaged definition must build the registry.',
         );
         self::assertSame(
-            [],
+            ['vite'],
             self::collectorIds($registry),
-            'Disabled provider must not collect.',
+            'Disabling one provider must leave the other one collecting.',
         );
         self::assertSame(
-            [],
+            ['vite'],
             self::panelIds($registry),
-            'Disabled provider must have no panel.',
+            'Disabling one provider must leave the other panel.',
         );
         self::assertSame(
             ['inertia'],
             $registry->disabled(),
-            'Disabled provider must be reported.',
+            'Only the disabled provider must be reported.',
         );
     }
 
@@ -122,9 +130,7 @@ final class ExtensionConfigurationTest extends TestCase
             'A started collector must return a payload.',
         );
 
-        $html = (new ProviderPanel(new CachePanel()))
-            ->forPayload($payload)
-            ->render(HelperFactory::createPanelRenderInput($payload));
+        $html = (new ProviderPanel(new CachePanel()))->render(HelperFactory::createPanelRenderInput($payload));
 
         self::assertStringContainsString(
             "\na\n",
@@ -190,7 +196,7 @@ final class ExtensionConfigurationTest extends TestCase
         );
     }
 
-    public function testPackagedConfigurationRegistersTheInertiaProviderWhenInstalled(): void
+    public function testPackagedConfigurationRegistersTheInertiaAndViteProvidersWhenInstalled(): void
     {
         $registry = PackageConfiguration::container()->get(ExtensionRegistry::class);
 
@@ -200,30 +206,34 @@ final class ExtensionConfigurationTest extends TestCase
             'Packaged definition must build the registry.',
         );
         self::assertSame(
-            ['inertia'],
+            ['inertia', 'vite'],
             self::collectorIds($registry),
-            'Installed provider must collect by default.',
+            'Every installed provider must collect by default.',
         );
         self::assertSame(
-            ['inertia'],
+            ['inertia', 'vite'],
             self::panelIds($registry),
-            'Installed provider must have its panel by default.',
+            'Every installed provider must have its panel by default.',
         );
     }
 
-    public function testPackagedEventsConfigurationDeclaresOnlyTheShutdownAndInertiaListeners(): void
+    public function testPackagedEventsConfigurationDeclaresOnlyTheShutdownAndProviderListeners(): void
     {
         $listeners = PackageConfiguration::events(PackageConfiguration::params());
 
         // yiisoft/yii-http is not a dependency of this package; the packaged configuration only names the class.
         self::assertSame(
-            ['Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown', ProtocolResultCreated::class],
+            [
+                'Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown',
+                ProtocolResultCreated::class,
+                AssetsResolved::class,
+            ],
             array_keys($listeners),
-            'Only the shutdown and Inertia listeners may be packaged.',
+            'Only the shutdown and packaged provider listeners may be declared.',
         );
     }
 
-    public function testPackagedEventsRouteProtocolResultsToTheInertiaCollector(): void
+    public function testPackagedEventsRouteProviderEventsToTheirCollectors(): void
     {
         $events = PackageConfiguration::events(PackageConfiguration::params());
 
@@ -231,6 +241,11 @@ final class ExtensionConfigurationTest extends TestCase
             [InertiaCollector::class],
             $events[ProtocolResultCreated::class] ?? null,
             'Protocol results must reach the packaged collector.',
+        );
+        self::assertSame(
+            [ViteCollector::class],
+            $events[AssetsResolved::class] ?? null,
+            'Resolved assets must reach the packaged collector.',
         );
     }
 

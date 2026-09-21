@@ -11,6 +11,9 @@ use Throwable;
 
 /**
  * Adapts any provider-owned declarative panel to the Yii3 debugger.
+ *
+ * The presentation is built on first use and memoized for the payload it was built from, so the listing check, the
+ * toolbar metrics, and the detail page of one capture share a single provider call.
  */
 class ProviderPanel implements ToolbarPanelProviderInterface
 {
@@ -23,17 +26,15 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      */
     private string|null $effectiveTitle = null;
     /**
+     * Payload the memoized presentation was built from, or `null` before the first successful presentation.
+     *
      * @var array<string, mixed>|null
      */
-    private array|null $preparedPayload = null;
+    private array|null $memoizedPayload = null;
     /**
-     * Presentation built for the payload this adapter was created for, or `null` before preparation.
+     * Presentation memoized for the payload it was built from, or `null` before the first successful presentation.
      */
-    private PanelView|null $preparedView = null;
-    /**
-     * Failure raised while building the presentation, surfaced instead of breaking the page.
-     */
-    private Throwable|null $presentationFailure = null;
+    private PanelView|null $memoizedView = null;
 
     /**
      * @param PortablePanel $provider Declarative panel supplying the identity and presentation.
@@ -41,35 +42,12 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     public function __construct(private readonly PortablePanel $provider) {}
 
     /**
-     * Creates a render-operation-local adapter. Hosts discard it after one page, including on failure.
-     *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @return self Adapter bound to that payload.
-     */
-    public function forPayload(array $payload): self
-    {
-        $prepared = clone $this;
-
-        $prepared->preparedPayload = $payload;
-        $prepared->preparedView = null;
-        $prepared->presentationFailure = null;
-
-        try {
-            $prepared->preparedView = $this->provider->present($this->data($payload));
-        } catch (Throwable $failure) {
-            $prepared->presentationFailure = $failure;
-        }
-
-        return $prepared;
-    }
-
-    /**
      * Returns whether the capture holds a presentation for this panel.
      *
      * An extension the application enabled stays listed even on a capture where it recorded no activity, so its own
      * empty state explains the idle capture instead of the entry disappearing from the sidebar. Building the
-     * presentation here keeps a failing provider discoverable, because the failure reaches the host.
+     * presentation here keeps a failing provider discoverable, because the failure reaches the host, and it primes
+     * the memo the toolbar and the detail page read next.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
@@ -121,6 +99,8 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      *
      * @param PanelRenderInput $input Payload, request context, and request summary of the page being rendered.
      *
+     * @throws Throwable if the provider cannot present the payload.
+     *
      * @return string Rendered detail content.
      */
     public function render(PanelRenderInput $input): string
@@ -132,6 +112,8 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      * Builds the toolbar metrics the provider declares for a capture.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
+     *
+     * @throws Throwable if the provider cannot present the payload.
      *
      * @return list<ToolbarItem> Toolbar metrics declared by the provider.
      */
@@ -155,7 +137,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      * @param string $title Effective display title.
      * @param string $icon Effective icon key.
      *
-     * @return self Adapter presenting the configured metadata.
+     * @return self Adapter presenting the configured metadata, with an empty memo.
      */
     public function withMetadata(string $title, string $icon): self
     {
@@ -163,41 +145,37 @@ class ProviderPanel implements ToolbarPanelProviderInterface
 
         $new->effectiveIcon = $icon;
         $new->effectiveTitle = $title;
+        $new->memoizedPayload = null;
+        $new->memoizedView = null;
 
         return $new;
     }
 
     /**
-     * Returns the payload handed to the provider, as a hook subclasses override to transform it.
+     * Builds the provider presentation for a payload, memoizing it until a different payload arrives.
+     *
+     * A failure is never memoized, so the next call presents the payload again instead of replaying a stale error.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
-     * @return array<string, mixed> Payload unchanged; a subclass may return a transformed one.
-     */
-    protected function data(array $payload): array
-    {
-        return $payload;
-    }
-
-    /**
-     * Builds the provider presentation for a payload, memoizing it per adapter.
+     * @throws Throwable if the provider cannot present the payload.
      *
-     * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @return PanelView Presentation built by the provider, memoized per adapter.
+     * @return PanelView Presentation built by the provider.
      */
     private function view(array $payload): PanelView
     {
-        if ($this->preparedPayload === $payload) {
-            if ($this->presentationFailure !== null) {
-                throw $this->presentationFailure;
-            }
-
-            if ($this->preparedView !== null) {
-                return $this->preparedView;
-            }
+        if ($this->memoizedView !== null && $this->memoizedPayload === $payload) {
+            return $this->memoizedView;
         }
 
-        return $this->provider->present($this->data($payload));
+        $this->memoizedPayload = null;
+        $this->memoizedView = null;
+
+        $view = $this->provider->present($payload);
+
+        $this->memoizedPayload = $payload;
+        $this->memoizedView = $view;
+
+        return $view;
     }
 }

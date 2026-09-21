@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
+use Yii3\Debug\Extension\ProviderCatalog;
 use Yii3\Debug\Log\DebugLogTarget;
 use Yii3\Debug\Middleware\ToolbarMiddleware;
 use Yii3\Debug\Profiling\DebugProfilerTarget;
@@ -12,8 +12,7 @@ if (!(require __DIR__ . '/enabled.php')) {
     return [];
 }
 
-// The Inertia provider ships its own collector and panel; both register once `php-forge/inertia` is installed.
-$inertia = class_exists(InertiaCollector::class);
+$catalog = ProviderCatalog::packaged();
 
 return [
     'yii3/debug' => [
@@ -22,8 +21,8 @@ return [
             'criticalQueryThreshold' => null,
             'excessiveCallerThreshold' => null,
         ],
-        'collectors' => $inertia ? ['inertia' => InertiaCollector::class] : [],
-        'panels' => $inertia ? ['inertia' => InertiaPanel::class] : [],
+        'collectors' => $catalog->collectors(),
+        'panels' => $catalog->panels(),
         'allowedIPs' => ['127.0.0.1', '::1'],
         'historySize' => 50,
         'routePrefix' => '/debug',

@@ -55,19 +55,16 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
     /**
      * Reports whether the capture recorded log messages worth opening the panel for.
      *
+     * The capture is listed whenever it carries a payload; the detail page and the toolbar chip surface a malformed
+     * one when they hydrate it.
+     *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
      * @return bool `true` when the capture carried data; `false` otherwise.
      */
     public function hasContent(array $payload): bool
     {
-        if ($payload === []) {
-            return false;
-        }
-
-        self::snapshot($payload);
-
-        return true;
+        return $payload !== [];
     }
 
     /**
@@ -145,6 +142,7 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
     /**
      * Builds the grid columns for the captured messages.
      *
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      * @param array<string, string> $filters Active filter values keyed by attribute.
@@ -152,17 +150,14 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
      * @return list<GridColumn<LogRow>> Columns in display order.
      */
     private function columns(
+        SortState $state,
         PanelRenderContext $context,
         array $queryParams,
         array $filters,
     ): array {
-        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
-
         unset($queryParams['page']);
 
-        $url = static fn(string $sort): string => $context->panelUrl(
-            queryParams: [...$queryParams, 'sort' => $sort],
-        );
+        $url = SortState::panelUrl($context, $queryParams);
 
         $traceLine = $this->trace->render(...);
 
@@ -245,6 +240,7 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
      * Renders the messages grid for the visible page.
      *
      * @param OffsetPaginator<int, LogRow> $paginator Paginator clamped to the visible page.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
@@ -252,6 +248,7 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
      */
     private function renderGrid(
         OffsetPaginator $paginator,
+        SortState $state,
         PanelRenderContext $context,
         array $filters,
     ): string {
@@ -260,15 +257,10 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
         /** @var GridView<LogRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-log-filters')
             ->bodyRowAttributes(static fn(LogRow $row): array => LogCellRenderer::buildRowOptions($row))
-            ->columns(...$this->columns($context, $queryParams, $filters))
+            ->columns(...$this->columns($state, $context, $queryParams, $filters))
             ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
-        $footer = GridFooter::renderForPanel(
-            $paginator,
-            $paginator->getCurrentPageSize(),
-            $context,
-            $queryParams,
-        );
+        $footer = GridFooter::renderForPanel($paginator, $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-log')
@@ -292,7 +284,9 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
     ): string {
         $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::LOG, $filters);
 
-        $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
+        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
+
+        $sortedRows = self::sortRows($filteredRows, $state);
 
         $paginator = PageWindow::paginate(
             $sortedRows,
@@ -300,7 +294,7 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        return $this->renderGrid($paginator, $context, $filters);
+        return $this->renderGrid($paginator, $state, $context, $filters);
     }
 
     /**
@@ -371,56 +365,54 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
 
         $items = [SummaryChip::render((string) $counts->total, LogMessage::MESSAGES_SUFFIX->value)];
 
-        if ($counts->hasErrors()) {
-            $items[] = SummaryChip::separator();
-            $items[] = self::renderSummaryLevel(
+        $levels = [
+            [
+                $counts->hasErrors(),
                 $counts->errors,
                 LogMessage::LEVEL_ERRORS->value,
                 LogMessage::LEVEL_ERROR->value,
                 LogLevel::ERROR,
                 'yii-debug-grid-summary-stat-danger',
-                $context,
-                $queryParams,
-            );
-        }
-
-        if ($counts->hasWarnings()) {
-            $items[] = SummaryChip::separator();
-            $items[] = self::renderSummaryLevel(
+            ],
+            [
+                $counts->hasWarnings(),
                 $counts->warnings,
                 LogMessage::LEVEL_WARNINGS->value,
                 LogMessage::LEVEL_WARNING->value,
                 LogLevel::WARNING,
                 'yii-debug-grid-summary-stat-warn',
-                $context,
-                $queryParams,
-            );
-        }
-
-        if ($counts->hasInfo()) {
-            $items[] = SummaryChip::separator();
-            $items[] = self::renderSummaryLevel(
+            ],
+            [
+                $counts->hasInfo(),
                 $counts->info,
                 LogMessage::LEVEL_INFO->value,
                 LogMessage::LEVEL_INFO->value,
                 LogLevel::INFO,
                 'yii-debug-grid-summary-stat-info',
-                $context,
-                $queryParams,
-            );
-        }
-
-        if ($counts->hasTrace()) {
-            $items[] = SummaryChip::separator();
-            $items[] = self::renderSummaryLevel(
+            ],
+            [
+                $counts->hasTrace(),
                 $counts->trace,
                 LogMessage::LEVEL_TRACE->value,
                 LogMessage::LEVEL_TRACE->value,
                 LogLevel::TRACE,
                 'yii-debug-grid-summary-stat-trace',
-                $context,
-                $queryParams,
-            );
+            ],
+        ];
+
+        foreach ($levels as [$present, $count, $label, $levelName, $level, $class]) {
+            if ($present) {
+                $items[] = SummaryChip::separator();
+                $items[] = self::renderSummaryLevel(
+                    $count,
+                    $label,
+                    $levelName,
+                    $level,
+                    $class,
+                    $context,
+                    $queryParams,
+                );
+            }
         }
 
         $items[] = $pageSizeSelector;
@@ -482,18 +474,12 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
      * Orders the captured messages by the submitted sort expression.
      *
      * @param list<LogRow> $rows Messages to order.
-     * @param string|null $sort Submitted sort expression, or `null` to keep capture order.
+     * @param SortState $state Sort state of the visible page.
      *
      * @return list<LogRow> Messages in display order.
      */
-    private static function sortRows(array $rows, string|null $sort): array
+    private static function sortRows(array $rows, SortState $state): array
     {
-        $state = SortState::fromQuery(
-            $sort,
-            self::SORT_ATTRIBUTES,
-            'time',
-        );
-
         return $state->apply(
             $rows,
             static fn(LogRow $left, LogRow $right): int => match ($state->attribute) {

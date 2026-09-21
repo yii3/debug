@@ -21,7 +21,6 @@ use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function array_filter;
 use function array_keys;
-use function count;
 use function http_build_query;
 use function iterator_to_array;
 use function usort;
@@ -70,11 +69,14 @@ final class HistoryGridRenderer
             $rows[] = HistoryRow::fromSummary($requestSummary);
         }
 
-        $filteredRows = self::sortRows(
-            $search->filter($rows),
+        $state = SortState::fromQuery(
             QueryInput::scalar($queryParams, 'sort'),
-            $dbPanel,
+            array_keys(self::headers($dbPanel)),
+            'time',
+            'desc',
         );
+
+        $filteredRows = self::sortRows($search->filter($rows), $state);
 
         $perPageRaw = QueryInput::scalar(
             $queryParams,
@@ -121,6 +123,7 @@ final class HistoryGridRenderer
             . self::renderGrid(
                 $paginator,
                 $search->activeFilters,
+                $state,
                 $routePrefix,
                 $queryParams,
                 $dbPanel,
@@ -132,6 +135,7 @@ final class HistoryGridRenderer
      *
      * @param HistoryScale $scale Page maxima scaling the duration and memory gauges.
      * @param array<string, string> $filters Active filter values keyed by attribute.
+     * @param SortState $state Sort state of the visible page.
      * @param string $routePrefix Base route used to generate debugger URLs.
      * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
      * @param int $offset Index of the first row on the visible page, numbering the rows.
@@ -142,19 +146,13 @@ final class HistoryGridRenderer
     private static function columns(
         HistoryScale $scale,
         array $filters,
+        SortState $state,
         string $routePrefix,
         array $queryParams,
         int $offset,
         DbPanel|null $dbPanel,
     ): array {
         $headers = self::headers($dbPanel);
-
-        $state = SortState::fromQuery(
-            QueryInput::scalar($queryParams, 'sort'),
-            array_keys($headers),
-            'time',
-            'desc',
-        );
 
         $url = static fn(string $sort): string => self::url(
             $routePrefix,
@@ -330,6 +328,7 @@ final class HistoryGridRenderer
      *
      * @param OffsetPaginator<int, HistoryRow> $paginator Paginator clamped to the visible page.
      * @param array<string, string> $filters Active filter values keyed by attribute.
+     * @param SortState $state Sort state of the visible page.
      * @param string $routePrefix Base route used to generate debugger URLs.
      * @param array<array-key, mixed> $queryParams Request query parameters driving filtering, sorting, and paging.
      * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
@@ -339,6 +338,7 @@ final class HistoryGridRenderer
     private static function renderGrid(
         OffsetPaginator $paginator,
         array $filters,
+        SortState $state,
         string $routePrefix,
         array $queryParams,
         DbPanel|null $dbPanel,
@@ -368,6 +368,7 @@ final class HistoryGridRenderer
             ->columns(...self::columns(
                 HistoryScale::fromModels($rows),
                 $filters,
+                $state,
                 $routePrefix,
                 $queryParams,
                 $paginator->getOffset(),
@@ -377,7 +378,6 @@ final class HistoryGridRenderer
 
         $footer = GridFooter::render(
             $paginator,
-            count($rows),
             static fn(string $page): string => self::url($routePrefix, $queryParams, ['page' => $page]),
         );
 
@@ -391,20 +391,12 @@ final class HistoryGridRenderer
      * Orders the captures by the submitted sort expression.
      *
      * @param list<HistoryRow> $rows Captures to order.
-     * @param string|null $sort Submitted sort expression, or `null` to keep capture order.
-     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     * @param SortState $state Sort state of the visible page.
      *
      * @return list<HistoryRow> Captures in display order.
      */
-    private static function sortRows(array $rows, string|null $sort, DbPanel|null $dbPanel): array
+    private static function sortRows(array $rows, SortState $state): array
     {
-        $state = SortState::fromQuery(
-            $sort,
-            array_keys(self::headers($dbPanel)),
-            'time',
-            'desc',
-        );
-
         usort(
             $rows,
             static function (HistoryRow $left, HistoryRow $right) use ($state): int {
