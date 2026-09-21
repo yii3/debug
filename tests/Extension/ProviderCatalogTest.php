@@ -84,6 +84,20 @@ final class ProviderCatalogTest extends TestCase
         );
     }
 
+    public function testListenersAppendCollectorsSharingOneEvent(): void
+    {
+        $catalog = new ProviderCatalog(
+            new PackagedProvider('inertia', InertiaCollector::class, InertiaPanel::class, 'Acme\\Shared\\Event'),
+            new PackagedProvider('vite', ViteCollector::class, VitePanel::class, 'Acme\\Shared\\Event'),
+        );
+
+        self::assertSame(
+            ['Acme\\Shared\\Event' => [InertiaCollector::class, ViteCollector::class]],
+            $catalog->listeners(),
+            'Both collectors must listen to the shared event.',
+        );
+    }
+
     public function testPackagedBuildsTheInertiaCollectorFromTheHostCapturePolicy(): void
     {
         $definitions = ProviderCatalog::packaged()->definitions();

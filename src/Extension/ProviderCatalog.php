@@ -66,6 +66,8 @@ final readonly class ProviderCatalog
     /**
      * Returns the listener registration of every installed provider, keyed by the event the collector observes.
      *
+     * Providers declaring the same event stack their collectors in registration order.
+     *
      * @return array<string, list<string>> Collector classes indexed by event class.
      */
     public function listeners(): array
@@ -73,7 +75,7 @@ final readonly class ProviderCatalog
         $listeners = [];
 
         foreach ($this->installed() as $provider) {
-            $listeners[$provider->event] = [$provider->collector];
+            $listeners[$provider->event][] = $provider->collector;
         }
 
         return $listeners;
