@@ -19,7 +19,13 @@ use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Exception\Message;
-use Yii3\Debug\Panel\{BuiltInPanels, DbPanel, ExtensionPanelInterface, PanelRenderInput, ProviderPanel};
+use Yii3\Debug\Panel\{
+    BuiltInPanels,
+    DbPanel,
+    ExtensionPanelInterface,
+    PanelContent,
+    PanelRenderInput,
+};
 use Yii3\Debug\View\ViewMessage as AdapterMessage;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
@@ -56,10 +62,6 @@ final class DebugPageRenderer
      * @var array<string, ExtensionPanelInterface>
      */
     private array $extensionPanels = [];
-    /**
-     * Indicates whether the renderer has been prepared.
-     */
-    private bool $prepared = false;
     /**
      * Base route used to generate debugger URLs.
      */
@@ -173,10 +175,6 @@ final class DebugPageRenderer
         array $manifest = [],
         array $queryParams = [],
     ): string {
-        if (!$this->prepared) {
-            return $this->forSnapshot($snapshot)->extension($snapshot, $panelId, $theme, $manifest, $queryParams);
-        }
-
         $panel = $this->extensionPanels[$panelId] ?? null;
 
         if (
@@ -415,13 +413,7 @@ final class DebugPageRenderer
                 continue;
             }
 
-            $items[] = new SidebarNavItem(
-                label: $panel->name(),
-                iconSvg: Icon::render($panel->icon()),
-                url: $this->viewUrl($summary->tag, $id),
-                tooltip: 'View ' . $panel->name() . ' panel',
-                isActive: $activePanelId === $id,
-            );
+            $items[] = $this->panelNavItem($panel, $id, $summary->tag, $activePanelId);
         }
 
         $raw = [];
@@ -448,27 +440,6 @@ final class DebugPageRenderer
         $items = [...$items, ...$raw];
 
         return $items === [] ? [] : [ViewMessage::EXTENSIONS->value => $items];
-    }
-
-    /**
-     * Returns a copy whose extension panels are bound to one capture.
-     *
-     * @param DebugSnapshot $snapshot Capture the panels are bound to.
-     *
-     * @return self Renderer bound to that capture.
-     */
-    private function forSnapshot(DebugSnapshot $snapshot): self
-    {
-        $prepared = clone $this;
-        $prepared->prepared = true;
-
-        foreach ($this->extensionPanels as $id => $panel) {
-            if ($panel instanceof ProviderPanel && isset($snapshot->panels[$id])) {
-                $prepared->extensionPanels[$id] = $panel->forPayload($snapshot->panels[$id]);
-            }
-        }
-
-        return $prepared;
     }
 
     /**
@@ -533,9 +504,9 @@ final class DebugPageRenderer
     /**
      * Returns whether the sidebar lists a panel for a capture.
      *
-     * A failed capture is always listed, so the detail page can explain it. A captured payload is listed only when the
-     * panel reports content, which keeps a structurally valid but semantically empty capture out of the navigation.
-     * A panel that throws while deciding is listed too, so the detail page can expose the render failure.
+     * A failed capture is always listed, so the detail page can explain it. A captured payload is listed only when
+     * {@see PanelContent::isPresent()} reports content, which keeps a structurally valid but semantically empty
+     * capture out of the navigation.
      *
      * @param ExtensionPanelInterface $panel Panel presenting the capture.
      * @param DebugSnapshot $snapshot Capture backing the sidebar.
@@ -553,12 +524,7 @@ final class DebugPageRenderer
             return false;
         }
 
-        try {
-            return $panel->hasContent($snapshot->panels[$id]);
-        } catch (Throwable) {
-            // Keep malformed captured panels discoverable so the detail page can expose the render failure.
-            return true;
-        }
+        return PanelContent::isPresent($panel, $snapshot->panels[$id]);
     }
 
     /**
@@ -617,6 +583,31 @@ final class DebugPageRenderer
     }
 
     /**
+     * Builds the sidebar navigation entry opening one registered panel of a capture.
+     *
+     * @param ExtensionPanelInterface $panel Panel the entry links to.
+     * @param string $id Panel ID the entry opens.
+     * @param string $tag Tag of the capture the entry opens.
+     * @param string|null $activePanelId Panel to mark as active, or `null` when no panel is being shown.
+     *
+     * @return SidebarNavItem Navigation entry for the panel.
+     */
+    private function panelNavItem(
+        ExtensionPanelInterface $panel,
+        string $id,
+        string $tag,
+        string|null $activePanelId,
+    ): SidebarNavItem {
+        return new SidebarNavItem(
+            label: $panel->name(),
+            iconSvg: Icon::render($panel->icon()),
+            url: $this->viewUrl($tag, $id),
+            tooltip: 'View ' . $panel->name() . ' panel',
+            isActive: $activePanelId === $id,
+        );
+    }
+
+    /**
      * Builds the built-in panel navigation displayed after History and before extension groups.
      *
      * @param RequestSummary|null $summary Summary of the capture in context, or `null` when none is selected.
@@ -643,13 +634,7 @@ final class DebugPageRenderer
                 continue;
             }
 
-            $items[] = new SidebarNavItem(
-                label: $panel->name(),
-                iconSvg: Icon::render($panel->icon()),
-                url: $this->viewUrl($summary->tag, $id),
-                tooltip: 'View ' . $panel->name() . ' panel',
-                isActive: $activePanelId === $id,
-            );
+            $items[] = $this->panelNavItem($panel, $id, $summary->tag, $activePanelId);
         }
 
         return $items;

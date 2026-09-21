@@ -46,21 +46,17 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
     private const array SORT_ATTRIBUTES = ['seq', 'duration', 'category', 'info'];
 
     /**
-     * Validates the captured payload and reports the panel as listable.
+     * Reports the panel as listable for every capture.
      *
-     * Every capture whose payload decodes is listed, a capture with no span included, so the panel stays reachable
-     * from the sidebar.
+     * The collector records timing for every request, so the panel stays reachable from the sidebar even when the
+     * capture holds no span.
      *
      * @param array<string, mixed> $payload Serialized panel payload.
-     *
-     * @throws HydrationException when the payload does not match the snapshot schema.
      *
      * @return bool Always `true`.
      */
     public function hasContent(array $payload): bool
     {
-        self::snapshot($payload);
-
         return true;
     }
 
@@ -139,6 +135,7 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
      * Builds the grid columns for the captured spans.
      *
      * @param float $maxDuration Longest span of the whole capture, scaling the duration gauge.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      *
@@ -146,21 +143,13 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
      */
     private static function columns(
         float $maxDuration,
+        SortState $state,
         PanelRenderContext $context,
         array $queryParams,
     ): array {
-        $state = SortState::fromQuery(
-            QueryInput::scalar($queryParams, 'sort'),
-            self::SORT_ATTRIBUTES,
-            'duration',
-            'desc',
-        );
-
         unset($queryParams['page']);
 
-        $url = static fn(string $sort): string => $context->panelUrl(
-            queryParams: [...$queryParams, 'sort' => $sort],
-        );
+        $url = SortState::panelUrl($context, $queryParams);
 
         return [
             new GridColumn(
@@ -312,6 +301,7 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
      *
      * @param OffsetPaginator<int, ProfileRow> $paginator Paginator clamped to the visible page.
      * @param float $maxDuration Longest span of the whole capture, scaling the duration gauge.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
@@ -320,6 +310,7 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
     private static function renderGrid(
         OffsetPaginator $paginator,
         float $maxDuration,
+        SortState $state,
         PanelRenderContext $context,
         array $filters,
     ): string {
@@ -332,15 +323,10 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
 
         /** @var GridView<ProfileRow> $grid */
         $grid = PanelGrid::filterable($paginator, 'yii-debug-profile-filters')
-            ->columns(...self::columns($maxDuration, $context, $queryParams))
+            ->columns(...self::columns($maxDuration, $state, $context, $queryParams))
             ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
-        $footer = GridFooter::renderForPanel(
-            $paginator,
-            $paginator->getCurrentPageSize(),
-            $context,
-            $queryParams,
-        );
+        $footer = GridFooter::renderForPanel($paginator, $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-profile')
@@ -384,7 +370,14 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
             ['view', FilterPrefix::TIMELINE],
         );
 
-        $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
+        $state = SortState::fromQuery(
+            QueryInput::scalar($queryParams, 'sort'),
+            self::SORT_ATTRIBUTES,
+            'duration',
+            'desc',
+        );
+
+        $sortedRows = self::sortRows($filteredRows, $state);
 
         $paginator = PageWindow::paginate(
             $sortedRows,
@@ -392,7 +385,7 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        return self::renderGrid($paginator, ProfileRow::maxDuration($entries), $context, $filters);
+        return self::renderGrid($paginator, ProfileRow::maxDuration($entries), $state, $context, $filters);
     }
 
     /**
@@ -588,14 +581,12 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
      * Orders the captured spans by the submitted sort expression.
      *
      * @param list<ProfileRow> $rows Spans to order.
-     * @param string|null $sort Submitted sort expression, or `null` to keep capture order.
+     * @param SortState $state Sort state of the visible page.
      *
      * @return list<ProfileRow> Spans in display order.
      */
-    private static function sortRows(array $rows, string|null $sort): array
+    private static function sortRows(array $rows, SortState $state): array
     {
-        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'duration', 'desc');
-
         return $state->apply(
             $rows,
             static fn(ProfileRow $left, ProfileRow $right): int => match ($state->attribute) {

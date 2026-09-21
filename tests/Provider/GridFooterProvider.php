@@ -12,16 +12,15 @@ final class GridFooterProvider
     /**
      * Provides the collections whose visible range starts, ends, or stops on an uneven page.
      *
-     * @return iterable<string, array{int, int, int, int, string}> Total rows, page size, current page, rows on
-     * screen, and the expected summary.
+     * @return iterable<string, array{int, int, int, string}> Total rows, page size, current page, and the expected
+     * summary.
      */
     public static function itemRanges(): iterable
     {
-        yield 'empty collection' => [0, 10, 1, 0, 'Showing 0-0 of 0 items.'];
-        yield 'last page' => [23, 10, 3, 3, 'Showing 21-23 of 23 items.'];
-        yield 'last page counting beyond the total' => [23, 10, 3, 5, 'Showing 21-23 of 23 items.'];
-        yield 'single row' => [1, 10, 1, 1, 'Showing 1-1 of 1 item.'];
-        yield 'full page' => [100, 10, 1, 10, 'Showing 1-10 of 100 items.'];
+        yield 'empty collection' => [0, 10, 1, 'Showing 0-0 of 0 items.'];
+        yield 'last page' => [23, 10, 3, 'Showing 21-23 of 23 items.'];
+        yield 'single row' => [1, 10, 1, 'Showing 1-1 of 1 item.'];
+        yield 'full page' => [100, 10, 1, 'Showing 1-10 of 100 items.'];
     }
 
     /**

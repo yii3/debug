@@ -54,7 +54,7 @@ final class GridFooterTest extends TestCase
         );
         self::assertStringNotContainsString(
             '<nav',
-            GridFooter::render(self::paginator(500, 10, 3), 10)->render(),
+            GridFooter::render(self::paginator(500, 10, 3))->render(),
             'A missing URL builder must not add navigation.',
         );
     }
@@ -106,23 +106,18 @@ final class GridFooterTest extends TestCase
     }
 
     #[DataProviderExternal(GridFooterProvider::class, 'itemRanges')]
-    public function testSummarizesTheVisibleItemRange(
-        int $total,
-        int $pageSize,
-        int $page,
-        int $visible,
-        string $expected,
-    ): void {
+    public function testSummarizesTheVisibleItemRange(int $total, int $pageSize, int $page, string $expected): void
+    {
         self::assertStringContainsString(
             "<span class=\"summary yii-debug-grid-count\">{$expected}</span>",
-            GridFooter::render(self::paginator($total, $pageSize, $page), $visible)->render(),
+            GridFooter::render(self::paginator($total, $pageSize, $page))->render(),
             'Range must cover the rows on screen.',
         );
     }
 
     private static function pager(int $page, int $pageCount): string
     {
-        return GridFooter::render(self::paginator($pageCount, 1, $page), 1, self::url())->render();
+        return GridFooter::render(self::paginator($pageCount, 1, $page), self::url())->render();
     }
 
     /**

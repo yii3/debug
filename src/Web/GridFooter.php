@@ -12,7 +12,6 @@ use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\Pagination\{OffsetPagination, PaginationContext};
 
 use function array_replace;
-use function min;
 
 /**
  * Renders the shared item count and the DataView pager without owning panel navigation.
@@ -29,13 +28,12 @@ final class GridFooter
      * @template TValue of array|object
      *
      * @param OffsetPaginator<TKey, TValue> $paginator Paginator backing the grid.
-     * @param int $visible Rows rendered on the current page.
      * @param (Closure(string): string)|null $pageUrl Builds the URL of a page from its number, or `null` to omit the
      * page controls.
      *
      * @return Div Rendered footer.
      */
-    public static function render(OffsetPaginator $paginator, int $visible, Closure|null $pageUrl = null): Div
+    public static function render(OffsetPaginator $paginator, Closure|null $pageUrl = null): Div
     {
         $total = $paginator->getTotalItems();
         $offset = $paginator->getOffset();
@@ -43,7 +41,11 @@ final class GridFooter
         return Div::tag()
             ->class('yii-debug-grid-footer')
             ->html(
-                GridCount::render($total === 0 ? 0 : $offset + 1, min($offset + $visible, $total), $total),
+                GridCount::render(
+                    $total === 0 ? 0 : $offset + 1,
+                    $offset + $paginator->getCurrentPageSize(),
+                    $total,
+                ),
                 $pageUrl === null ? '' : self::pager($paginator, $pageUrl),
             );
     }
@@ -55,7 +57,6 @@ final class GridFooter
      * @template TValue of array|object
      *
      * @param OffsetPaginator<TKey, TValue> $paginator Paginator backing the grid.
-     * @param int $visible Number of rows rendered on the current page.
      * @param PanelRenderContext|null $context State of the debugger request, or `null` to omit the page links.
      * @param array<array-key, mixed> $queryParams Query parameters the page links are built from.
      *
@@ -63,13 +64,11 @@ final class GridFooter
      */
     public static function renderForPanel(
         OffsetPaginator $paginator,
-        int $visible,
         PanelRenderContext|null $context,
         array $queryParams,
     ): Div {
         return self::render(
             $paginator,
-            $visible,
             $context === null ? null : static fn(string $page): string => $context->panelUrl(
                 queryParams: array_replace($queryParams, ['page' => $page]),
             ),

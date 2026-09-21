@@ -52,19 +52,16 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
     /**
      * Reports whether the capture recorded dispatched events worth opening the panel for.
      *
+     * The capture is listed whenever it carries a payload; the detail page and the toolbar chip surface a malformed
+     * one when they hydrate it.
+     *
      * @param array<string, mixed> $payload Serialized panel payload.
      *
      * @return bool `true` when the capture carried data; `false` otherwise.
      */
     public function hasContent(array $payload): bool
     {
-        if ($payload === []) {
-            return false;
-        }
-
-        self::snapshot($payload);
-
-        return true;
+        return $payload !== [];
     }
 
     /**
@@ -129,6 +126,7 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
      * Builds the grid columns for the captured events.
      *
      * @param EventSequence $sequence Ordering of every captured event, so row numbers survive pagination.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<array-key, mixed> $queryParams Raw query parameters of the debugger request.
      * @param array<string, string> $filters Active filter values keyed by attribute.
@@ -137,17 +135,14 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
      */
     private static function columns(
         EventSequence $sequence,
+        SortState $state,
         PanelRenderContext $context,
         array $queryParams,
         array $filters,
     ): array {
-        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
-
         unset($queryParams['page']);
 
-        $url = static fn(string $sort): string => $context->panelUrl(
-            queryParams: [...$queryParams, 'sort' => $sort],
-        );
+        $url = SortState::panelUrl($context, $queryParams);
 
         return [
             new GridColumn(
@@ -201,6 +196,7 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
      *
      * @param OffsetPaginator<int, EventRow> $paginator Paginator clamped to the visible page.
      * @param list<EventRow> $allRows Every captured event, numbering the rows.
+     * @param SortState $state Sort state of the visible page.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param array<string, string> $filters Active filter values keyed by attribute.
      *
@@ -209,6 +205,7 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
     private static function renderGrid(
         OffsetPaginator $paginator,
         array $allRows,
+        SortState $state,
         PanelRenderContext $context,
         array $filters,
     ): string {
@@ -227,12 +224,12 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
                         )->encode(false),
                     ),
             )
-            ->columns(...self::columns($sequence, $context, $queryParams, $filters))
+            ->columns(...self::columns($sequence, $state, $context, $queryParams, $filters))
             ->urlCreator(static fn(): string => $context->panelUrl(queryParams: []));
 
         $table = $grid->render();
 
-        $footer = GridFooter::renderForPanel($paginator, $paginator->getCurrentPageSize(), $context, $queryParams);
+        $footer = GridFooter::renderForPanel($paginator, $context, $queryParams);
 
         return Div::tag()
             ->class('yii-debug-grid yii-debug-grid-event')
@@ -275,7 +272,9 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
     ): string {
         $queryParams = FilterRemoval::withGroup($context->queryParams, FilterPrefix::EVENT, $filters);
 
-        $sortedRows = self::sortRows($filteredRows, QueryInput::scalar($queryParams, 'sort'));
+        $state = SortState::fromQuery(QueryInput::scalar($queryParams, 'sort'), self::SORT_ATTRIBUTES, 'time');
+
+        $sortedRows = self::sortRows($filteredRows, $state);
 
         $paginator = PageWindow::paginate(
             $sortedRows,
@@ -283,7 +282,7 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
             QueryInput::scalar($queryParams, 'page'),
         );
 
-        return self::renderGrid($paginator, $allRows, $context, $filters);
+        return self::renderGrid($paginator, $allRows, $state, $context, $filters);
     }
 
     /**
@@ -376,14 +375,12 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
      * Orders the captured events by the submitted sort expression.
      *
      * @param list<EventRow> $rows Captured events to order.
-     * @param string|null $sort Submitted sort expression, or `null` to keep capture order.
+     * @param SortState $state Sort state of the visible page.
      *
      * @return list<EventRow> Events in display order.
      */
-    private static function sortRows(array $rows, string|null $sort): array
+    private static function sortRows(array $rows, SortState $state): array
     {
-        $state = SortState::fromQuery($sort, self::SORT_ATTRIBUTES, 'time');
-
         return $state->apply(
             $rows,
             static fn(EventRow $left, EventRow $right): int => match ($state->attribute) {

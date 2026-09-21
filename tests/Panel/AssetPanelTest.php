@@ -48,6 +48,14 @@ final class AssetPanelTest extends TestCase
         );
     }
 
+    public function testHasContentReportsMalformedNonEmptyCapture(): void
+    {
+        self::assertTrue(
+            (new AssetPanel())->hasContent(['bundles' => 'broken', 'vite' => null]),
+            'A malformed non-empty capture must stay listed.',
+        );
+    }
+
     public function testPanelIdentityMatchesAssetCollector(): void
     {
         $panel = new AssetPanel();
@@ -69,11 +77,11 @@ final class AssetPanelTest extends TestCase
         );
     }
 
-    public function testThrowHydrationExceptionForMalformedPayload(): void
+    public function testThrowHydrationExceptionWhenToolbarItemsReceiveMalformedPayload(): void
     {
         $this->expectException(HydrationException::class);
         $this->expectExceptionMessage("Invalid debug snapshot value at '\$.asset.bundles': expected a list.");
 
-        (new AssetPanel())->hasContent(['bundles' => 'broken', 'vite' => null]);
+        (new AssetPanel())->toolbarItems(['bundles' => 'broken', 'vite' => null]);
     }
 }

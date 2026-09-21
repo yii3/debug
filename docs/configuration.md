@@ -28,30 +28,27 @@ wins over the runtime value.
 
 ## Registering collectors and panels
 
-The Inertia provider registers itself: once `php-forge/inertia` is installed, the packaged parameters declare its
-collector and panel under the `inertia` ID, the packaged `events-web` group routes every protocol result to that
-collector, and the packaged `di-web` group builds it with the host redaction policy. Declare every other collector and
-panel your application wants under `yii3/debug.collectors` and `yii3/debug.panels`, keyed by the stable ID the class
-reports from `id()`:
+The Inertia and Vite providers register themselves: as soon as `php-forge/inertia` or `php-forge/vite` is installed,
+the packaged parameters declare its collector and panel under the `inertia` or `vite` ID, the packaged `events-web`
+group routes its event to that collector, and the packaged `di-web` group builds the Inertia collector with the host
+redaction policy. `Yii3\Debug\Extension\ProviderCatalog` holds that catalog, and every packaged configuration file
+asks it, so an application wires nothing for them. Declare every other collector and panel your application wants
+under `yii3/debug.collectors` and `yii3/debug.panels`, keyed by the stable ID the class reports from `id()`:
 
 ```php
-use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
-
 return [
     'yii3/debug' => [
         'collectors' => [
-            'vite' => ViteCollector::class,
             'cache' => ['class' => Acme\Debug\CacheCollector::class, 'enabled' => true],
         ],
         'panels' => [
-            'vite' => ['class' => VitePanel::class, 'title' => 'Vite assets', 'icon' => 'asset', 'position' => 1],
             'cache' => ['class' => Acme\Debug\CachePanel::class, 'title' => 'Cache operations', 'icon' => 'db'],
         ],
     ],
 ];
 ```
 
-An application that wants no Inertia capture disables both packaged entries:
+An application that wants no Inertia capture disables both packaged entries; disabling `vite` works the same way:
 
 ```php
 use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
@@ -82,15 +79,16 @@ means it is inspecting built assets in your development application, not that th
 
 ### Provider event listeners
 
-The debugger packages the Inertia listener only. Declare the listener of any other provider in your application's
-`events-web` group, so the instance that captures the event is the same container instance the debugger reads:
+The debugger packages the Inertia and Vite listeners. Declare the listener of any other provider in your
+application's `events-web` group, so the instance that captures the event is the same container instance the debugger
+reads:
 
 ```php
-use PHPForge\Vite\Debug\ViteCollector;
-use PHPForge\Vite\Event\AssetsResolved;
+use Acme\Cache\Event\CacheAccessed;
+use Acme\Debug\CacheCollector;
 
 return [
-    AssetsResolved::class => [ViteCollector::class],
+    CacheAccessed::class => [CacheCollector::class],
 ];
 ```
 
@@ -119,8 +117,7 @@ return [
 
 The `extensions` block is gone, and `config/di-web.php` reads `collectors` and `panels` alone. The key is ignored, so
 an application that still sets `yii3/debug.extensions` silently loses the captures of its application-owned
-extensions: no collector, panel, or listener is wired for them. The packaged Inertia provider is not affected, because
-it stays wired whenever `php-forge/inertia` is installed.
+extensions: no collector, panel, or listener is wired for them.
 
 Before:
 
@@ -135,35 +132,10 @@ return [
 ];
 ```
 
-After, in the application parameters, keyed by the stable ID each class reports from `id()`; the `inertia` flag needs
-no replacement:
-
-```php
-use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
-
-return [
-    'yii3/debug' => [
-        'collectors' => [
-            'vite' => ViteCollector::class,
-        ],
-        'panels' => [
-            'vite' => VitePanel::class,
-        ],
-    ],
-];
-```
-
-Each flag also attached the collector as a PSR-14 listener. The debugger packages the Inertia listener only, so
-declare the Vite one in the application's `events-web` group:
-
-```php
-use PHPForge\Vite\Debug\ViteCollector;
-use PHPForge\Vite\Event\AssetsResolved;
-
-return [
-    AssetsResolved::class => [ViteCollector::class],
-];
-```
+After: delete the block. Neither the `inertia` nor the `vite` flag needs a replacement, because the debugger packages
+both providers, including their PSR-14 listeners, whenever their packages are installed. Declare application-owned
+extensions under `collectors` and `panels`, keyed by the stable ID each class reports from `id()`, and their listeners
+in the application's `events-web` group.
 
 ### Upgrading a custom panel
 
