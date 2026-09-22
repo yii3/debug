@@ -684,6 +684,35 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
+    public function testCreateForSnapshotKeepsThePanelUrlWhenTheOnlyItemIsNotLinked(): void
+    {
+        foreach (['no URL' => null, 'empty URL' => ''] as $case => $itemUrl) {
+            $panel = self::createStub(ToolbarPanelProviderInterface::class);
+
+            $panel->method('hasContent')->willReturn(true);
+            $panel->method('id')->willReturn('mail');
+            $panel->method('name')->willReturn('Mail');
+            $panel->method('toolbarItems')->willReturn([ToolbarItem::create('1')->withUrl($itemUrl)]);
+
+            $snapshot = new DebugSnapshot(
+                RequestSummary::create('request-1'),
+                ['mail' => ['messages' => []]],
+                [],
+            );
+
+            $payload = (new ToolbarDataFactory($this->assetManager()))
+                ->withExtensionPanels([$panel])
+                ->createForSnapshot($snapshot)
+                ->jsonSerialize();
+
+            self::assertSame(
+                '/debug/view?tag=request-1&panel=mail',
+                $payload['items'][0]['url'] ?? null,
+                "Panel target must stay on the current capture ({$case}).",
+            );
+        }
+    }
+
     public function testCreateForSnapshotLinksLogSeverityMetricsToTheirFilters(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
@@ -831,6 +860,44 @@ final class ToolbarDataFactoryTest extends TestCase
                 $payload['items'],
             ),
             'Built-in chips must lead regardless of registration.',
+        );
+    }
+
+    public function testCreateForSnapshotPointsThePanelUrlAtTheOnlyLinkedItem(): void
+    {
+        $panel = self::createStub(ToolbarPanelProviderInterface::class);
+
+        $panel->method('hasContent')->willReturn(true);
+        $panel->method('id')->willReturn('mail');
+        $panel->method('name')->willReturn('Mail');
+        $panel->method('toolbarItems')->willReturn(
+            [
+                ToolbarItem::create('1')
+                    ->withStatus('cross-request')
+                    ->withUrl('/debug/view?tag=request-0&panel=mail'),
+            ],
+        );
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            ['mail' => ['messages' => []]],
+            [],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([$panel])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            '/debug/view?tag=request-0&panel=mail',
+            $payload['items'][0]['url'] ?? null,
+            'Label and badge must open the same capture.',
+        );
+        self::assertSame(
+            '/debug/view?tag=request-0&panel=mail',
+            $payload['items'][0]['items'][0]['url'] ?? null,
+            'Item URL must stay unchanged.',
         );
     }
 
