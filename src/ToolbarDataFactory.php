@@ -25,6 +25,7 @@ use Yiisoft\Assets\AssetManager;
 
 use function array_is_list;
 use function array_key_exists;
+use function count;
 use function rawurlencode;
 use function rtrim;
 use function strlen;
@@ -192,6 +193,28 @@ final class ToolbarDataFactory
     }
 
     /**
+     * Returns the target of a panel whose only metric links elsewhere, so its label and badge open the same capture.
+     *
+     * The toolbar renders the label and a linked badge as two separate links; a single metric pointing at another
+     * capture (a cross-request Mail count) would otherwise leave the label on the current one. Metrics that sit beside
+     * others (Logs' severity filters) keep the panel target.
+     *
+     * @param list<ToolbarItem> $items Toolbar metrics declared by the panel.
+     *
+     * @return string|null URL of the only metric, or `null` when there are several metrics or the only one has no URL.
+     */
+    private static function envelopeUrl(array $items): string|null
+    {
+        if (count($items) !== 1) {
+            return null;
+        }
+
+        $url = $items[0]->url;
+
+        return $url !== null && $url !== '' ? $url : null;
+    }
+
+    /**
      * Builds the single-metric panel shown when a capture or its toolbar contribution failed.
      *
      * @param string $id Stable panel identifier.
@@ -328,7 +351,7 @@ final class ToolbarDataFactory
                 $id,
                 $panel instanceof ToolbarTitleProviderInterface ? $panel->toolbarTitle() : $panel->name(),
             )
-                ->withUrl($url)
+                ->withUrl(self::envelopeUrl($items) ?? $url)
                 ->withIcon($panel->icon())
                 ->withExtension($extension)
                 ->withItems($items);
