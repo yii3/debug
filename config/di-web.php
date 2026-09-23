@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Psr\Container\ContainerInterface;
-use Yii3\Debug\Extension\ProviderCatalog;
 use Yii3\Debug\ExtensionRegistry;
 
 if (!(require __DIR__ . '/enabled.php')) {
@@ -21,5 +20,4 @@ return [
         $debug['panels'] ?? [],
         $container,
     ),
-    ...ProviderCatalog::packaged()->definitions(),
 ];

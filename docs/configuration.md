@@ -28,12 +28,9 @@ wins over the runtime value.
 
 ## Registering collectors and panels
 
-The Inertia and Vite providers register themselves: as soon as `php-forge/inertia` or `php-forge/vite` is installed,
-the packaged parameters declare its collector and panel under the `inertia` or `vite` ID, the packaged `events-web`
-group routes its event to that collector, and the packaged `di-web` group builds the Inertia collector with the host
-redaction policy. `Yii3\Debug\Extension\ProviderCatalog` holds that catalog, and every packaged configuration file
-asks it, so an application wires nothing for them. Declare every other collector and panel your application wants
-under `yii3/debug.collectors` and `yii3/debug.panels`, keyed by the stable ID the class reports from `id()`:
+The debugger ships no collector or panel beyond its built-ins and names no provider package. Declare every collector
+and panel your application wants under `yii3/debug.collectors` and `yii3/debug.panels`, keyed by the stable ID the
+class reports from `id()`:
 
 ```php
 return [
@@ -48,7 +45,8 @@ return [
 ];
 ```
 
-An application that wants no Inertia capture disables both packaged entries; disabling `vite` works the same way:
+An entry another package's configuration declares, such as the `inertia` entries `yii3/inertia` ships, is switched
+off from the application params; disable both the collector and the panel:
 
 ```php
 use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
@@ -79,9 +77,8 @@ means it is inspecting built assets in your development application, not that th
 
 ### Provider event listeners
 
-The debugger packages the Inertia and Vite listeners. Declare the listener of any other provider in your
-application's `events-web` group, so the instance that captures the event is the same container instance the debugger
-reads:
+Declare the listener of every provider collector in an `events-web` group, so the instance that captures the event is
+the same container instance the debugger reads:
 
 ```php
 use Acme\Cache\Event\CacheAccessed;
@@ -96,11 +93,53 @@ The container injects its `Psr\EventDispatcher\EventDispatcherInterface` into `P
 `PHPForge\Inertia\Protocol`, so no further wiring is needed. Keep the debugger, Debug Core, and the provider
 packages up to date together in the application's lock file.
 
+### Provider packages
+
+Vite and Inertia register through the same three groups as the `cache` example: `params` declares the collector and
+the panel, `events-web` routes the provider event to the collector, and `di-web` builds a collector that needs the host
+redaction policy.
+
+`yii3/inertia` ships the Inertia entries in its own configuration groups, so an application using it adds nothing:
+
+```php
+// yii3/inertia config/params.php
+'yii3/debug' => [
+    'collectors' => ['inertia' => InertiaCollector::class],
+    'panels' => ['inertia' => InertiaPanel::class],
+],
+
+// yii3/inertia config/events-web.php
+ProtocolResultCreated::class => [InertiaCollector::class],
+
+// yii3/inertia config/di-web.php, only when Debug Core is installed
+InertiaCollector::class => static fn(CapturePolicy $policy): InertiaCollector
+    => new InertiaCollector($policy->redact(...), $policy->redactUrl(...)),
+```
+
+Vite has no Yii3 adapter package, so the application declares it; `ViteCollector` needs no container definition:
+
+```php
+use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
+use PHPForge\Vite\Event\AssetsResolved;
+
+// config/params.php
+'yii3/debug' => [
+    'collectors' => ['vite' => ViteCollector::class],
+    'panels' => ['vite' => VitePanel::class],
+],
+
+// config/events-web.php
+AssetsResolved::class => [ViteCollector::class],
+```
+
+Without the debugger installed the `yii3/debug` params are inert and the listener only buffers: a collector records
+nothing until the debugger starts it.
+
 ### Redacting a provider capture
 
-`PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel applies. The packaged Inertia
-collector already receives them. Hand the same rules to an application-owned collector that captures user data, in the
-application's `di-web` group:
+`PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel applies. The Inertia collector
+`yii3/inertia` declares already receives them. Hand the same rules to an application-owned collector that captures
+user data, in the application's `di-web` group:
 
 ```php
 use Acme\Debug\CacheCollector;
@@ -132,10 +171,10 @@ return [
 ];
 ```
 
-After: delete the block. Neither the `inertia` nor the `vite` flag needs a replacement, because the debugger packages
-both providers, including their PSR-14 listeners, whenever their packages are installed. Declare application-owned
-extensions under `collectors` and `panels`, keyed by the stable ID each class reports from `id()`, and their listeners
-in the application's `events-web` group.
+After: delete the block. The `inertia` flag needs no replacement, because `yii3/inertia` declares the Inertia collector,
+panel, and listener in its own configuration groups. Replace the `vite` flag with the Vite entries shown under
+[Provider packages](#provider-packages). Declare application-owned extensions under `collectors` and `panels`, keyed by
+the stable ID each class reports from `id()`, and their listeners in the application's `events-web` group.
 
 ### Upgrading a custom panel
 
