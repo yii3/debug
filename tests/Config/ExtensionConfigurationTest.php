@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Config;
 
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\CollectorInterface;
+use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Inertia\Debug\{InertiaCollector, InertiaPanel};
-use PHPForge\Inertia\Event\ProtocolResultCreated;
 use PHPForge\Inertia\{PageInput, Protocol, RequestContext};
 use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
-use PHPForge\Vite\Event\AssetsResolved;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 use Yii3\Debug\ExtensionRegistry;
@@ -196,7 +196,7 @@ final class ExtensionConfigurationTest extends TestCase
         );
     }
 
-    public function testPackagedConfigurationRegistersTheInertiaAndViteProvidersWhenInstalled(): void
+    public function testPackagedConfigurationRegistersNoProviderByDefault(): void
     {
         $registry = PackageConfiguration::container()->get(ExtensionRegistry::class);
 
@@ -206,54 +206,64 @@ final class ExtensionConfigurationTest extends TestCase
             'Packaged definition must build the registry.',
         );
         self::assertSame(
-            ['inertia', 'vite'],
+            [],
             self::collectorIds($registry),
-            'Every installed provider must collect by default.',
+            'An installed provider package must not collect until the application registers it.',
         );
         self::assertSame(
-            ['inertia', 'vite'],
+            [],
             self::panelIds($registry),
-            'Every installed provider must have its panel by default.',
+            'An installed provider package must not add a panel until the application registers it.',
         );
     }
 
-    public function testPackagedEventsConfigurationDeclaresOnlyTheShutdownAndProviderListeners(): void
+    public function testPackagedEventsConfigurationDeclaresOnlyTheShutdownListener(): void
     {
         $listeners = PackageConfiguration::events(PackageConfiguration::params());
 
         // yiisoft/yii-http is not a dependency of this package; the packaged configuration only names the class.
         self::assertSame(
-            [
-                'Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown',
-                ProtocolResultCreated::class,
-                AssetsResolved::class,
-            ],
+            ['Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown'],
             array_keys($listeners),
-            'Only the shutdown and packaged provider listeners may be declared.',
+            'No provider listener may be packaged.',
         );
     }
 
-    public function testPackagedEventsRouteProviderEventsToTheirCollectors(): void
+    public function testProviderRecipeBuildsTheInertiaCollectorWithTheHostCapturePolicy(): void
     {
-        $events = PackageConfiguration::events(PackageConfiguration::params());
+        $container = PackageConfiguration::container(
+            [
+                'collectors' => ['inertia' => InertiaCollector::class],
+                'panels' => ['inertia' => InertiaPanel::class],
+            ],
+            [
+                InertiaCollector::class => static fn(CapturePolicy $policy): InertiaCollector => new InertiaCollector(
+                    $policy->redact(...),
+                    $policy->redactUrl(...),
+                ),
+            ],
+        );
+
+        $registry = $container->get(ExtensionRegistry::class);
+
+        self::assertInstanceOf(
+            ExtensionRegistry::class,
+            $registry,
+            'Packaged definition must build the registry.',
+        );
+
+        $collector = $registry->collectors()[0] ?? null;
 
         self::assertSame(
-            [InertiaCollector::class],
-            $events[ProtocolResultCreated::class] ?? null,
-            'Protocol results must reach the packaged collector.',
+            $container->get(InertiaCollector::class),
+            $collector,
+            'The listener instance must be the registered collector.',
         );
-        self::assertSame(
-            [ViteCollector::class],
-            $events[AssetsResolved::class] ?? null,
-            'Resolved assets must reach the packaged collector.',
+        self::assertInstanceOf(
+            InertiaCollector::class,
+            $collector,
+            'Registry must hold the Inertia collector.',
         );
-    }
-
-    public function testPackagedInertiaCollectorAppliesTheHostCapturePolicy(): void
-    {
-        $collector = PackageConfiguration::container()->get(InertiaCollector::class);
-
-        self::assertInstanceOf(InertiaCollector::class, $collector, 'Container must build the packaged collector.');
 
         $collector->startup();
 
@@ -287,8 +297,8 @@ final class ExtensionConfigurationTest extends TestCase
             $props['answer'] ?? null,
             'Plain props must survive.',
         );
-        self::assertNotSame(
-            'secret',
+        self::assertSame(
+            SensitiveDataRedactor::PLACEHOLDER,
             $props['password'] ?? null,
             'Sensitive props must follow the host policy.',
         );
