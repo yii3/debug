@@ -2,16 +2,13 @@
 
 declare(strict_types=1);
 
-use PHPForge\Debug\Capture\CapturePolicy;
-use PHPForge\Debug\Collector\CollectorCoordinator;
-use Yii3\Debug\Capture\DeferredCapture;
 use Yii3\Debug\ExtensionRegistry;
-use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yii3\Debug\Middleware\{DebugRouteMiddleware, RequestCaptureMiddleware, ToolbarOptions};
 use Yii3\Debug\Panel\BuiltInPanelList;
 use Yii3\Debug\ToolbarDataFactory;
-use Yii3\Debug\Web\{DebugRequestHandler, ToolbarRenderer};
+use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\Aliases\Aliases;
-use Yiisoft\Definitions\{DynamicReference, Reference};
+use Yiisoft\Definitions\DynamicReference;
 use Yiisoft\NetworkUtilities\IpRanges;
 
 if (!(require dirname(__DIR__) . '/enabled.php')) {
@@ -21,9 +18,19 @@ if (!(require dirname(__DIR__) . '/enabled.php')) {
 /** @var array<string, mixed> $params */
 $config = $params['yii3/debug'];
 
+$allowedIpRanges = new IpRanges($config['allowedIPs']);
+
 return [
-    DebugRequestHandler::class => [
-        'withRoutePrefix()' => [$config['routePrefix']],
+    ToolbarOptions::class => static fn(): ToolbarOptions => ToolbarOptions::fromParams($config),
+    DebugRouteMiddleware::class => [
+        '__construct()' => [
+            'allowedIpRanges' => $allowedIpRanges,
+        ],
+    ],
+    RequestCaptureMiddleware::class => [
+        '__construct()' => [
+            'allowedIpRanges' => $allowedIpRanges,
+        ],
     ],
     ToolbarDataFactory::class => [
         'withExtensionPanels()' => [
@@ -34,22 +41,6 @@ return [
                 ): array => $extensions->panelsWithBuiltIns($builtInPanels->panels()),
             ),
         ],
-        'withRoutePrefix()' => [$config['routePrefix']],
-        'withPresentation()' => [$config['toolbar']['position'], $config['toolbar']['height']],
-    ],
-    ToolbarMiddleware::class => [
-        '__construct()' => [
-            'allowedIpRanges' => new IpRanges($config['allowedIPs']),
-        ],
-        'withCollectorCoordinator()' => [Reference::to(CollectorCoordinator::class)],
-        'withCapturePolicy()' => [Reference::to(CapturePolicy::class)],
-        'withDebugRequestHandler()' => [Reference::to(DebugRequestHandler::class)],
-        'withDeferredCapture()' => [Reference::to(DeferredCapture::class)],
-        'withRoutePrefix()' => [$config['routePrefix']],
-        'withHistorySize()' => [$config['historySize']],
-        'withExcessiveCallerThreshold()' => [$config['database']['excessiveCallerThreshold']],
-        'withSkipUrls()' => [$config['toolbar']['skipUrls']],
-        'withPresentation()' => [$config['toolbar']['position'], $config['toolbar']['height']],
     ],
     ToolbarRenderer::class => [
         '__construct()' => [

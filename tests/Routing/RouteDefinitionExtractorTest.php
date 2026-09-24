@@ -77,7 +77,9 @@ final class RouteDefinitionExtractorTest extends TestCase
             ->willThrowException(new RuntimeException('Unable to initialize routes.'));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to initialize routes.');
+        $this->expectExceptionMessage(
+            'Unable to initialize routes.',
+        );
 
         RouteDefinitionExtractor::fromCollection($routes);
     }

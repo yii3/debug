@@ -19,13 +19,8 @@ use UIAwesome\Html\Heading\H1;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Exception\Message;
-use Yii3\Debug\Panel\{
-    BuiltInPanels,
-    DbPanel,
-    ExtensionPanelInterface,
-    PanelContent,
-    PanelRenderInput,
-};
+use Yii3\Debug\Middleware\ToolbarOptions;
+use Yii3\Debug\Panel\{BuiltInPanels, DbPanel, ExtensionPanelInterface, PanelContent, PanelRenderInput};
 use Yii3\Debug\View\ViewMessage as AdapterMessage;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
@@ -63,10 +58,6 @@ final class DebugPageRenderer
      */
     private array $extensionPanels = [];
     /**
-     * Base route used to generate debugger URLs.
-     */
-    private string $routePrefix = '/debug';
-    /**
      * Path to the debugger view templates.
      */
     private readonly string $viewPath;
@@ -76,12 +67,14 @@ final class DebugPageRenderer
      * @param AssetManager $assetManager Manager resolving the published URLs of the debugger assets.
      * @param ConfigDataFactory $configDataFactory Factory building the live configuration payload.
      * @param string $viewPath Directory the debugger templates are read from.
+     * @param ToolbarOptions $options Settings carrying the route prefix every debugger URL is built on.
      */
     public function __construct(
         private readonly WebView $view,
         private readonly AssetManager $assetManager,
         private readonly ConfigDataFactory $configDataFactory,
         string $viewPath,
+        private readonly ToolbarOptions $options = new ToolbarOptions(),
     ) {
         $this->viewPath = rtrim($viewPath, '/');
     }
@@ -110,7 +103,7 @@ final class DebugPageRenderer
             HistoryComparisonRenderer::renderWithPanels(
                 $comparison,
                 $manifest,
-                $this->routePrefix,
+                $this->options->routePrefix,
                 $panelLabels,
             ),
             $theme,
@@ -137,7 +130,7 @@ final class DebugPageRenderer
         DebugSnapshot|null $snapshot = null,
     ): string {
         $view = (new ConfigPanel())
-            ->phpInfoUrl($this->routePrefix . '/php-info')
+            ->phpInfoUrl($this->options->routePrefix . '/php-info')
             ->present($this->configDataFactory->create());
 
         $content = Div::tag()
@@ -202,7 +195,7 @@ final class DebugPageRenderer
                             $panelId,
                             $queryParams,
                             $theme,
-                            new DebugUrlGenerator($this->routePrefix),
+                            new DebugUrlGenerator($this->options->routePrefix),
                             $snapshot->panels,
                         ),
                         $snapshot->summary,
@@ -286,7 +279,7 @@ final class DebugPageRenderer
             HistoryGridRenderer::render(
                 $manifest,
                 $queryParams,
-                $this->routePrefix,
+                $this->options->routePrefix,
                 $dbPanel instanceof DbPanel ? $dbPanel : null,
             ),
             $theme,
@@ -367,21 +360,6 @@ final class DebugPageRenderer
     }
 
     /**
-     * Returns a copy building every debugger URL on another base path.
-     *
-     * @param string $routePrefix Base path; a trailing slash is trimmed.
-     *
-     * @return self Renderer with the prefix applied.
-     */
-    public function withRoutePrefix(string $routePrefix): self
-    {
-        $new = clone $this;
-        $new->routePrefix = rtrim($routePrefix, '/');
-
-        return $new;
-    }
-
-    /**
      * Groups the extension panel links shown after the built-in navigation.
      *
      * Registered panels keep the order the registration policy resolved; captured payloads with no registered
@@ -452,7 +430,7 @@ final class DebugPageRenderer
      */
     private function historyNavItem(bool $isActive, string|null $tag = null): SidebarNavItem
     {
-        $url = $this->routePrefix;
+        $url = $this->options->routePrefix;
 
         if ($tag !== null) {
             $url .= '?cursor=' . rawurlencode($tag);
@@ -548,6 +526,7 @@ final class DebugPageRenderer
         RequestSummary|null $summary,
     ): string {
         $view = $this->view->withClearedState();
+
         $shell = $view->render(
             $this->viewPath . '/_shell.php',
             [
@@ -557,7 +536,7 @@ final class DebugPageRenderer
                 'actionUrl' => $configUrl,
                 'content' => $content,
                 'debugTheme' => $theme,
-                'historyUrl' => $this->routePrefix,
+                'historyUrl' => $this->options->routePrefix,
                 'mode' => 'view',
                 'peakMemory' => $summary?->peakMemory === null ? null : Format::bytesToMb($summary->peakMemory),
                 'phpIcon' => Icon::render('php-alt'),
@@ -744,6 +723,6 @@ final class DebugPageRenderer
      */
     private function viewUrl(string $tag, string $panelId = 'config'): string
     {
-        return "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);
+        return "{$this->options->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);
     }
 }

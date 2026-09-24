@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use stdClass;
 use Yii3\Debug\Action\{CompareAction, ConfigAction, DbExplainAction, HistoryAction, PhpInfoAction, ToolbarDataAction};
+use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Tests\Provider\DebugRequestHandlerProvider;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Tests\Support\Stubs\{ContainerStub, DebugActionStub};
@@ -155,6 +156,24 @@ final class DebugRequestHandlerTest extends TestCase
         );
     }
 
+    public function testHandleServesTheEndpointsUnderTheConfiguredRoutePrefix(): void
+    {
+        $relocated = $this->handler(new ToolbarOptions(routePrefix: '/developer/debug/'));
+
+        self::assertSame(
+            'config',
+            $relocated
+                ->handle(HelperFactory::createRequest('GET', '/developer/debug/view'))
+                ->getHeaderLine('X-Debug-Action'),
+            'Trailing slash must be trimmed from the prefix.',
+        );
+        self::assertSame(
+            404,
+            $relocated->handle(HelperFactory::createRequest('GET', '/debug'))->getStatusCode(),
+            'The default prefix must stop matching.',
+        );
+    }
+
     public function testThrowRuntimeExceptionWhenTheContainerResolvesAnotherService(): void
     {
         $handler = new DebugRequestHandler(
@@ -170,31 +189,7 @@ final class DebugRequestHandlerTest extends TestCase
         $handler->handle(HelperFactory::createRequest('GET', '/debug'));
     }
 
-    public function testWithRoutePrefixReturnsANewInstanceAndTrimsTheTrailingSlash(): void
-    {
-        $handler = $this->handler();
-        $relocated = $handler->withRoutePrefix('/developer/debug/');
-
-        self::assertNotSame(
-            $handler,
-            $relocated,
-            'Should return a new instance when setting the route prefix, ensuring immutability.',
-        );
-        self::assertSame(
-            'config',
-            $relocated
-                ->handle(HelperFactory::createRequest('GET', '/developer/debug/view'))
-                ->getHeaderLine('X-Debug-Action'),
-            'Trailing slash must be trimmed from the prefix.',
-        );
-        self::assertSame(
-            404,
-            $relocated->handle(HelperFactory::createRequest('GET', '/debug'))->getStatusCode(),
-            'The former prefix must stop matching.',
-        );
-    }
-
-    private function handler(): DebugRequestHandler
+    private function handler(ToolbarOptions $options = new ToolbarOptions()): DebugRequestHandler
     {
         return new DebugRequestHandler(
             new ContainerStub(
@@ -208,6 +203,7 @@ final class DebugRequestHandlerTest extends TestCase
                 ],
             ),
             HelperFactory::createResponseFactory(),
+            $options,
         );
     }
 }

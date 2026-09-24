@@ -13,6 +13,9 @@ final class BuiltInPanels
 {
     /**
      * Built-in panel IDs, in display order.
+     *
+     * This is the only place the order is written: {@see BuiltInPanelList::fromMap()} orders the built-in panels from
+     * it for both the sidebar and the toolbar, and a newly ported built-in is appended here and nowhere else.
      */
     public const array IDS = [
         'request',

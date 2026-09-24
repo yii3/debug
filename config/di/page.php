@@ -3,7 +3,15 @@
 declare(strict_types=1);
 
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry};
-use Yii3\Debug\Panel\BuiltInPanelList;
+use Yii3\Debug\Panel\{
+    AssetPanel,
+    BuiltInPanelList,
+    DbPanel,
+    EventPanel,
+    LogPanel,
+    ProfilingPanel,
+    RequestPanel,
+};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Definitions\DynamicReference;
@@ -16,6 +24,23 @@ if (!(require dirname(__DIR__) . '/enabled.php')) {
 $config = $params['yii3/debug'];
 
 return [
+    BuiltInPanelList::class => static fn(
+        RequestPanel $requestPanel,
+        LogPanel $logPanel,
+        EventPanel $eventPanel,
+        ProfilingPanel $profilingPanel,
+        DbPanel $dbPanel,
+        AssetPanel $assetPanel,
+    ): BuiltInPanelList => BuiltInPanelList::fromMap(
+        [
+            'request' => $requestPanel,
+            'log' => $logPanel,
+            'event' => $eventPanel,
+            'profiling' => $profilingPanel,
+            'db' => $dbPanel,
+            'asset' => $assetPanel,
+        ],
+    ),
     ConfigDataFactory::class => [
         '__construct()' => [
             'application' => $config['application'],
@@ -35,6 +60,5 @@ return [
                 ): array => $extensions->panelsWithBuiltIns($builtInPanels->panels()),
             ),
         ],
-        'withRoutePrefix()' => [$config['routePrefix']],
     ],
 ];

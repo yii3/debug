@@ -80,7 +80,9 @@ final class AssetPanelTest extends TestCase
     public function testThrowHydrationExceptionWhenToolbarItemsReceiveMalformedPayload(): void
     {
         $this->expectException(HydrationException::class);
-        $this->expectExceptionMessage("Invalid debug snapshot value at '\$.asset.bundles': expected a list.");
+        $this->expectExceptionMessage(
+            "Invalid debug snapshot value at '\$.asset.bundles': expected a list.",
+        );
 
         (new AssetPanel())->toolbarItems(['bundles' => 'broken', 'vite' => null]);
     }

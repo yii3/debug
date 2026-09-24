@@ -17,9 +17,9 @@ use Yii3\Debug\Action\{
     ToolbarDataAction,
 };
 use Yii3\Debug\Exception\Message;
+use Yii3\Debug\Middleware\ToolbarOptions;
 use Yiisoft\Http\{Method, Status};
 
-use function rtrim;
 use function str_starts_with;
 use function strlen;
 use function strtoupper;
@@ -46,17 +46,14 @@ final class DebugRequestHandler
     ];
 
     /**
-     * Defines the route prefix the debugger endpoints are served under.
-     */
-    private string $routePrefix = '/debug';
-
-    /**
      * @param ContainerInterface $container Container the endpoint is resolved from when the path matches.
      * @param ResponseFactoryInterface $responseFactory Factory building the rejection responses.
+     * @param ToolbarOptions $options Settings carrying the route prefix the debugger endpoints are served under.
      */
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly ResponseFactoryInterface $responseFactory,
+        private readonly ToolbarOptions $options = new ToolbarOptions(),
     ) {}
 
     /**
@@ -112,21 +109,6 @@ final class DebugRequestHandler
     }
 
     /**
-     * Returns a copy serving every debugger endpoint under another base path.
-     *
-     * @param string $routePrefix Base path; a trailing slash is trimmed.
-     *
-     * @return self Handler with the prefix applied.
-     */
-    public function withRoutePrefix(string $routePrefix): self
-    {
-        $new = clone $this;
-        $new->routePrefix = rtrim($routePrefix, '/');
-
-        return $new;
-    }
-
-    /**
      * Resolves the endpoint the request path selects.
      *
      * @param ServerRequestInterface $request Request targeting the debugger.
@@ -138,11 +120,11 @@ final class DebugRequestHandler
     {
         $path = $request->getUri()->getPath();
 
-        if ($path === $this->routePrefix) {
+        if ($path === $this->options->routePrefix) {
             return self::ACTIONS[''];
         }
 
-        $prefix = $this->routePrefix . '/';
+        $prefix = $this->options->routePrefix . '/';
 
         if (!str_starts_with($path, $prefix)) {
             return null;

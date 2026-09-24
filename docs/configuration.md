@@ -19,8 +19,24 @@ return [
 ```
 
 These are the defaults: local access only, up to 50 retained requests, and captures stored under `@runtime/debug`.
-Changing `routePrefix` also changes the History URL, which the toolbar middleware serves directly. The storage path
-accepts a registered Yii alias.
+Changing `routePrefix` also changes the History URL, which `Yii3\Debug\Middleware\DebugRouteMiddleware` serves
+directly. The storage path accepts a registered Yii alias.
+
+`Yii3\Debug\Middleware\ToolbarOptions::fromParams()` reads `routePrefix`, `historySize`,
+`database.excessiveCallerThreshold`, and the `toolbar` block once, and the container hands the same instance to both
+middlewares, the toolbar payload, and the debugger pages. A key you declare with the wrong type fails at startup with
+an `InvalidArgumentException` naming the key.
+
+The package registers two middlewares in `yiisoft/middleware-dispatcher.middlewares`, in this order:
+
+- `Yii3\Debug\Middleware\DebugRouteMiddleware` serves the debugger pages under `routePrefix` and answers
+  `403 Forbidden` to a client outside `allowedIPs`.
+- `Yii3\Debug\Middleware\RequestCaptureMiddleware` captures every other request from an allowed client and injects
+  the toolbar into HTML responses. It passes the debugger pages through uncaptured, so an application that serves
+  them itself can register it alone.
+
+Both write a capture still pending from an earlier request before doing anything else, whichever of the two runs
+first.
 
 The `application` block is optional. Leave it out and the Configuration panel reads the name and version from the
 Composer root package, the environment from `APP_ENV`, and the debug mode from `APP_DEBUG`; every key you declare
@@ -249,7 +265,7 @@ configuration removed through `disabled()`, which a host tells apart from an ID 
 
 ## Capture lifecycle
 
-The toolbar middleware runs the request with the collectors active, but it does not write the snapshot when the
+`RequestCaptureMiddleware` runs the request with the collectors active, but it does not write the snapshot when the
 pipeline returns. Instead it hands a finalizer to `Yii3\Debug\Capture\DeferredCapture`, and the capture is written
 when the application dispatches `Yiisoft\Yii\Http\Event\ApplicationShutdown`. That event is the last step of the
 Yii HTTP runner, after the response is emitted and after the `AfterEmit` listeners of `yiisoft/log` and
@@ -261,7 +277,7 @@ Deferral is what keeps three kinds of work in the snapshot:
   is read.
 - Log messages and profiler spans flushed at `AfterEmit`. The debugger registers its own profiler target, so spans the
   profiler moved out of memory on flush still reach the Profiling and Logs panels.
-- Events dispatched after the middleware returned, such as `AfterRequest` and `AfterEmit`.
+- Events dispatched after `RequestCaptureMiddleware` returned, such as `AfterRequest` and `AfterEmit`.
 
 This requires the application to merge the package's `events-web` configuration group, which the Yii HTTP runner
 loads. Rebuild the merged configuration after installing or updating the package:

@@ -55,6 +55,7 @@
         "php-forge/baseline": "^0.1",
         "php-forge/coding-standard": "^0.3",
         "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.2 <2.2.15",
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0.3",
         "phpunit/phpunit": "^12.5",
@@ -64,6 +65,10 @@
         "yiisoft/router-fastroute": "^4.0",
         "php-forge/inertia": "^0.5@dev",
         "php-forge/vite": "^0.5@dev"
+    },
+    "suggest": {
+        "php-forge/vite": "Captures resolved Vite assets in its own panel. Register its collector and panel under `yii3/debug.collectors`/`yii3/debug.panels` and route `AssetsResolved` to the collector in `events-web`; see docs/configuration.md.",
+        "yii3/inertia": "Registers the Inertia collector, panel, and listener through its own configuration groups; see docs/configuration.md."
     },
     "autoload": {
         "psr-4": {

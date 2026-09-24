@@ -14,6 +14,20 @@ use function sprintf;
 enum Message: string
 {
     /**
+     * Indicates that a built-in panel ID listed by `BuiltInPanels::IDS` has no panel instance.
+     *
+     * Format: "Built-in debug panel \"%s\" is missing."
+     */
+    case BUILT_IN_PANEL_MISSING = 'Built-in debug panel "%s" is missing.';
+
+    /**
+     * Indicates that a panel was supplied as built-in under an ID `BuiltInPanels::IDS` does not list.
+     *
+     * Format: "Debug panel \"%s\" is not built in. Built-in panels: %s."
+     */
+    case BUILT_IN_PANEL_UNKNOWN = 'Debug panel "%s" is not built in. Built-in panels: %s.';
+
+    /**
      * Indicates that a collector registration key does not match the ID the collector declares.
      *
      * Format: "Debug collector registered as \"%s\" must match its ID \"%s\"."
@@ -154,6 +168,13 @@ enum Message: string
      * Format: "Debug toolbar extension panel %s must return a list of items."
      */
     case TOOLBAR_ITEMS_NOT_LIST = 'Debug toolbar extension panel %s must return a list of items.';
+
+    /**
+     * Indicates that a `yii3/debug` parameter read by the toolbar options holds a value of the wrong type.
+     *
+     * Format: "Debug option \"yii3/debug.%s\" must be %s."
+     */
+    case TOOLBAR_OPTION_INVALID = 'Debug option "yii3/debug.%s" must be %s.';
 
     /**
      * Indicates that a toolbar extension panel ID is registered more than once.

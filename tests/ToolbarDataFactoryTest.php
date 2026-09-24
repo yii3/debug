@@ -20,6 +20,8 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Yii3\Debug\ExtensionRegistry;
+use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Panel\{
     AssetPanel,
     EventPanel,
@@ -58,7 +60,6 @@ final class ToolbarDataFactoryTest extends TestCase
             ['details-only' => ['value' => true]],
             [],
         );
-
         $payload = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([$panel])
             ->createForSnapshot($snapshot)
@@ -75,18 +76,13 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $snapshot = $this->snapshot($this->inertiaPayload('Site/Index'));
 
-        $original = new ToolbarDataFactory($this->assetManager());
+        $default = new ToolbarDataFactory($this->assetManager());
+        $original = new ToolbarDataFactory(
+            $this->assetManager(),
+            new ToolbarOptions(routePrefix: '/developer/debug/', position: 'top', height: 65),
+        );
 
-        $withPanels = $original
-            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
-        $withRoutePrefix = $withPanels
-            ->withRoutePrefix('/developer/debug/');
-        $configured = $withRoutePrefix
-            ->withPresentation('top', 65);
-        $panelsLast = $original
-            ->withRoutePrefix('/developer/debug/')
-            ->withPresentation('top', 65)
-            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
+        $withPanels = $original->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
 
         self::assertSame(
             [
@@ -95,28 +91,18 @@ final class ToolbarDataFactoryTest extends TestCase
                 'defaultHeight' => 50,
                 'panelIds' => [],
             ],
-            $this->configurationState($original, $snapshot),
-            'Configuration withers must not mutate the original factory defaults.',
-        );
-        self::assertSame(
-            [
-                'indexUrl' => '/debug',
-                'position' => 'bottom',
-                'defaultHeight' => 50,
-                'panelIds' => ['inertia'],
-            ],
-            $this->configurationState($withPanels, $snapshot),
-            'Panel configuration must retain the default route and presentation.',
+            $this->configurationState($default, $snapshot),
+            'Omitted options must keep the documented defaults.',
         );
         self::assertSame(
             [
                 'indexUrl' => '/developer/debug',
-                'position' => 'bottom',
-                'defaultHeight' => 50,
-                'panelIds' => ['inertia'],
+                'position' => 'top',
+                'defaultHeight' => 65,
+                'panelIds' => [],
             ],
-            $this->configurationState($withRoutePrefix, $snapshot),
-            'Route configuration must retain registered panels and the default presentation.',
+            $this->configurationState($original, $snapshot),
+            'Panel configuration must not mutate the original factory.',
         );
         self::assertSame(
             [
@@ -125,13 +111,8 @@ final class ToolbarDataFactoryTest extends TestCase
                 'defaultHeight' => 65,
                 'panelIds' => ['inertia'],
             ],
-            $this->configurationState($configured, $snapshot),
-            'Presentation configuration must retain the route prefix and registered panels.',
-        );
-        self::assertSame(
-            $this->configurationState($configured, $snapshot),
-            $this->configurationState($panelsLast, $snapshot),
-            'Panel configuration must retain route and presentation settings regardless of call order.',
+            $this->configurationState($withPanels, $snapshot),
+            'Panel configuration must retain the route prefix and the presentation.',
         );
     }
 
@@ -189,7 +170,6 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([new EventPanel()]);
-
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
@@ -378,12 +358,14 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotExposesTheInertiaComponentPanel(): void
     {
-        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
+        $toolbarDataFactory = (
+            new ToolbarDataFactory(
+                $this->assetManager(),
+                new ToolbarOptions(routePrefix: '/developer/debug/', position: 'top', height: 65),
+            )
+        )->withExtensionPanels([new ProviderPanel(new InertiaPanel())]);
 
         $payload = $toolbarDataFactory
-            ->withRoutePrefix('/developer/debug/')
-            ->withPresentation('top', 65)
             ->createForSnapshot($this->snapshot($this->inertiaPayload('Site/Index')))
             ->jsonSerialize();
 
@@ -517,36 +499,6 @@ final class ToolbarDataFactoryTest extends TestCase
         );
     }
 
-    public function testCreateForSnapshotKeepsExtensionChipsAfterBuiltInsInRegisteredOrder(): void
-    {
-        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels(
-                [new ProviderPanel(new VitePanel()), new ProviderPanel(new InertiaPanel()), new RequestPanel()],
-            );
-        $snapshot = new DebugSnapshot(
-            RequestSummary::create('request-1'),
-            [
-                'vite' => $this->vitePayload(),
-                'inertia' => $this->inertiaPayload('Site/Index'),
-                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
-            ],
-            [],
-        );
-
-        $payload = $toolbarDataFactory
-            ->createForSnapshot($snapshot)
-            ->jsonSerialize();
-
-        self::assertSame(
-            ['request', 'vite', 'inertia'],
-            array_map(
-                static fn(array $panel): string => $panel['id'],
-                $payload['items'],
-            ),
-            'Order: built-ins first, extensions as registered.',
-        );
-    }
-
     public function testCreateForSnapshotKeepsExtensionChipsInRegisteredOrderRegardlessOfNameCase(): void
     {
         $panels = [];
@@ -638,7 +590,6 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotKeepsIdleExtensionChip(): void
     {
         $snapshot = new DebugSnapshot(RequestSummary::create('request-1'), ['idle' => []], []);
-
         $payload = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([new ProviderPanel($this->idleProvider())])
             ->createForSnapshot($snapshot)
@@ -666,7 +617,6 @@ final class ToolbarDataFactoryTest extends TestCase
             ['asset' => ['bundles' => 'broken', 'vite' => null]],
             [],
         );
-
         $payload = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([new AssetPanel()])
             ->createForSnapshot($snapshot)
@@ -681,6 +631,36 @@ final class ToolbarDataFactoryTest extends TestCase
             'danger',
             $payload['items'][0]['items'][0]['status'] ?? null,
             'The failure must surface as a danger metric.',
+        );
+    }
+
+    public function testCreateForSnapshotKeepsTheGivenPanelOrder(): void
+    {
+        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels(
+                [new ProviderPanel(new VitePanel()), new ProviderPanel(new InertiaPanel()), new RequestPanel()],
+            );
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'vite' => $this->vitePayload(),
+                'inertia' => $this->inertiaPayload('Site/Index'),
+                'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
+            ],
+            [],
+        );
+
+        $payload = $toolbarDataFactory
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['vite', 'inertia', 'request'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Order must be the one given; the registry owns the ordering.',
         );
     }
 
@@ -715,9 +695,9 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForSnapshotLinksLogSeverityMetricsToTheirFilters(): void
     {
-        $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new LogPanel(Trace::create())])
-            ->withRoutePrefix('/developer/debug/');
+        $toolbarDataFactory = (
+            new ToolbarDataFactory($this->assetManager(), new ToolbarOptions(routePrefix: '/developer/debug/'))
+        )->withExtensionPanels([new LogPanel(Trace::create())]);
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
@@ -781,7 +761,6 @@ final class ToolbarDataFactoryTest extends TestCase
             ],
             [],
         );
-
         $payload = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([new AssetPanel(), new ProviderPanel($this->idleProvider())])
             ->createForSnapshot($snapshot)
@@ -801,7 +780,6 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
             ->withExtensionPanels([new EventPanel()]);
-
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             ['event' => (new EventSnapshot([]))->jsonSerialize()],
@@ -838,8 +816,9 @@ final class ToolbarDataFactoryTest extends TestCase
     public function testCreateForSnapshotPlacesBuiltInChipsBeforeEarlierRegisteredExtensions(): void
     {
         $toolbarDataFactory = (new ToolbarDataFactory($this->assetManager()))
-            ->withExtensionPanels([new ProviderPanel(new InertiaPanel()), new RequestPanel()]);
-
+            ->withExtensionPanels(
+                ExtensionRegistry::create(panels: [new InertiaPanel()])->panelsWithBuiltIns([new RequestPanel()]),
+            );
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
@@ -867,16 +846,24 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $panel = self::createStub(ToolbarPanelProviderInterface::class);
 
-        $panel->method('hasContent')->willReturn(true);
-        $panel->method('id')->willReturn('mail');
-        $panel->method('name')->willReturn('Mail');
-        $panel->method('toolbarItems')->willReturn(
-            [
-                ToolbarItem::create('1')
-                    ->withStatus('cross-request')
-                    ->withUrl('/debug/view?tag=request-0&panel=mail'),
-            ],
-        );
+        $panel
+            ->method('hasContent')
+            ->willReturn(true);
+        $panel
+            ->method('id')
+            ->willReturn('mail');
+        $panel
+            ->method('name')
+            ->willReturn('Mail');
+        $panel
+            ->method('toolbarItems')
+            ->willReturn(
+                [
+                    ToolbarItem::create('1')
+                        ->withStatus('cross-request')
+                        ->withUrl('/debug/view?tag=request-0&panel=mail'),
+                ],
+            );
 
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
@@ -907,7 +894,6 @@ final class ToolbarDataFactoryTest extends TestCase
             ->withExtensionPanels(
                 [new RequestPanel(), new LogPanel(Trace::create()), new EventPanel(), new ProfilingPanel()],
             );
-
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
             [
@@ -941,17 +927,25 @@ final class ToolbarDataFactoryTest extends TestCase
     {
         $panel = self::createStub(ToolbarPanelProviderInterface::class);
 
-        $panel->method('hasContent')->willReturn(true);
-        $panel->method('id')->willReturn('log');
-        $panel->method('name')->willReturn('Application Logs');
-        $panel->method('toolbarItems')->willReturn(
-            [
-                ToolbarItem::create('1')
-                    ->withLabel('Errors')
-                    ->withUrl('/application/logs?severity=error')
-                    ->withId('errors'),
-            ],
-        );
+        $panel
+            ->method('hasContent')
+            ->willReturn(true);
+        $panel
+            ->method('id')
+            ->willReturn('log');
+        $panel
+            ->method('name')
+            ->willReturn('Application Logs');
+        $panel
+            ->method('toolbarItems')
+            ->willReturn(
+                [
+                    ToolbarItem::create('1')
+                        ->withLabel('Errors')
+                        ->withUrl('/application/logs?severity=error')
+                        ->withId('errors'),
+                ],
+            );
 
         $snapshot = new DebugSnapshot(
             RequestSummary::create('request-1'),
@@ -973,11 +967,12 @@ final class ToolbarDataFactoryTest extends TestCase
 
     public function testCreateForwardsToolbarPresentationSettings(): void
     {
-        $toolbarDataFactory = new ToolbarDataFactory($this->assetManager());
+        $toolbarDataFactory = new ToolbarDataFactory(
+            $this->assetManager(),
+            new ToolbarOptions(routePrefix: '/developer/debug/', position: 'top', height: 65),
+        );
 
         $payload = $toolbarDataFactory
-            ->withRoutePrefix('/developer/debug/')
-            ->withPresentation('top', 65)
             ->create('request-1')
             ->jsonSerialize();
 
@@ -1109,16 +1104,6 @@ final class ToolbarDataFactoryTest extends TestCase
             $factory,
             $factory->withExtensionPanels([]),
             'Should return a new instance when setting extension panels, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $factory,
-            $factory->withPresentation('top', 65),
-            'Should return a new instance when setting the presentation, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $factory,
-            $factory->withRoutePrefix('/developer/debug'),
-            'Should return a new instance when setting the route prefix, ensuring immutability.',
         );
     }
 
