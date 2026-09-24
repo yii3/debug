@@ -170,7 +170,7 @@ final class BuiltInPanelOrderTest extends TestCase
                                 'App\\Event\\Rendered',
                                 '0',
                                 'App\\Action',
-                            )
+                            ),
                         ]
                     )
                 )->jsonSerialize(),
