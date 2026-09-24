@@ -72,9 +72,9 @@ composer yii-config-rebuild
 ```
 
 Applications that build their middleware list by hand must spread the merged
-`$params['yiisoft/middleware-dispatcher']['middlewares']` first, so the toolbar middleware stays in the pipeline.
-The middleware also answers the `/debug` pages itself, so the debugger publishes no routes and needs none of your
-application's routing.
+`$params['yiisoft/middleware-dispatcher']['middlewares']` first, so the debugger middlewares stay in the pipeline:
+`DebugRouteMiddleware` answers the `/debug` pages itself, so the debugger publishes no routes and needs none of your
+application's routing, and `RequestCaptureMiddleware` captures the request and injects the toolbar.
 
 The debugger attaches itself to `Yiisoft\Db\Connection\ConnectionInterface` and
 `Psr\EventDispatcher\EventDispatcherInterface` through the container, using the `di-providers` and `bootstrap`

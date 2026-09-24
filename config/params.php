@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Yii3\Debug\Log\DebugLogTarget;
-use Yii3\Debug\Middleware\ToolbarMiddleware;
+use Yii3\Debug\Middleware\{DebugRouteMiddleware, RequestCaptureMiddleware};
 use Yii3\Debug\Profiling\DebugProfilerTarget;
 use Yiisoft\Log\StreamTarget;
 
@@ -50,7 +50,8 @@ return [
     ],
     'yiisoft/middleware-dispatcher' => [
         'middlewares' => [
-            ToolbarMiddleware::class,
+            DebugRouteMiddleware::class,
+            RequestCaptureMiddleware::class,
         ],
     ],
     'yiisoft/profiler' => [

@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
+use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Web\{DebugPageRenderer, HistoryComparisonRenderer, HistoryGridRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -410,13 +411,12 @@ final class HistoryComparisonRendererTest extends TestCase
         $assetManager = (new AssetManager($aliases, new AssetLoader($aliases)))
             ->withPublisher(new AssetPublisher($aliases));
 
-        return (
-            new DebugPageRenderer(
-                new WebView(),
-                $assetManager,
-                new ConfigDataFactory(),
-                $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            )
-        )->withRoutePrefix('/developer/debug');
+        return new DebugPageRenderer(
+            new WebView(),
+            $assetManager,
+            new ConfigDataFactory(),
+            $aliases->get('@vendor/php-forge/debug-core/resources/views'),
+            new ToolbarOptions(routePrefix: '/developer/debug'),
+        );
     }
 }

@@ -54,7 +54,7 @@ final readonly class ExtensionRegistry
      * @param iterable<string, PanelOverride> $overrides Application overrides indexed by panel ID.
      * @param iterable<string> $disabled IDs the configuration disabled, so the host tells them from missing ones.
      *
-     * @throws InvalidArgumentException When an ID is empty or duplicated, a string key does not match the ID the
+     * @throws InvalidArgumentException when an ID is empty or duplicated, a string key does not match the ID the
      * entry declares, or an override renames a panel rendering its own title and icon.
      */
     public function __construct(
@@ -194,7 +194,7 @@ final readonly class ExtensionRegistry
      * @param iterable<string, PanelOverride> $overrides Application overrides indexed by panel ID.
      * @param iterable<string> $disabled IDs the configuration disabled.
      *
-     * @throws InvalidArgumentException When the registration is invalid.
+     * @throws InvalidArgumentException when the registration is invalid.
      *
      * @return self Registry holding the enabled collectors and panels.
      */
@@ -228,7 +228,7 @@ final readonly class ExtensionRegistry
      * @param iterable<array-key, mixed> $panels Panel entries indexed by configuration ID.
      * @param ContainerInterface $container Container the enabled classes are resolved from.
      *
-     * @throws InvalidArgumentException When an entry, an option, or the resulting registration is invalid.
+     * @throws InvalidArgumentException when an entry, an option, or the resulting registration is invalid.
      *
      * @return self Registry holding the enabled collectors and panels.
      */
@@ -319,7 +319,7 @@ final readonly class ExtensionRegistry
      *
      * @param CollectorInterface $collector Collector to enable.
      *
-     * @throws InvalidArgumentException When the collector ID is empty or already registered.
+     * @throws InvalidArgumentException when the collector ID is empty or already registered.
      *
      * @return self Registry including the collector.
      */
@@ -333,7 +333,7 @@ final readonly class ExtensionRegistry
      *
      * @param ExtensionPanelInterface|PortablePanel $panel Panel to enable; a portable panel is adapted.
      *
-     * @throws InvalidArgumentException When the panel ID is empty or already registered.
+     * @throws InvalidArgumentException when the panel ID is empty or already registered.
      *
      * @return self Registry including the panel.
      */
@@ -348,7 +348,7 @@ final readonly class ExtensionRegistry
      * @param array<array-key, mixed> $options Options the entry declares beside its class.
      * @param string $id Configuration ID naming the entry in a failure.
      *
-     * @throws InvalidArgumentException When the entry declares an unknown option or a non-`bool` `enabled` value.
+     * @throws InvalidArgumentException when the entry declares an unknown option or a non-`bool` `enabled` value.
      *
      * @return bool Effective flag, `true` when the entry omits the option.
      */
@@ -433,7 +433,7 @@ final readonly class ExtensionRegistry
      * @param mixed $value Entry the configuration declares: a class string, or an array declaring a `class` string.
      * @param string $id Configuration ID naming the entry in a failure.
      *
-     * @throws InvalidArgumentException When the entry declares no class string.
+     * @throws InvalidArgumentException when the entry declares no class string.
      *
      * @return array{string, array<array-key, mixed>} Class name and remaining options.
      */
@@ -463,7 +463,7 @@ final readonly class ExtensionRegistry
      * @param ExtensionPanelInterface $panel Registered panel.
      * @param PanelRegistration $registration Effective registration of that panel.
      *
-     * @throws InvalidArgumentException When the panel renders its own title and icon, so it carries no override.
+     * @throws InvalidArgumentException when the panel renders its own title and icon, so it carries no override.
      *
      * @return ExtensionPanelInterface Panel presenting the effective metadata.
      */

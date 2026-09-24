@@ -57,7 +57,7 @@ final class PackageConfiguration
      *
      * @param array<string, mixed> $params Complete params array.
      *
-     * @throws RuntimeException When the packaged file does not return a string-keyed array.
+     * @throws RuntimeException when the packaged file does not return a string-keyed array.
      *
      * @return array<string, mixed> Definitions the package declares for a web request.
      */
@@ -86,7 +86,7 @@ final class PackageConfiguration
      *
      * @param array<string, mixed> $params Complete params array.
      *
-     * @throws RuntimeException When the packaged file does not return a string-keyed array.
+     * @throws RuntimeException when the packaged file does not return a string-keyed array.
      *
      * @return array<string, mixed> Listeners the package declares for a web request.
      */
@@ -136,7 +136,7 @@ final class PackageConfiguration
      * @param array<array-key, mixed> $entries Entries the packaged file returned.
      * @param string $file Absolute path of the packaged file, named in the failure.
      *
-     * @throws RuntimeException When an entry is not indexed by a `string` key.
+     * @throws RuntimeException when an entry is not indexed by a `string` key.
      *
      * @return array<string, mixed> Entries indexed by service ID.
      */

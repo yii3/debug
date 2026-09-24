@@ -5,153 +5,46 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Middleware;
 
 use Closure;
-use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use PHPForge\Debug\Storage\{SnapshotStore, StorageException};
-use PHPUnit\Framework\Attributes\Group;
+use PHPForge\Debug\Storage\StorageException;
+use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\RequestHandlerInterface;
-use ReflectionProperty;
 use RuntimeException;
 use Throwable;
-use Yii3\Debug\Action\ToolbarDataAction;
 use Yii3\Debug\Capture\DeferredCapture;
 use Yii3\Debug\Collector\{DbCollector, ProfilingCollector, RequestCollector};
-use Yii3\Debug\Middleware\ToolbarMiddleware;
-use Yii3\Debug\Tests\Support\HelperFactory;
-use Yii3\Debug\Tests\Support\Stubs\{ContainerStub, DebugActionStub, LazyBodyStreamStub, RequestObserverCollectorStub};
-use Yii3\Debug\Web\{DebugRequestHandler, ToolbarRenderer};
-use Yiisoft\Aliases\Aliases;
-use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
-use Yiisoft\NetworkUtilities\IpRanges;
-use Yiisoft\View\WebView;
+use Yii3\Debug\Middleware\{RequestCaptureMiddleware, ToolbarOptions};
+use Yii3\Debug\Tests\Provider\RequestCaptureMiddlewareProvider;
+use Yii3\Debug\Tests\Support\{HelperFactory, MiddlewareFactory};
+use Yii3\Debug\Tests\Support\Stubs\{LazyBodyStreamStub, RequestObserverCollectorStub};
 
+use function array_keys;
 use function array_map;
-use function file_put_contents;
 use function json_encode;
 use function microtime;
-use function sys_get_temp_dir;
 
 use const JSON_THROW_ON_ERROR;
 
 /**
- * Unit tests for toolbar injection and AJAX response metadata.
+ * Unit tests for {@see RequestCaptureMiddleware} capturing requests, deferring finalization, and injecting the toolbar.
+ *
+ * {@see RequestCaptureMiddlewareProvider} for test case data providers.
  */
 #[Group('toolbar')]
-final class ToolbarMiddlewareTest extends TestCase
+final class RequestCaptureMiddlewareTest extends TestCase
 {
-    public function testConfigurationMethodsPreserveExistingSettings(): void
-    {
-        $middleware = $this->middleware($this->store());
-
-        $capturePolicy = new CapturePolicy(maxBodyBytes: 4096);
-        $collectorCoordinator = new CollectorCoordinator([]);
-
-        $debugRequestHandler = $this->debugRequestHandler();
-
-        $deferredCapture = self::deferredCapture();
-        $originalState = self::configurationState($middleware);
-
-        $defaultCapturePolicy = $originalState['capturePolicy'] ?? null;
-
-        self::assertInstanceOf(
-            CapturePolicy::class,
-            $defaultCapturePolicy,
-            'Middleware must create the default capture policy.',
-        );
-
-        $withCapturePolicy = $middleware->withCapturePolicy($capturePolicy);
-        $withCollectorCoordinator = $withCapturePolicy->withCollectorCoordinator($collectorCoordinator);
-        $withDebugRequestHandler = $withCollectorCoordinator->withDebugRequestHandler($debugRequestHandler);
-        $withDeferredCapture = $withDebugRequestHandler->withDeferredCapture($deferredCapture);
-        $withHistorySize = $withDeferredCapture->withHistorySize(25);
-        $withPresentation = $withHistorySize->withPresentation('top', 65);
-        $withRoutePrefix = $withPresentation->withRoutePrefix('/developer/debug/');
-        $configured = $withRoutePrefix->withSkipUrls(['/health']);
-
-        $defaultState = [
-            'capturePolicy' => $defaultCapturePolicy,
-            'collectorCoordinator' => null,
-            'debugRequestHandler' => null,
-            'deferredCapture' => null,
-            'height' => 50,
-            'historySize' => 50,
-            'position' => 'bottom',
-            'routePrefix' => '/debug',
-            'skipUrls' => [],
-        ];
-        $withCapturePolicyState = [
-            ...$defaultState,
-            'capturePolicy' => $capturePolicy,
-        ];
-        $withCollectorCoordinatorState = [
-            ...$withCapturePolicyState,
-            'collectorCoordinator' => $collectorCoordinator,
-        ];
-        $withDebugRequestHandlerState = [
-            ...$withCollectorCoordinatorState,
-            'debugRequestHandler' => $debugRequestHandler,
-        ];
-        $withDeferredCaptureState = [
-            ...$withDebugRequestHandlerState,
-            'deferredCapture' => $deferredCapture,
-        ];
-        $withHistorySizeState = [
-            ...$withDeferredCaptureState,
-            'historySize' => 25,
-        ];
-        $withPresentationState = [
-            ...$withHistorySizeState,
-            'height' => 65,
-            'position' => 'top',
-        ];
-        $withRoutePrefixState = [
-            ...$withPresentationState,
-            'routePrefix' => '/developer/debug',
-        ];
-        $configuredState = [
-            ...$withRoutePrefixState,
-            'skipUrls' => ['/health'],
-        ];
-
-        self::assertSame(
-            [
-                $defaultState,
-                $withCapturePolicyState,
-                $withCollectorCoordinatorState,
-                $withDebugRequestHandlerState,
-                $withDeferredCaptureState,
-                $withHistorySizeState,
-                $withPresentationState,
-                $withRoutePrefixState,
-                $configuredState,
-            ],
-            [
-                self::configurationState($middleware),
-                self::configurationState($withCapturePolicy),
-                self::configurationState($withCollectorCoordinator),
-                self::configurationState($withDebugRequestHandler),
-                self::configurationState($withDeferredCapture),
-                self::configurationState($withHistorySize),
-                self::configurationState($withPresentation),
-                self::configurationState($withRoutePrefix),
-                self::configurationState($configured),
-            ],
-            'Each immutable copy must preserve its own state and settings applied by earlier methods.',
-        );
-    }
-
     public function testDatabaseTotalsReachHistoryAndCollectorStopsAfterTheRequest(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]));
+        $middleware = MiddlewareFactory::requestCapture($store, new CollectorCoordinator([$collector]));
 
         $handler = new readonly class ($collector) implements RequestHandlerInterface {
             public function __construct(private DbCollector $collector) {}
@@ -194,14 +87,13 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testDeferredCaptureIncludesWorkObservedAfterTheHandlerReturned(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $deferredCapture = self::deferredCapture();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
 
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
-            ->withDeferredCapture($deferredCapture);
+        $middleware = MiddlewareFactory::requestCapture($store, new CollectorCoordinator([$collector]), $deferredCapture);
 
         $body = new LazyBodyStreamStub(
             HelperFactory::createStream('<html><body>App</body></html>'),
@@ -216,7 +108,7 @@ final class ToolbarMiddlewareTest extends TestCase
                 'https://example.test/',
                 serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
             ),
-            $this->handler(HelperFactory::createResponse(200, ['Content-Type' => 'text/html'], $body)),
+            MiddlewareFactory::handler(HelperFactory::createResponse(200, ['Content-Type' => 'text/html'], $body)),
         );
 
         $collector->observe(QueryRow::create('SELECT emitted', 2.0, 2000.0));
@@ -256,15 +148,12 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testDeferredCaptureWithoutCollectorsWritesTheSnapshotImmediately(): void
     {
-        $store = $this->store();
-
-        $deferredCapture = self::deferredCapture();
-
-        $response = $this->middleware($store)
-            ->withDeferredCapture($deferredCapture)
+        $store = MiddlewareFactory::store();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
+        $response = MiddlewareFactory::requestCapture($store, deferredCapture: $deferredCapture)
             ->process(
                 HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
-                $this->handler(HelperFactory::createResponse(204)),
+                MiddlewareFactory::handler(HelperFactory::createResponse(204)),
             );
 
         self::assertFalse(
@@ -281,13 +170,16 @@ final class ToolbarMiddlewareTest extends TestCase
     {
         $collector = new DbCollector();
 
-        $deferredCapture = self::deferredCapture();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
 
-        $this->middleware($this->unwritableStore(), new CollectorCoordinator([$collector]))
-            ->withDeferredCapture($deferredCapture)
+        MiddlewareFactory::requestCapture(
+            MiddlewareFactory::unwritableStore(),
+            new CollectorCoordinator([$collector]),
+            $deferredCapture,
+        )
             ->process(
                 HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
-                $this->handler(HelperFactory::createResponse(204)),
+                MiddlewareFactory::handler(HelperFactory::createResponse(204)),
             );
 
         $failure = null;
@@ -311,16 +203,15 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testDeferredHandlerFailureCancelsThePendingCaptureAndStopsCollectors(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $deferredCapture = self::deferredCapture();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
 
         $stale = 0;
 
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
-            ->withDeferredCapture($deferredCapture);
+        $middleware = MiddlewareFactory::requestCapture($store, new CollectorCoordinator([$collector]), $deferredCapture);
 
         $handler = new readonly class (
             $deferredCapture,
@@ -388,11 +279,11 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testDeferredProcessWritesThePendingCaptureBeforeTheCollectorsRestart(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $deferredCapture = self::deferredCapture();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
 
         $observed = [];
 
@@ -402,8 +293,7 @@ final class ToolbarMiddlewareTest extends TestCase
             },
         );
 
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
-            ->withDeferredCapture($deferredCapture);
+        $middleware = MiddlewareFactory::requestCapture($store, new CollectorCoordinator([$collector]), $deferredCapture);
 
         $handler = new readonly class ($collector) implements RequestHandlerInterface {
             public function __construct(private DbCollector $collector) {}
@@ -444,14 +334,13 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testDeferredProcessWritesTheSnapshotOnlyWhenTheApplicationFinalizes(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $deferredCapture = self::deferredCapture();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
 
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
-            ->withDeferredCapture($deferredCapture);
+        $middleware = MiddlewareFactory::requestCapture($store, new CollectorCoordinator([$collector]), $deferredCapture);
 
         $handler = new readonly class ($collector) implements RequestHandlerInterface {
             public function __construct(private DbCollector $collector) {}
@@ -534,15 +423,20 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
-    public function testExcessiveCallerThresholdOnlyCountsCallersOnTheConfiguredCopy(): void
+    public function testExcessiveCallerThresholdOnlyCountsCallersWhenConfigured(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $base = $this->middleware($store, new CollectorCoordinator([$collector]));
+        $coordinator = new CollectorCoordinator([$collector]);
 
-        $configured = $base->withExcessiveCallerThreshold(2);
+        $base = MiddlewareFactory::requestCapture($store, $coordinator);
+        $configured = MiddlewareFactory::requestCapture(
+            $store,
+            $coordinator,
+            options: new ToolbarOptions(excessiveCallerThreshold: 2),
+        );
 
         $handler = new readonly class ($collector) implements RequestHandlerInterface {
             public function __construct(private DbCollector $collector) {}
@@ -576,25 +470,23 @@ final class ToolbarMiddlewareTest extends TestCase
         self::assertSame(
             ['configured' => 1, 'default' => 0],
             $counts,
-            'Configuring a copy must never flag the call site on the original.',
+            'Only the configured threshold may flag the call site.',
         );
     }
 
     public function testProcessAddsAjaxMetadataWithoutInjectingMarkup(): void
     {
-        $store = $this->store();
-
+        $store = MiddlewareFactory::store();
         $request = HelperFactory::createRequest(
             'GET',
             'https://example.test/data',
             ['X-Requested-With' => 'XMLHttpRequest'],
             serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
         );
-
-        $response = $this->middleware($store)
+        $response = MiddlewareFactory::requestCapture($store)
             ->process(
                 $request,
-                $this->handler(
+                MiddlewareFactory::handler(
                     HelperFactory::createResponse(
                         200,
                         ['Content-Type' => 'application/json'],
@@ -645,10 +537,71 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testProcessAppliesTheConfiguredOptions(): void
+    {
+        $store = MiddlewareFactory::store();
+        $middleware = MiddlewareFactory::requestCapture(
+            $store,
+            options: new ToolbarOptions(
+                routePrefix: '/developer/debug/',
+                historySize: 1,
+                skipUrls: ['/health'],
+                position: 'top',
+                height: 65,
+            ),
+        );
+        $html = MiddlewareFactory::handler(
+            HelperFactory::createResponse(200, ['Content-Type' => 'text/html'], '<html><body>App</body></html>'),
+        );
+
+        $middleware->process(
+            HelperFactory::createRequest('GET', '/first', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            $html,
+        );
+
+        $response = $middleware->process(
+            HelperFactory::createRequest('GET', '/second', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            $html,
+        );
+
+        $tag = $response->getHeaderLine('X-Debug-Tag');
+        $body = (string) $response->getBody();
+
+        self::assertSame(
+            "/developer/debug/view?tag={$tag}&panel=config",
+            $response->getHeaderLine('X-Debug-Link'),
+            'Debug link must use the trimmed route prefix.',
+        );
+        self::assertStringContainsString(
+            "data-url=\"/developer/debug/toolbar?tag={$tag}\"",
+            $body,
+            'Toolbar data URL must use the trimmed route prefix.',
+        );
+        self::assertStringContainsString(
+            "data-skip-urls='[&quot;/health&quot;]'",
+            $body,
+            'Skipped URLs must reach the toolbar element.',
+        );
+        self::assertStringContainsString(
+            'data-position="top"',
+            $body,
+            'Position must reach the toolbar element.',
+        );
+        self::assertStringContainsString(
+            'data-height="65"',
+            $body,
+            'Height must reach the toolbar element.',
+        );
+        self::assertSame(
+            [$tag],
+            array_keys($store->loadManifest()),
+            'History size must rotate the older capture out.',
+        );
+    }
+
     public function testProcessBypassesDebugRouteAndDeniedClients(): void
     {
-        $store = $this->store();
-
+        $store = MiddlewareFactory::store();
         $debugRequest = HelperFactory::createRequest(
             'GET',
             '/debug/toolbar',
@@ -660,21 +613,21 @@ final class ToolbarMiddlewareTest extends TestCase
             serverParams: ['REMOTE_ADDR' => '203.0.113.10'],
         );
 
-        $middleware = $this->middleware($store);
+        $middleware = MiddlewareFactory::requestCapture($store);
 
         $debugResponse = $middleware->process(
             $debugRequest,
-            $this->handler(HelperFactory::createResponse(204)),
+            MiddlewareFactory::handler(HelperFactory::createResponse(204)),
         );
         $deniedResponse = $middleware->process(
             $deniedRequest,
-            $this->handler(HelperFactory::createResponse(204)),
+            MiddlewareFactory::handler(HelperFactory::createResponse(204)),
         );
 
         self::assertSame(
             204,
             $debugResponse->getStatusCode(),
-            'Without a debug request handler the application must answer.',
+            'Debugger paths must reach the next handler.',
         );
         self::assertSame(
             '',
@@ -693,46 +646,9 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
-    public function testProcessDelegatesDebugRequestsToTheConfiguredHandler(): void
-    {
-        $store = $this->store();
-
-        $response = $this->middleware($store)
-            ->withDebugRequestHandler($this->debugRequestHandler())
-            ->process(
-                HelperFactory::createRequest(
-                    'GET',
-                    '/debug/toolbar',
-                    serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
-                ),
-                $this->handler(HelperFactory::createResponse(204)),
-            );
-
-        self::assertSame(
-            200,
-            $response->getStatusCode(),
-            'The debugger must answer its own paths.',
-        );
-        self::assertSame(
-            'toolbar',
-            $response->getHeaderLine('X-Debug-Action'),
-            'Path must select its own endpoint.',
-        );
-        self::assertSame(
-            'no-store',
-            $response->getHeaderLine('Cache-Control'),
-            'Captured data must never be cached.',
-        );
-        self::assertSame(
-            [],
-            $store->loadManifest(),
-            'Debugger requests must not be captured.',
-        );
-    }
-
     public function testProcessDispatchesRequestAndResponseToObserverCollectors(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new RequestObserverCollectorStub();
         $coordinator = new CollectorCoordinator([$collector]);
@@ -745,9 +661,9 @@ final class ToolbarMiddlewareTest extends TestCase
 
         $body = '{"ok":true}';
 
-        $response = $this->middleware($store, $coordinator)->process(
+        $response = MiddlewareFactory::requestCapture($store, $coordinator)->process(
             $request,
-            $this->handler(
+            MiddlewareFactory::handler(
                 HelperFactory::createResponse(201, ['Content-Type' => 'application/json'], $body),
             ),
         );
@@ -781,50 +697,18 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
-    public function testProcessForbidsDebugRequestsFromDeniedClients(): void
-    {
-        $response = $this->middleware($this->store())
-            ->withDebugRequestHandler($this->debugRequestHandler())
-            ->process(
-                HelperFactory::createRequest(
-                    'GET',
-                    '/debug/toolbar',
-                    serverParams: ['REMOTE_ADDR' => '203.0.113.10'],
-                ),
-                $this->handler(HelperFactory::createResponse(204)),
-            );
-
-        self::assertSame(
-            403,
-            $response->getStatusCode(),
-            'A denied client must not reach the debugger.',
-        );
-        self::assertSame(
-            'no-store',
-            $response->getHeaderLine('Cache-Control'),
-            'Captured data must never be cached.',
-        );
-        self::assertSame(
-            '',
-            (string) $response->getBody(),
-            'Rejection must expose no diagnostics.',
-        );
-    }
-
     public function testProcessInjectsToolbarAndDebugMetadataIntoHtml(): void
     {
-        $store = $this->store();
-
+        $store = MiddlewareFactory::store();
         $request = HelperFactory::createRequest(
             'GET',
             'https://example.test/',
             serverParams: ['REMOTE_ADDR' => '127.0.0.1', 'REQUEST_TIME_FLOAT' => 1_700_000_000.0],
         );
-
-        $response = $this->middleware($store)
+        $response = MiddlewareFactory::requestCapture($store)
             ->process(
                 $request,
-                $this->handler(
+                MiddlewareFactory::handler(
                     HelperFactory::createResponse(
                         200,
                         ['Content-Type' => 'text/html'],
@@ -910,7 +794,7 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testProcessKeepsFallbackSummaryAndProfilingTimingCoherent(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $coordinator = new CollectorCoordinator([new ProfilingCollector()]);
 
@@ -920,10 +804,10 @@ final class ToolbarMiddlewareTest extends TestCase
             serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
         );
 
-        $response = $this->middleware($store, $coordinator)
+        $response = MiddlewareFactory::requestCapture($store, $coordinator)
             ->process(
                 $request,
-                $this->handler(HelperFactory::createResponse(204)),
+                MiddlewareFactory::handler(HelperFactory::createResponse(204)),
             );
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
 
@@ -957,17 +841,45 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
+    public function testProcessPassesOnlyTheConfiguredDebuggerPathsThrough(): void
+    {
+        $store = MiddlewareFactory::store();
+        $middleware = MiddlewareFactory::requestCapture(
+            $store,
+            options: new ToolbarOptions(routePrefix: '/developer/debug'),
+        );
+
+        $debugger = $middleware->process(
+            HelperFactory::createRequest('GET', '/developer/debug/toolbar', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            MiddlewareFactory::handler(HelperFactory::createResponse(204)),
+        );
+        $application = $middleware->process(
+            HelperFactory::createRequest('GET', '/debug/toolbar', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            MiddlewareFactory::handler(HelperFactory::createResponse(204)),
+        );
+
+        self::assertSame(
+            '',
+            $debugger->getHeaderLine('X-Debug-Tag'),
+            'Paths under the configured prefix must not be captured.',
+        );
+        self::assertSame(
+            [$application->getHeaderLine('X-Debug-Tag')],
+            array_keys($store->loadManifest()),
+            'The default prefix must be an ordinary application path.',
+        );
+    }
+
     public function testProcessPassesPathsSharingTheDebugPrefixToTheApplication(): void
     {
-        $response = $this->middleware($this->store())
-            ->withDebugRequestHandler($this->debugRequestHandler())
+        $response = MiddlewareFactory::requestCapture(MiddlewareFactory::store())
             ->process(
                 HelperFactory::createRequest(
                     'GET',
                     '/debugger',
                     serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
                 ),
-                $this->handler(HelperFactory::createResponse(204)),
+                MiddlewareFactory::handler(HelperFactory::createResponse(204)),
             );
 
         self::assertSame(
@@ -984,7 +896,7 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testProcessPersistsASecretFreeRequestPanel(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $coordinator = new CollectorCoordinator([new RequestCollector()]);
 
@@ -1004,10 +916,10 @@ final class ToolbarMiddlewareTest extends TestCase
         ->withBody(HelperFactory::createStream('{"password":"body-secret"}'))
         ->withCookieParams(['session_id' => 'cookie-secret']);
 
-        $response = $this->middleware($store, $coordinator)
+        $response = MiddlewareFactory::requestCapture($store, $coordinator)
             ->process(
                 $request,
-                $this->handler(
+                MiddlewareFactory::handler(
                     HelperFactory::createResponse(
                         201,
                         [
@@ -1089,7 +1001,7 @@ final class ToolbarMiddlewareTest extends TestCase
 
     public function testProcessProvidesCurrentRequestTimingToProfilingCollector(): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $coordinator = new CollectorCoordinator([new ProfilingCollector()]);
 
@@ -1102,10 +1014,10 @@ final class ToolbarMiddlewareTest extends TestCase
             ],
         );
 
-        $response = $this->middleware($store, $coordinator)
+        $response = MiddlewareFactory::requestCapture($store, $coordinator)
             ->process(
                 $request,
-                $this->handler(HelperFactory::createResponse(204)),
+                MiddlewareFactory::handler(HelperFactory::createResponse(204)),
             );
         $snapshot = $store->readSnapshot($response->getHeaderLine('X-Debug-Tag'));
 
@@ -1133,22 +1045,25 @@ final class ToolbarMiddlewareTest extends TestCase
         );
     }
 
-    public function testProcessWritesThePendingCaptureBeforeRejectingADeniedClient(): void
+    /**
+     * @param string $path Path of the request that passes through.
+     * @param string $clientIp Remote address of the request that passes through.
+     */
+    #[DataProviderExternal(RequestCaptureMiddlewareProvider::class, 'passThroughRequests')]
+    public function testProcessWritesThePendingCaptureBeforePassingARequestThrough(string $path, string $clientIp): void
     {
-        $store = $this->store();
+        $store = MiddlewareFactory::store();
 
         $collector = new DbCollector();
 
-        $deferredCapture = self::deferredCapture();
+        $deferredCapture = MiddlewareFactory::deferredCapture();
 
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
-            ->withDebugRequestHandler($this->debugRequestHandler())
-            ->withDeferredCapture($deferredCapture);
+        $middleware = MiddlewareFactory::requestCapture($store, new CollectorCoordinator([$collector]), $deferredCapture);
 
         $tag = $middleware
             ->process(
                 HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
-                $this->queryingHandler($collector),
+                MiddlewareFactory::queryingHandler($collector),
             )
             ->getHeaderLine('X-Debug-Tag');
 
@@ -1158,21 +1073,21 @@ final class ToolbarMiddlewareTest extends TestCase
         );
 
         $response = $middleware->process(
-            HelperFactory::createRequest('GET', '/debug/toolbar', serverParams: ['REMOTE_ADDR' => '203.0.113.10']),
-            $this->handler(HelperFactory::createResponse(204)),
+            HelperFactory::createRequest('GET', $path, serverParams: ['REMOTE_ADDR' => $clientIp]),
+            MiddlewareFactory::handler(HelperFactory::createResponse(204)),
         );
 
         self::assertSame(
-            403,
-            $response->getStatusCode(),
-            'A denied client must still be rejected.',
+            '',
+            $response->getHeaderLine('X-Debug-Tag'),
+            'The request passing through must not be captured.',
         );
 
         $snapshot = $store->readSnapshot($tag);
 
         self::assertNotNull(
             $snapshot,
-            'The earlier capture must reach the store before the rejection.',
+            'The earlier capture must reach the store.',
         );
         self::assertSame(
             1,
@@ -1181,237 +1096,11 @@ final class ToolbarMiddlewareTest extends TestCase
         );
         self::assertNull(
             $collector->capture(),
-            'Collectors must be stopped once the rejection is answered.',
+            'Collectors must be stopped once the earlier capture is written.',
         );
         self::assertFalse(
             $deferredCapture->isPending(),
             'Nothing may stay pending once the capture is written.',
         );
-    }
-
-    public function testProcessWritesThePendingCaptureBeforeServingTheDebuggerPage(): void
-    {
-        $store = $this->store();
-
-        $collector = new DbCollector();
-
-        $deferredCapture = self::deferredCapture();
-
-        $middleware = $this->middleware($store, new CollectorCoordinator([$collector]))
-            ->withDebugRequestHandler($this->debugRequestHandler())
-            ->withDeferredCapture($deferredCapture);
-
-        $tag = $middleware
-            ->process(
-                HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
-                $this->queryingHandler($collector),
-            )
-            ->getHeaderLine('X-Debug-Tag');
-
-        self::assertTrue(
-            $deferredCapture->isPending(),
-            'The earlier capture must still be waiting for the shutdown event.',
-        );
-
-        $response = $middleware->process(
-            HelperFactory::createRequest('GET', '/debug/toolbar', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
-            $this->handler(HelperFactory::createResponse(204)),
-        );
-
-        self::assertSame(
-            200,
-            $response->getStatusCode(),
-            'The debugger must still answer its own paths.',
-        );
-
-        $snapshot = $store->readSnapshot($tag);
-
-        self::assertNotNull(
-            $snapshot,
-            'The earlier capture must reach the store before the page is served.',
-        );
-        self::assertSame(
-            1,
-            $snapshot->summary->sqlCount,
-            'The snapshot must hold the statements of the earlier request only.',
-        );
-        self::assertNull(
-            $collector->capture(),
-            'Collectors must be stopped while the debugger page is served.',
-        );
-        self::assertFalse(
-            $deferredCapture->isPending(),
-            'Nothing may stay pending once the capture is written.',
-        );
-    }
-
-    public function testReturnNewInstanceWhenSettingConfiguration(): void
-    {
-        $middleware = $this->middleware($this->store());
-
-        self::assertNotSame(
-            $middleware,
-            $middleware->withCapturePolicy(new CapturePolicy()),
-            'Should return a new instance when setting the capture policy, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withCollectorCoordinator(new CollectorCoordinator([])),
-            'Should return a new instance when setting the collector coordinator, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withDebugRequestHandler($this->debugRequestHandler()),
-            'Should return a new instance when setting the debug request handler, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withDeferredCapture(self::deferredCapture()),
-            'Should return a new instance when setting the deferred capture, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withHistorySize(25),
-            'Should return a new instance when setting the history size, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withPresentation('top', 65),
-            'Should return a new instance when setting the presentation, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withRoutePrefix('/developer/debug'),
-            'Should return a new instance when setting the route prefix, ensuring immutability.',
-        );
-        self::assertNotSame(
-            $middleware,
-            $middleware->withSkipUrls(['/health']),
-            'Should return a new instance when setting skipped URLs, ensuring immutability.',
-        );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function configurationState(ToolbarMiddleware $middleware): array
-    {
-        $state = [];
-
-        foreach (
-            [
-                'capturePolicy',
-                'collectorCoordinator',
-                'debugRequestHandler',
-                'deferredCapture',
-                'height',
-                'historySize',
-                'position',
-                'routePrefix',
-                'skipUrls',
-            ] as $property
-        ) {
-            $state[$property] = (new ReflectionProperty(ToolbarMiddleware::class, $property))
-                ->getValue($middleware);
-        }
-
-        return $state;
-    }
-
-    private function debugRequestHandler(): DebugRequestHandler
-    {
-        return new DebugRequestHandler(
-            new ContainerStub([ToolbarDataAction::class => new DebugActionStub('toolbar')]),
-            HelperFactory::createResponseFactory(),
-        );
-    }
-
-    /**
-     * @return DeferredCapture Capture holder whose PHP shutdown fallback is replaced by a recording no-op.
-     */
-    private static function deferredCapture(): DeferredCapture
-    {
-        return new DeferredCapture(static function (callable $finalize): void {});
-    }
-
-    private function handler(ResponseInterface $response): RequestHandlerInterface
-    {
-        return new readonly class ($response) implements RequestHandlerInterface {
-            public function __construct(private ResponseInterface $response) {}
-
-            public function handle(ServerRequestInterface $request): ResponseInterface
-            {
-                return $this->response;
-            }
-        };
-    }
-
-    private function middleware(
-        SnapshotStore $store,
-        CollectorCoordinator|null $collectorCoordinator = null,
-    ): ToolbarMiddleware {
-        $streamFactory = HelperFactory::createStreamFactory();
-        $aliases = new Aliases(
-            [
-                '@assets' => sys_get_temp_dir() . '/yii3-debug-middleware-assets',
-                '@assetsUrl' => '/debug-assets',
-                '@vendor' => dirname(__DIR__, 2) . '/vendor',
-            ],
-        );
-        $assets = (new AssetManager($aliases, new AssetLoader($aliases)))
-            ->withPublisher(new AssetPublisher($aliases));
-
-        $middleware = new ToolbarMiddleware(
-            new ToolbarRenderer(
-                new WebView(),
-                $assets,
-                $aliases->get('@vendor/php-forge/debug-core/resources/views'),
-            ),
-            $streamFactory,
-            $store,
-            new IpRanges(['127.0.0.1', '::1']),
-        );
-
-        return $collectorCoordinator === null
-            ? $middleware
-            : $middleware->withCollectorCoordinator($collectorCoordinator);
-    }
-
-    /**
-     * @return RequestHandlerInterface Handler observing one statement before answering `204 No Content`.
-     */
-    private function queryingHandler(DbCollector $collector): RequestHandlerInterface
-    {
-        return new readonly class ($collector) implements RequestHandlerInterface {
-            public function __construct(private DbCollector $collector) {}
-
-            public function handle(ServerRequestInterface $request): ResponseInterface
-            {
-                $this->collector->observe(QueryRow::create('SELECT 1', 1.0, 1000.0));
-
-                return HelperFactory::createResponse(204);
-            }
-        };
-    }
-
-    private function store(): SnapshotStore
-    {
-        return new SnapshotStore(
-            sys_get_temp_dir() . '/yii3-debug-middleware-' . uniqid(),
-            0o700,
-            0o600,
-        );
-    }
-
-    /**
-     * @return SnapshotStore Store whose directory cannot be created, because a regular file holds its parent path.
-     */
-    private function unwritableStore(): SnapshotStore
-    {
-        $path = sys_get_temp_dir() . '/yii3-debug-middleware-' . uniqid();
-
-        file_put_contents($path, '');
-
-        return new SnapshotStore($path . '/snapshots', 0o700, 0o600);
     }
 }

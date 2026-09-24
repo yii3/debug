@@ -20,7 +20,9 @@ final class PortableRegistrationTest extends TestCase
         $collector = new ExtensionCollectorStub();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('duplicate debug collector ID');
+        $this->expectExceptionMessage(
+            'duplicate debug collector ID',
+        );
 
         ExtensionRegistry::create([$collector, $collector]);
     }
@@ -30,7 +32,9 @@ final class PortableRegistrationTest extends TestCase
         $panel = new VitePanel();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('duplicate debug panel ID');
+        $this->expectExceptionMessage(
+            'duplicate debug panel ID',
+        );
 
         ExtensionRegistry::create(panels: [$panel, $panel]);
     }

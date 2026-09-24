@@ -599,7 +599,9 @@ final class ExtensionRegistryTest extends TestCase
     public function testThrowInvalidArgumentExceptionForCollectorKeyNotMatchingItsId(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Debug collector registered as "wrong" must match its ID "extension".');
+        $this->expectExceptionMessage(
+            'Debug collector registered as "wrong" must match its ID "extension".',
+        );
 
         ExtensionRegistry::create(collectors: ['wrong' => new ExtensionCollectorStub()]);
     }

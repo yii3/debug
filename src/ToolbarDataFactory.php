@@ -12,6 +12,7 @@ use PHPForge\Debug\Toolbar\{ToolbarData, ToolbarItem, ToolbarPanel};
 use PHPForge\Debug\View\ViewMessage;
 use Throwable;
 use Yii3\Debug\Exception\Message;
+use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Panel\{
     BuiltInPanels,
     ExtensionPanelInterface,
@@ -27,7 +28,6 @@ use function array_is_list;
 use function array_key_exists;
 use function count;
 use function rawurlencode;
-use function rtrim;
 use function strlen;
 use function substr;
 use function trim;
@@ -43,23 +43,16 @@ final class ToolbarDataFactory
      * @var array<string, ExtensionPanelInterface>
      */
     private array $extensionPanels = [];
-    /**
-     * Collapsed toolbar height, in pixels.
-     */
-    private int $height = 50;
-    /**
-     * Edge the toolbar docks to.
-     */
-    private string $position = 'bottom';
-    /**
-     * Base path every debugger URL is built on, without a trailing slash.
-     */
-    private string $routePrefix = '/debug';
 
     /**
      * @param AssetManager $assetManager Manager resolving the published URLs of the toolbar assets.
+     * @param ToolbarOptions $options Settings carrying the route prefix every debugger URL is built on and the toolbar
+     * presentation.
      */
-    public function __construct(private readonly AssetManager $assetManager) {}
+    public function __construct(
+        private readonly AssetManager $assetManager,
+        private readonly ToolbarOptions $options = new ToolbarOptions(),
+    ) {}
 
     /**
      * Builds the toolbar chrome for a capture, without its panels.
@@ -77,11 +70,11 @@ final class ToolbarDataFactory
 
         return ToolbarData::create($tag, ViewMessage::TITLE->value)
             ->withNavigation(
-                $this->routePrefix,
-                "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=config',
-                "{$this->routePrefix}/php-info",
+                $this->options->routePrefix,
+                "{$this->options->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=config',
+                "{$this->options->routePrefix}/php-info",
             )
-            ->withPresentation($this->position, $this->height, $iconBaseUrl)
+            ->withPresentation($this->options->position, $this->options->height, $iconBaseUrl)
             ->withBranding($logo, $logo, PHP_VERSION, '3');
     }
 
@@ -100,6 +93,9 @@ final class ToolbarDataFactory
 
     /**
      * Returns a copy carrying the extension panels shown on the toolbar.
+     *
+     * Chips follow the order given, which is the order the sidebar lists the same panels in: the container passes
+     * {@see ExtensionRegistry::panelsWithBuiltIns()}, built-ins first in {@see BuiltInPanels::IDS} order.
      *
      * @param iterable<ExtensionPanelInterface> $extensionPanels Optional extension presenters in toolbar order.
      *
@@ -131,38 +127,6 @@ final class ToolbarDataFactory
 
         $new = clone $this;
         $new->extensionPanels = $panels;
-
-        return $new;
-    }
-
-    /**
-     * Returns a copy carrying the drawer presentation settings.
-     *
-     * @param string $position Edge the toolbar docks to.
-     * @param int $height Collapsed toolbar height, in pixels.
-     *
-     * @return self Factory with the presentation applied.
-     */
-    public function withPresentation(string $position, int $height): self
-    {
-        $new = clone $this;
-        $new->position = $position;
-        $new->height = $height;
-
-        return $new;
-    }
-
-    /**
-     * Returns a copy building every debugger URL on another base path.
-     *
-     * @param string $routePrefix Base path; a trailing slash is trimmed.
-     *
-     * @return self Factory with the prefix applied.
-     */
-    public function withRoutePrefix(string $routePrefix): self
-    {
-        $new = clone $this;
-        $new->routePrefix = rtrim($routePrefix, '/');
 
         return $new;
     }
@@ -258,7 +222,7 @@ final class ToolbarDataFactory
     {
         $linked = [];
 
-        $urls = new DebugUrlGenerator($this->routePrefix);
+        $urls = new DebugUrlGenerator($this->options->routePrefix);
 
         foreach ($items as $item) {
             $level = match ($item->id) {
@@ -293,7 +257,7 @@ final class ToolbarDataFactory
     {
         $toolbarPanels = [];
 
-        foreach (self::toolbarOrder($this->extensionPanels) as $id => $panel) {
+        foreach ($this->extensionPanels as $id => $panel) {
             $url = $this->viewUrl($tag, $id);
             $extension = !BuiltInPanels::isBuiltIn($id);
 
@@ -361,32 +325,6 @@ final class ToolbarDataFactory
     }
 
     /**
-     * Orders the registered panels the way the sidebar lists them: built-ins keep their registration order and come
-     * first, extensions follow in the order the registration policy already resolved.
-     *
-     * @param array<string, ExtensionPanelInterface> $panels Registered panels keyed by ID.
-     *
-     * @return array<string, ExtensionPanelInterface> Panels keyed by ID, in toolbar order.
-     */
-    private static function toolbarOrder(array $panels): array
-    {
-        $builtIns = [];
-        $extensions = [];
-
-        foreach ($panels as $id => $panel) {
-            if (BuiltInPanels::isBuiltIn($id)) {
-                $builtIns[$id] = $panel;
-
-                continue;
-            }
-
-            $extensions[$id] = $panel;
-        }
-
-        return $builtIns + $extensions;
-    }
-
-    /**
      * Builds the URL opening one panel of a capture.
      *
      * @param string $tag Capture to open.
@@ -396,6 +334,6 @@ final class ToolbarDataFactory
      */
     private function viewUrl(string $tag, string $panelId): string
     {
-        return "{$this->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);
+        return "{$this->options->routePrefix}/view?tag=" . rawurlencode($tag) . '&panel=' . rawurlencode($panelId);
     }
 }
