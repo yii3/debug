@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use InvalidArgumentException;
-use PHPForge\Debug\Helper\{Format, Icon, Text, Vocabulary};
+use PHPForge\Debug\Helper\{Format, Icon, Text};
 use PHPForge\Debug\Panel\Config\ConfigPanel;
 use PHPForge\Debug\Panel\{PanelRenderContext, PanelRenderer};
 use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
-use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarRenderer, SidebarSnapshot, SidebarView};
+use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarNavigation, SidebarRenderer, SidebarSnapshot, SidebarView};
 use PHPForge\Debug\View\ViewMessage;
 use Throwable;
 use UIAwesome\Html\Flow\Div;
@@ -30,7 +30,6 @@ use function array_key_first;
 use function array_keys;
 use function array_search;
 use function count;
-use function date;
 use function dirname;
 use function is_string;
 use function json_encode;
@@ -650,31 +649,22 @@ final class DebugPageRenderer
         $newerTag = $index !== false && $index > 0 ? ($tags[$index - 1] ?? null) : null;
         $olderTag = $index !== false && $index < $requestCount - 1 ? ($tags[$index + 1] ?? null) : null;
 
-        return SidebarSnapshot::create($title)
-            ->withRequest(
-                $summary->method,
-                Text::urlToPath($summary->url),
-                $summary->url,
-                $summary->time > 0 ? date('H:i:s', (int) $summary->time) : '',
-                $summary->ajax,
-            )
-            ->withResponse(
-                $summary->statusCode,
-                Vocabulary::statusClass($summary->statusCode),
-            )
-            ->withCursor($isCursor, $cursorInitTag)
-            ->withNavigationUrls(
-                $newestTag === null ? '' : $this->viewUrl($newestTag, $navigationPanelId),
-                $oldestTag === null ? '' : $this->viewUrl($oldestTag, $navigationPanelId),
-                $newerTag === null ? '' : $this->viewUrl($newerTag, $navigationPanelId),
-                $olderTag === null ? '' : $this->viewUrl($olderTag, $navigationPanelId),
-            )
-            ->withNavigationState(
-                $index === 0 || $index === false,
-                $index === false || $index === $requestCount - 1,
-                $index !== false && $index > 0,
-                $index !== false && $index < $requestCount - 1,
-            );
+        return SidebarSnapshot::fromSummary(
+            $summary,
+            new SidebarNavigation(
+                isCursor: $isCursor,
+                cursorInitTag: $cursorInitTag,
+                newestUrl: $newestTag === null ? '' : $this->viewUrl($newestTag, $navigationPanelId),
+                oldestUrl: $oldestTag === null ? '' : $this->viewUrl($oldestTag, $navigationPanelId),
+                newerUrl: $newerTag === null ? '' : $this->viewUrl($newerTag, $navigationPanelId),
+                olderUrl: $olderTag === null ? '' : $this->viewUrl($olderTag, $navigationPanelId),
+                isNewest: $index === 0 || $index === false,
+                isOldest: $index === false || $index === $requestCount - 1,
+                hasNewer: $index !== false && $index > 0,
+                hasOlder: $index !== false && $index < $requestCount - 1,
+            ),
+            $title,
+        );
     }
 
     /**

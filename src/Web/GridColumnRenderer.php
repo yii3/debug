@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Web;
 
+use PHPForge\Debug\View\Grid\SortHeader;
 use Yiisoft\Data\Reader\FilterInterface;
 use Yiisoft\Yii\DataView\GridView\Column\Base\{Cell, DataContext, FilterContext, GlobalContext, MakeFilterContext};
 use Yiisoft\Yii\DataView\GridView\Column\{ColumnInterface, FilterableColumnRendererInterface};

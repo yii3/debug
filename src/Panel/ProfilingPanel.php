@@ -12,22 +12,14 @@ use PHPForge\Debug\Panel\Profile\{ProfileCellRenderer, ProfileMessage, ProfileRo
 use PHPForge\Debug\Panel\Timeline\{TimelineGeometry, TimelineMemoryRenderer, TimelineRenderer};
 use PHPForge\Debug\Storage\{HydrationException, RequestSummary};
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPForge\Debug\View\Grid\{PanelHeading, SortState, SummaryChip};
 use UIAwesome\Html\Flow\{Div, P, Pre};
 use UIAwesome\Html\Form\{Button, Form, InputHidden, InputNumber, InputText};
 use UIAwesome\Html\Heading\H2;
 use UIAwesome\Html\Phrasing\{Code, Label};
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\ProfileSearch;
-use Yii3\Debug\Web\{
-    FilterRemoval,
-    GridColumn,
-    GridFooter,
-    PageWindow,
-    PanelGrid,
-    PanelHeading,
-    SortState,
-    SummaryChip,
-};
+use Yii3\Debug\Web\{FilterRemoval, GridColumn, GridFooter, PageWindow, PanelGrid};
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 

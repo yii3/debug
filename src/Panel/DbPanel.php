@@ -18,21 +18,12 @@ use PHPForge\Debug\Panel\Db\{
 };
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPForge\Debug\View\Grid\{FilterInput, PanelHeading, SortState};
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Form\Button;
 use Yii3\Debug\Db\{DbExplain, DebugDbProfiler};
 use Yii3\Debug\Search\DbSearch;
-use Yii3\Debug\Web\{
-    DebugUrlGenerator,
-    FilterInput,
-    FilterRemoval,
-    GridColumn,
-    GridFooter,
-    PageWindow,
-    PanelGrid,
-    PanelHeading,
-    SortState
-};
+use Yii3\Debug\Web\{DebugUrlGenerator, FilterRemoval, GridColumn, GridFooter, PageWindow, PanelGrid};
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 

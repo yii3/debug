@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use Closure;
+use PHPForge\Debug\View\Grid\SortHeader;
 use Stringable;
 use Yiisoft\Yii\DataView\GridView\Column\Base\DataContext;
 use Yiisoft\Yii\DataView\GridView\Column\ColumnInterface;
