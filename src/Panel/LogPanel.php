@@ -9,22 +9,13 @@ use PHPForge\Debug\Helper\{EmptyState, LogLevel, Trace};
 use PHPForge\Debug\Panel\Log\{LogCellRenderer, LogCounts, LogMessage, LogRow, LogSnapshot};
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPForge\Debug\View\Grid\{FilterInput, PanelHeading, SortState, SummaryChip};
 use UIAwesome\Html\Flow\{Div, P};
 use UIAwesome\Html\Palpable\A;
 use UIAwesome\Html\Phrasing\Strong;
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\LogSearch;
-use Yii3\Debug\Web\{
-    FilterInput,
-    FilterRemoval,
-    GridColumn,
-    GridFooter,
-    PageWindow,
-    PanelGrid,
-    PanelHeading,
-    SortState,
-    SummaryChip,
-};
+use Yii3\Debug\Web\{FilterRemoval, GridColumn, GridFooter, PageWindow, PanelGrid};
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 

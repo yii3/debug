@@ -16,21 +16,12 @@ use PHPForge\Debug\Panel\Event\{
 };
 use PHPForge\Debug\Panel\{PanelIcon, PanelRenderContext, PanelTitle};
 use PHPForge\Debug\Toolbar\ToolbarItem;
+use PHPForge\Debug\View\Grid\{FilterInput, PanelHeading, SortState, SummaryChip};
 use UIAwesome\Html\Flow\{Div, P, Pre};
 use UIAwesome\Html\Root\Header;
 use Yii3\Debug\Search\EventSearch;
 use Yii3\Debug\View\ViewMessage as AdapterMessage;
-use Yii3\Debug\Web\{
-    FilterInput,
-    FilterRemoval,
-    GridColumn,
-    GridFooter,
-    PageWindow,
-    PanelGrid,
-    PanelHeading,
-    SortState,
-    SummaryChip,
-};
+use Yii3\Debug\Web\{FilterRemoval, GridColumn, GridFooter, PageWindow, PanelGrid};
 use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Html\Html;
 use Yiisoft\Html\Tag\Tr;

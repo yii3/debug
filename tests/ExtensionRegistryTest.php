@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
+use PHPForge\Debug\Exception\Message;
 use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Registration\PanelOverride;
 use PHPForge\Inertia\Debug\InertiaPanel;
@@ -531,6 +532,47 @@ final class ExtensionRegistryTest extends TestCase
             $registry->panelsWithBuiltIns([$builtIn]),
             'Registered panel must win over the disabled built-in.',
         );
+    }
+
+    public function testRegistrationFailuresKeepTheSharedFailureAsPrevious(): void
+    {
+        $failures = [
+            Message::REGISTRATION_ENTRY_INVALID->getMessage('cache')
+                => static fn(): ExtensionRegistry => ExtensionRegistry::fromParams(
+                    ['cache' => 42],
+                    [],
+                    new ContainerStub(),
+                ),
+            Message::REGISTRATION_ENABLED_INVALID->getMessage('cache')
+                => static fn(): ExtensionRegistry => ExtensionRegistry::fromParams(
+                    ['cache' => ['class' => CacheCollector::class, 'enabled' => 'yes']],
+                    [],
+                    new ContainerStub(),
+                ),
+            Message::REGISTRATION_ID_MISMATCH->getMessage('collector', 'wrong', 'extension')
+                => static fn(): ExtensionRegistry => ExtensionRegistry::create(
+                    collectors: ['wrong' => new ExtensionCollectorStub()],
+                ),
+        ];
+
+        foreach ($failures as $shared => $register) {
+            try {
+                $register();
+
+                self::fail('Registration must fail.');
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame(
+                    0,
+                    $exception->getCode(),
+                    'Host failure must keep the default code.',
+                );
+                self::assertSame(
+                    $shared,
+                    $exception->getPrevious()?->getMessage(),
+                    'Shared failure must be chained as previous.',
+                );
+            }
+        }
     }
 
     public function testRegistrationIsExplicitOrderedAndImmutable(): void

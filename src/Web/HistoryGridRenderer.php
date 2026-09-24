@@ -7,7 +7,7 @@ namespace Yii3\Debug\Web;
 use PHPForge\Debug\Data\{FilterPrefix, PageSize, QueryInput};
 use PHPForge\Debug\Panel\PanelTitle;
 use PHPForge\Debug\Storage\RequestSummary;
-use PHPForge\Debug\View\Grid\ActiveFilterBanner;
+use PHPForge\Debug\View\Grid\{ActiveFilterBanner, FilterInput, PanelHeading, SortState};
 use PHPForge\Debug\View\History\{HistoryCellRenderer, HistoryRow, HistoryScale, HistorySummary};
 use PHPForge\Debug\View\ViewMessage;
 use Stringable;

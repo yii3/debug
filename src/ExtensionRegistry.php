@@ -6,7 +6,7 @@ namespace Yii3\Debug;
 
 use InvalidArgumentException;
 use PHPForge\Debug\{CollectorInterface, Panel as PortablePanel};
-use PHPForge\Debug\Registration\{PanelOverride, PanelRegistration, PanelRegistry};
+use PHPForge\Debug\Registration\{EntryParser, PanelOverride, PanelRegistration, PanelRegistry, ParsedEntry};
 use Psr\Container\ContainerInterface;
 use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Panel\{BuiltInPanels, ExtensionPanelInterface, ProviderPanel};
@@ -15,9 +15,6 @@ use function array_keys;
 use function array_unique;
 use function array_values;
 use function in_array;
-use function is_array;
-use function is_bool;
-use function is_string;
 use function sort;
 use function trim;
 
@@ -49,8 +46,8 @@ final readonly class ExtensionRegistry
     /**
      * Validates the registration keys, applies the configured metadata, and computes the navigation order.
      *
-     * @param iterable<CollectorInterface> $collectors Enabled collectors in capture order.
-     * @param iterable<ExtensionPanelInterface|PortablePanel> $panels Enabled panels, in registration order.
+     * @param iterable<array-key, CollectorInterface> $collectors Enabled collectors in capture order.
+     * @param iterable<array-key, ExtensionPanelInterface|PortablePanel> $panels Enabled panels, in registration order.
      * @param iterable<string, PanelOverride> $overrides Application overrides indexed by panel ID.
      * @param iterable<string> $disabled IDs the configuration disabled, so the host tells them from missing ones.
      *
@@ -74,11 +71,7 @@ final readonly class ExtensionRegistry
                 );
             }
 
-            if (is_string($key) && $key !== $id) {
-                throw new InvalidArgumentException(
-                    Message::COLLECTOR_ID_MISMATCH->getMessage($key, $id),
-                );
-            }
+            self::assertKeyMatchesId($key, $id, 'collector', Message::COLLECTOR_ID_MISMATCH);
 
             $collectorList[$id] = $collector;
         }
@@ -95,11 +88,7 @@ final readonly class ExtensionRegistry
                 );
             }
 
-            if (is_string($key) && $key !== $id) {
-                throw new InvalidArgumentException(
-                    Message::PANEL_ID_MISMATCH->getMessage($key, $id),
-                );
-            }
+            self::assertKeyMatchesId($key, $id, 'panel', Message::PANEL_ID_MISMATCH);
 
             $panelList[$id] = $adapted;
         }
@@ -189,8 +178,8 @@ final readonly class ExtensionRegistry
     /**
      * Creates a registry from explicitly enabled collectors and panels.
      *
-     * @param iterable<CollectorInterface> $collectors Enabled collectors in capture order.
-     * @param iterable<ExtensionPanelInterface|PortablePanel> $panels Enabled panels, in registration order.
+     * @param iterable<array-key, CollectorInterface> $collectors Enabled collectors in capture order.
+     * @param iterable<array-key, ExtensionPanelInterface|PortablePanel> $panels Enabled panels, in registration order.
      * @param iterable<string, PanelOverride> $overrides Application overrides indexed by panel ID.
      * @param iterable<string> $disabled IDs the configuration disabled.
      *
@@ -241,24 +230,24 @@ final readonly class ExtensionRegistry
 
         foreach ($collectors as $key => $value) {
             $id = (string) $key;
-            [$class, $options] = self::entry($value, $id);
+            $entry = self::entry($value, $id);
 
-            if (self::collectorEnabled($options, $id) === false) {
+            if (self::collectorEnabled($entry->options, $id) === false) {
                 $disabled[] = $id;
 
                 continue;
             }
 
             /** @var CollectorInterface $collector */
-            $collector = $container->get($class);
+            $collector = $container->get($entry->class);
 
             $collectorList[$id] = $collector;
         }
 
         foreach ($panels as $key => $value) {
             $id = (string) $key;
-            [$class, $options] = self::entry($value, $id);
-            $override = PanelOverride::fromArray($options);
+            $entry = self::entry($value, $id);
+            $override = PanelOverride::fromArray($entry->options);
 
             if ($override->enabled === false) {
                 $disabled[] = $id;
@@ -267,7 +256,7 @@ final readonly class ExtensionRegistry
             }
 
             /** @var ExtensionPanelInterface|PortablePanel $panel */
-            $panel = $container->get($class);
+            $panel = $container->get($entry->class);
 
             $overrides[$id] = $override;
             $panelList[$id] = $panel;
@@ -343,6 +332,29 @@ final readonly class ExtensionRegistry
     }
 
     /**
+     * Rejects a string key that differs from the ID the registered collector or panel declares.
+     *
+     * @param int|string $key Key the entry is registered under.
+     * @param string $id ID the registered collector or panel declares.
+     * @param string $kind Entry kind the shared rule names, `'collector'` or `'panel'`.
+     * @param Message $message Host message reported instead of the shared one.
+     *
+     * @throws InvalidArgumentException when a string key differs from the declared ID.
+     */
+    private static function assertKeyMatchesId(int|string $key, string $id, string $kind, Message $message): void
+    {
+        try {
+            EntryParser::assertKeyMatchesId($key, $id, $kind);
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidArgumentException(
+                $message->getMessage($key, $id),
+                0,
+                $exception,
+            );
+        }
+    }
+
+    /**
      * Resolves the effective `enabled` flag of one collector entry.
      *
      * @param array<array-key, mixed> $options Options the entry declares beside its class.
@@ -362,15 +374,15 @@ final readonly class ExtensionRegistry
             }
         }
 
-        $enabled = $options['enabled'] ?? true;
-
-        if (is_bool($enabled) === false) {
+        try {
+            return EntryParser::enabled($options, $id);
+        } catch (InvalidArgumentException $exception) {
             throw new InvalidArgumentException(
                 Message::EXTENSION_COLLECTOR_ENABLED_INVALID->getMessage($id),
+                0,
+                $exception,
             );
         }
-
-        return $enabled;
     }
 
     /**
@@ -435,26 +447,19 @@ final readonly class ExtensionRegistry
      *
      * @throws InvalidArgumentException when the entry declares no class string.
      *
-     * @return array{string, array<array-key, mixed>} Class name and remaining options.
+     * @return ParsedEntry Class name and remaining options.
      */
-    private static function entry(mixed $value, string $id): array
+    private static function entry(mixed $value, string $id): ParsedEntry
     {
-        if (is_string($value)) {
-            return [$value, []];
-        }
-
-        if (is_array($value) === false || is_string($value['class'] ?? null) === false) {
+        try {
+            return EntryParser::parse($value, $id);
+        } catch (InvalidArgumentException $exception) {
             throw new InvalidArgumentException(
                 Message::EXTENSION_ENTRY_INVALID->getMessage($id),
+                0,
+                $exception,
             );
         }
-
-        /** @var string $class */
-        $class = $value['class'];
-
-        unset($value['class']);
-
-        return [$class, $value];
     }
 
     /**
