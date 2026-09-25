@@ -5,15 +5,12 @@ declare(strict_types=1);
 namespace Yii3\Debug\Web;
 
 use PHPForge\Debug\Toolbar\ToolbarInjector;
+use UIAwesome\Html\Metadata\Script;
 use Yii3\Debug\ToolbarAsset;
 use Yiisoft\Assets\AssetManager;
 use Yiisoft\View\WebView;
 
-use function htmlspecialchars;
 use function trim;
-
-use const ENT_QUOTES;
-use const ENT_SUBSTITUTE;
 
 /**
  * Renders shared toolbar views and resolves their assets through Yii3.
@@ -95,20 +92,9 @@ final readonly class ToolbarRenderer
      */
     public function scriptTag(): string
     {
-        $url = $this->assetManager->getUrl(ToolbarAsset::class, 'dist/js/toolbar.min.js');
-
-        return '<script type="module" src="' . self::escape($url) . '"></script>';
-    }
-
-    /**
-     * Escapes an HTML attribute value.
-     *
-     * @param string $value Raw attribute value.
-     *
-     * @return string Escaped attribute value.
-     */
-    private static function escape(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return Script::tag()
+            ->type('module')
+            ->src($this->assetManager->getUrl(ToolbarAsset::class, 'dist/js/toolbar.min.js'))
+            ->render();
     }
 }
