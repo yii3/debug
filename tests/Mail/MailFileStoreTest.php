@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Mail;
 
 use ArrayIterator;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LogLevel;
 use Yii3\Debug\Exception\Message;
@@ -153,6 +154,7 @@ final class MailFileStoreTest extends TestCase
         );
     }
 
+    #[RequiresOperatingSystemFamily('Linux')]
     public function testWriteAppliesConfiguredModesDespiteRestrictiveUmask(): void
     {
         $mail = "{$this->root}/nested/mail";
@@ -179,13 +181,15 @@ final class MailFileStoreTest extends TestCase
         );
     }
 
-    public function testWriteKeepsUmaskModeWhenFileModeIsNull(): void
+    #[RequiresOperatingSystemFamily('Linux')]
+    public function testWriteAppliesDefaultModesAndKeepsUmaskModeWhenFileModeIsNull(): void
     {
         $mail = "{$this->root}/mail";
 
         $previous = umask(0o022);
 
         try {
+            $default = (new MailFileStore($mail))->write('content');
             $file = (new MailFileStore($mail, fileMode: null))->write('content');
         } finally {
             umask($previous);
@@ -197,6 +201,11 @@ final class MailFileStoreTest extends TestCase
             0o700,
             fileperms($mail) & 0o777,
             'Default directory mode must be `0700`.',
+        );
+        self::assertSame(
+            0o600,
+            fileperms("{$mail}/{$default}") & 0o777,
+            'Default file mode must be `0600`.',
         );
         self::assertSame(
             0o644,
@@ -233,6 +242,7 @@ final class MailFileStoreTest extends TestCase
         );
     }
 
+    #[RequiresOperatingSystemFamily('Linux')]
     public function testWriteLogsAndReturnsEmptyNameWhenFileCannotBeWritten(): void
     {
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
@@ -289,15 +299,7 @@ final class MailFileStoreTest extends TestCase
     {
         $mail = "{$this->root}/mail";
 
-        $previous = umask(0o022);
-
-        try {
-            $file = (new MailFileStore($mail))->write('Subject: hello');
-        } finally {
-            umask($previous);
-        }
-
-        clearstatcache();
+        $file = (new MailFileStore($mail))->write('Subject: hello');
 
         self::assertMatchesRegularExpression(
             '/^\d{8}-\d{6}-[0-9a-f]{8}\.eml$/',
@@ -308,11 +310,6 @@ final class MailFileStoreTest extends TestCase
             'Subject: hello',
             file_get_contents("{$mail}/{$file}"),
             'Content must be written verbatim.',
-        );
-        self::assertSame(
-            0o600,
-            fileperms("{$mail}/{$file}") & 0o777,
-            'Default file mode must be `0600`.',
         );
     }
 
