@@ -83,7 +83,7 @@ final class ToolbarRendererTest extends TestCase
         self::assertStringContainsString('data-position="upper"', $html, 'Toolbar position must be rendered.');
         self::assertStringContainsString('data-height="60"', $html, 'Toolbar height must be rendered.');
         self::assertStringContainsString(
-            '/dist/js/toolbar.min.js"></script>',
+            "/dist/js/toolbar.min.js\">\n</script>",
             $html,
             'Yii3 asset publisher must provide the toolbar runtime URL.',
         );
