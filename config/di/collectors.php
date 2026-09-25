@@ -8,6 +8,7 @@ use Symfony\Component\Mime\Email;
 use Yii3\Debug\Collector\{
     AssetCollector,
     DbCollector,
+    DumpCollector,
     EventCollector,
     LogCollector,
     MailCollector,
@@ -32,6 +33,7 @@ return [
         EventCollector $eventCollector,
         ProfilingCollector $profilingCollector,
         DbCollector $dbCollector,
+        DumpCollector $dumpCollector,
         AssetCollector $assetCollector,
         ExtensionRegistry $extensions,
         ContainerInterface $container,
@@ -44,6 +46,7 @@ return [
                 $profilingCollector,
                 $dbCollector,
                 ...($mailerInstalled ? [$container->get(MailCollector::class)] : []),
+                $dumpCollector,
                 $assetCollector,
             ],
         ),

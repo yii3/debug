@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Support;
 
 use PHPForge\Debug\Panel\Asset\AssetSnapshot;
 use PHPForge\Debug\Panel\Db\DbSnapshot;
+use PHPForge\Debug\Panel\Dump\DumpSnapshot;
 use PHPForge\Debug\Panel\Event\EventSnapshot;
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Mail\MailSnapshot;
@@ -14,6 +15,7 @@ use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use Yii3\Debug\Collector\{
     AssetCollector,
     DbCollector,
+    DumpCollector,
     EventCollector,
     LogCollector,
     MailCollector,
@@ -41,6 +43,13 @@ final class Captured
         $payload = $collector->capture();
 
         return $payload === null ? null : DbSnapshot::fromArray($payload, '$.panels.db');
+    }
+
+    public static function dump(DumpCollector $collector): DumpSnapshot|null
+    {
+        $payload = $collector->capture();
+
+        return $payload === null ? null : DumpSnapshot::fromArray($payload, '$.panels.dump');
     }
 
     public static function event(EventCollector $collector): EventSnapshot|null

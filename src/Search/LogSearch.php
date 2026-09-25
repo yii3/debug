@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Yii3\Debug\Search;
 
 use PHPForge\Debug\Data\{FilterEngine, FilterPrefix, QueryInput};
+use PHPForge\Debug\Panel\Dump\DumpRow;
 use PHPForge\Debug\Panel\Log\LogRow;
 
 /**
- * Applies the Yii2-compatible `Log[attribute]` filters to captured log rows.
+ * Applies the Yii2-compatible `Log[attribute]` filters to captured log and dump rows.
  */
 final readonly class LogSearch
 {
@@ -28,11 +29,16 @@ final readonly class LogSearch
     }
 
     /**
-     * Keeps only the messages matching every active filter.
+     * Keeps only the rows matching every active filter.
      *
-     * @param list<LogRow> $rows Captured messages to filter.
+     * Dump rows carry the `level`, `category`, and `message` fields of log rows, so the Dump grid filters through the
+     * same `Log[...]` group, as it does in Yii2.
      *
-     * @return list<LogRow> Rows matching every active filter, reindexed.
+     * @template TRow of DumpRow|LogRow
+     *
+     * @param list<TRow> $rows Captured rows to filter.
+     *
+     * @return list<TRow> Rows matching every active filter, reindexed.
      */
     public function filter(array $rows): array
     {

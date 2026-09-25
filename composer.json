@@ -45,6 +45,7 @@
         "yiisoft/network-utilities": "^1.2",
         "yiisoft/profiler": "^3.0",
         "yiisoft/router": "^4.0",
+        "yiisoft/var-dumper": "^1.7",
         "yiisoft/view": "^12.2",
         "yiisoft/yii-dataview": "^1.3"
     },

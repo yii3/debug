@@ -87,8 +87,8 @@ return [
   a panel rendering its own presentation is rejected explicitly.
 - `icon` is a Debug Core icon key matching `[a-z0-9][a-z0-9-]*`. An unknown key renders no icon.
 - `position` orders the `Extensions` group ascending; entries without one follow, sorted by effective title and then
-  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, Assets)
-  and reject `position`.
+  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, Dump,
+  Assets) and reject `position`.
 
 An extension appears in the sidebar only when the selected request contains its data. Vite's **Production** label
 means it is inspecting built assets in your development application, not that the debugger can run in production.
@@ -317,6 +317,10 @@ needed.
   and stored file come from the Symfony email it sends, as in the Yii2 debugger. Each message is stored under
   `storage.mailPath`, downloaded from `{routePrefix}/download-mail?file=<name>`, and deleted when its capture leaves the
   history.
+- The `yiisoft/var-dumper` default handler is decorated by `Yii3\Debug\Collector\DumpCollector` while a request is
+  captured, so `VarDumper::dump()`, `d()`, `dump()`, and `dd()` keep printing through the handler the application set,
+  and each value also appears in the Dump panel with the file and line that dumped it. The previous handler is restored
+  when the capture ends, unless the application replaced it during the request.
 
 Both groups must belong to the provider and bootstrap groups the application runner loads, and the decorations are
 idempotent, so an application wiring the connection itself keeps working.

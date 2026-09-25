@@ -23,6 +23,42 @@ enum ViewMessage: string
     case COMPARISON_PANELS_EMPTY = 'Neither capture contains panel payloads to compare.';
 
     /**
+     * Suffix of the Dump grid summary counter, following the number of captured dumps.
+     */
+    case DUMP_CAPTURED_SUFFIX = ' dumps captured';
+
+    /**
+     * Tooltip of the Dump toolbar metric, as the Yii2 host words it.
+     */
+    case DUMP_COUNT = 'Number of dumped variables';
+
+    /**
+     * Snippet of the Dump empty state, showing the `yiisoft/var-dumper` calls the panel records.
+     */
+    case DUMP_EMPTY_EXAMPLE = "VarDumper::dump(\$value);\nd(\$user, \$query);";
+
+    /**
+     * Explanation of the Dump empty state, naming the capture point that replaces Yii2's `Yii::debug()`.
+     */
+    case DUMP_EMPTY_EXPLANATION = 'The Dump panel records the values dumped through yiisoft/var-dumper, so nothing was '
+        . 'captured here. To populate this view, dump values anywhere in the request cycle:';
+
+    /**
+     * Headline of the Dump empty state, as the Yii2 host words it.
+     */
+    case DUMP_EMPTY_HEADLINE = 'No variables dumped in this request';
+
+    /**
+     * Explanation shown when the active Dump filters exclude every captured dump.
+     */
+    case DUMP_NO_MATCH_EXPLANATION = 'Adjust or clear the filters to show the captured dumps.';
+
+    /**
+     * Headline shown when the active Dump filters exclude every captured dump.
+     */
+    case DUMP_NO_MATCH_HEADLINE = 'No dumps match the active filters';
+
+    /**
      * Caption of the Events grid, naming the dispatcher the panel observes.
      */
     case EVENT_CAPTURE_SCOPE = 'Observed through the decorated PSR-14 dispatcher. Direct calls to other dispatchers '
