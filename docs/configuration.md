@@ -87,8 +87,8 @@ return [
   a panel rendering its own presentation is rejected explicitly.
 - `icon` is a Debug Core icon key matching `[a-z0-9][a-z0-9-]*`. An unknown key renders no icon.
 - `position` orders the `Extensions` group ascending; entries without one follow, sorted by effective title and then
-  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, Assets)
-  and reject `position`.
+  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, Dump,
+  Assets) and reject `position`.
 
 An extension appears in the sidebar only when the selected request contains its data. Vite's **Production** label
 means it is inspecting built assets in your development application, not that the debugger can run in production.
@@ -292,7 +292,14 @@ Then confirm that the application's merge plan (`config/.merge-plan.php` unless 
 says otherwise) lists `yii3/debug/config/events-web.php` under `events-web`.
 
 If the application never dispatches that event — a console command, a custom runner, or a fatal error during emission
-— a PHP shutdown function registered on the first deferral writes the capture instead, so a request is never lost.
+— a PHP shutdown function registered with the first capture writes it instead, so a request is never lost.
+
+The capture is armed before the request handler runs, so a script that ends inside the handler, through `exit`,
+`dd()`, or a fatal error, is still written at shutdown, as the Yii2 debugger does. It carries what was collected until
+then, the matched route, and the status code PHP is about to send; the response headers are empty because the
+application never returned a response. A handler that throws still drops its capture, so the application failure
+stays primary.
+
 Without a collector coordinator there is nothing to defer, and the fallback summary is written inside the pipeline as
 before.
 
@@ -317,6 +324,12 @@ needed.
   and stored file come from the Symfony email it sends, as in the Yii2 debugger. Each message is stored under
   `storage.mailPath`, downloaded from `{routePrefix}/download-mail?file=<name>`, and deleted when its capture leaves the
   history.
+- The `yiisoft/var-dumper` default handler is decorated by `Yii3\Debug\Collector\DumpCollector` while a request is
+  captured, so `VarDumper::dump()` and the `d()`, `dump()`, and `dd()` helpers keep printing through the handler the
+  application set, and each value also appears in the Dump panel with the file and line that dumped it. The previous
+  handler is restored when the capture ends, unless the application replaced it during the request. When
+  `symfony/var-dumper` is installed and loaded first (Codeception and PsySH require it), the global `dump()` and `dd()`
+  are Symfony's and are not captured; `d()` and `VarDumper::dump()` still are.
 
 Both groups must belong to the provider and bootstrap groups the application runner loads, and the decorations are
 idempotent, so an application wiring the connection itself keeps working.

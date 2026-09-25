@@ -7,6 +7,7 @@ use Yii3\Debug\Panel\{
     AssetPanel,
     BuiltInPanelList,
     DbPanel,
+    DumpPanel,
     EventPanel,
     LogPanel,
     MailPanel,
@@ -32,6 +33,7 @@ return [
         ProfilingPanel $profilingPanel,
         DbPanel $dbPanel,
         MailPanel $mailPanel,
+        DumpPanel $dumpPanel,
         AssetPanel $assetPanel,
     ): BuiltInPanelList => BuiltInPanelList::fromMap(
         [
@@ -41,6 +43,7 @@ return [
             'profiling' => $profilingPanel,
             'db' => $dbPanel,
             'mail' => $mailPanel,
+            'dump' => $dumpPanel,
             'asset' => $assetPanel,
         ],
     ),

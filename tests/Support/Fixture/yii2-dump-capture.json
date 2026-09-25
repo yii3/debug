@@ -1,0 +1,43 @@
+{
+    "summary": {
+        "tag": "fbe29d7dda846d446dc2055c9c9046e1",
+        "url": "http://localhost:8080/index.php?r=site%2Fabout",
+        "method": "GET"
+    },
+    "panels": {
+        "dump": {
+            "entries": [
+                {
+                    "message": "<pre><code style=\"color: #000000\"><span style=\"color: #0000BB\">&lt;?php\n</span><span style=\"color: #007700\">[\n    </span><span style=\"color: #DD0000\">'id' </span><span style=\"color: #007700\">=&gt; </span><span style=\"color: #0000BB\">42\n    </span><span style=\"color: #DD0000\">'name' </span><span style=\"color: #007700\">=&gt; </span><span style=\"color: #DD0000\">'&lt;b&gt;Ada&lt;/b&gt;'\n    'active' </span><span style=\"color: #007700\">=&gt; </span><span style=\"color: #0000BB\">true\n    </span><span style=\"color: #DD0000\">'tags' </span><span style=\"color: #007700\">=&gt; [\n        </span><span style=\"color: #0000BB\">0 </span><span style=\"color: #007700\">=&gt; </span><span style=\"color: #DD0000\">'a'\n        </span><span style=\"color: #0000BB\">1 </span><span style=\"color: #007700\">=&gt; </span><span style=\"color: #DD0000\">'b'\n    </span><span style=\"color: #007700\">]\n]</span></code></pre>",
+                    "level": 8,
+                    "category": "application",
+                    "time": 1790368161422.863,
+                    "trace": [
+                        {
+                            "file": "/app/src/controllers/SiteController.php",
+                            "line": 36,
+                            "function": "debug",
+                            "class": "yii\\BaseYii",
+                            "type": "::"
+                        }
+                    ]
+                },
+                {
+                    "message": "<pre><code style=\"color: #000000\"><span style=\"color: #0000BB\">&lt;?php\n</span><span style=\"color: #DD0000\">'plain &lt;i&gt;text&lt;/i&gt;'</span></code></pre>",
+                    "level": 8,
+                    "category": "application",
+                    "time": 1790368161422.867,
+                    "trace": [
+                        {
+                            "file": "/app/src/controllers/SiteController.php",
+                            "line": 37,
+                            "function": "debug",
+                            "class": "yii\\BaseYii",
+                            "type": "::"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

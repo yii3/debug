@@ -24,6 +24,7 @@ final class BuiltInPanels
         'profiling',
         'db',
         'mail',
+        'dump',
         'asset',
     ];
 

@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests;
 
 use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Asset\{AssetBundleRow, AssetSnapshot};
+use PHPForge\Debug\Panel\Dump\DumpSnapshot;
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Mail\MailSnapshot;
@@ -21,6 +22,7 @@ use Yii3\Debug\Panel\{
     BuiltInPanelList,
     BuiltInPanels,
     DbPanel,
+    DumpPanel,
     EventPanel,
     LogPanel,
     MailPanel,
@@ -53,6 +55,7 @@ final class BuiltInPanelOrderTest extends TestCase
             [
                 'asset' => new AssetPanel(),
                 'db' => new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()),
+                'dump' => new DumpPanel(Trace::create()),
                 'event' => new EventPanel(),
                 'log' => new LogPanel(Trace::create()),
                 'mail' => new MailPanel(new SnapshotStore(self::aliases()->get('@assets'), 0o700, 0o600)),
@@ -164,6 +167,7 @@ final class BuiltInPanelOrderTest extends TestCase
                     )
                 )->jsonSerialize(),
                 'db' => DatabaseFixture::snapshot()->jsonSerialize(),
+                'dump' => DumpSnapshot::capture([['<pre>42</pre>', 8, 'application', 1.0, []]])->jsonSerialize(),
                 'event' => (
                     new EventSnapshot(
                         [

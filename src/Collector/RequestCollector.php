@@ -16,6 +16,7 @@ use Yii3\Debug\Routing\RouteDefinitionExtractor;
 use Yiisoft\Router\{CurrentRoute, RouteCollectionInterface};
 
 use function count;
+use function http_response_code;
 use function is_array;
 use function is_string;
 use function min;
@@ -73,15 +74,21 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     /**
      * Encodes the captured request and response into the Request panel payload.
      *
+     * When the handler never returned a response, because the script ended inside it through `exit`, `dd()`, or a
+     * fatal error, the response half carries the matched route and the status code PHP is about to send, without
+     * headers, since no PSR-7 response exists.
+     *
      * @return array<string, mixed>|null Encoded Request panel payload; `null` when the request was not observed.
      */
     public function capture(): array|null
     {
-        if ($this->started === false || $this->request === null || $this->response === null) {
+        if ($this->started === false || $this->request === null) {
             return null;
         }
 
-        return RequestSnapshot::capture([...$this->request, ...$this->response])->jsonSerialize();
+        return RequestSnapshot::capture(
+            [...$this->request, ...($this->response ?? $this->responseData([], (int) http_response_code()))],
+        )->jsonSerialize();
     }
 
     /**
@@ -144,21 +151,7 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
             );
         }
 
-        $route = $this->currentRoute?->getName() ?? '';
-        $routeDefinition = $route === '' ? null : RouteDefinitionExtractor::find($route, $this->routes);
-        $routeDefinition ??= $this->currentRoute === null
-            ? null
-            : RouteDefinitionExtractor::fromCurrentRoute($this->currentRoute);
-
-        $this->response = $this->capturePolicy->redact([
-            'action' => $routeDefinition?->getAction(),
-            'actionParams' => $this->currentRoute?->getArguments() ?? [],
-            'responseHeaders' => $this->collapseHeaders($response->getHeaders()),
-            'route' => $route,
-            'routeDefinition' => null,
-            'statusCode' => $response->getStatusCode(),
-        ]);
-        $this->response['routeDefinition'] = $this->redactRouteDefinition($routeDefinition);
+        $this->response = $this->responseData($response->getHeaders(), $response->getStatusCode());
     }
 
     /**
@@ -362,6 +355,40 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
         }
 
         return $server;
+    }
+
+    /**
+     * Builds the response half of the payload: the matched route, the redacted headers, and the status code.
+     *
+     * @param array<array-key, array<array-key, string>> $headers Response header values keyed by header name.
+     * @param int $statusCode Response status code.
+     *
+     * @return array<string, mixed> Redacted response half of the Request panel payload.
+     */
+    private function responseData(array $headers, int $statusCode): array
+    {
+        $route = $this->currentRoute?->getName() ?? '';
+
+        $routeDefinition = $route === '' ? null : RouteDefinitionExtractor::find($route, $this->routes);
+
+        $routeDefinition ??= $this->currentRoute === null
+            ? null
+            : RouteDefinitionExtractor::fromCurrentRoute($this->currentRoute);
+
+        $response = $this->capturePolicy->redact(
+            [
+                'action' => $routeDefinition?->getAction(),
+                'actionParams' => $this->currentRoute?->getArguments() ?? [],
+                'responseHeaders' => $this->collapseHeaders($headers),
+                'route' => $route,
+                'routeDefinition' => null,
+                'statusCode' => $statusCode,
+            ],
+        );
+
+        $response['routeDefinition'] = $this->redactRouteDefinition($routeDefinition);
+
+        return $response;
     }
 
     /**

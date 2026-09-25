@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Middleware;
 
+use Closure;
 use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Instrumentation\InstrumentationGuard;
@@ -19,6 +20,7 @@ use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
 use function count;
+use function http_response_code;
 use function is_float;
 use function is_int;
 use function is_string;
@@ -123,7 +125,7 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
     ): ResponseInterface {
         $start = self::requestStart($request);
 
-        [$response, $summary] = $this->handleRequest($request, $handler, $start);
+        [$response, $summary] = $this->handleRequest($request, $handler, $start, self::tag());
 
         $this->finalizeCapture($summary);
 
@@ -147,6 +149,10 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
     /**
      * Runs the request with the collectors active and hands the capture over to the application shutdown phase.
      *
+     * Before the handler runs, the capture is armed with a fallback built from the request alone, so a script that
+     * ends inside the handler, through `exit`, `dd()`, or a fatal error, still writes it with the status code PHP is
+     * about to send. Once the handler returns, the complete capture replaces it.
+     *
      * A handler failure drops the pending capture and stops the collectors, keeping the application failure primary.
      * The collectors also stop when the deferred finalization fails, and that failure reaches the shutdown phase.
      *
@@ -169,26 +175,37 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
 
         $start = self::requestStart($request);
 
+        $tag = self::tag();
+
+        $deferredCapture->arm(
+            $this->finalizer(
+                $collectorCoordinator,
+                fn(): RequestSummary => $this->requestSummary($request, $tag, $start)
+                    ->withResponse((int) http_response_code())
+                    ->withProfiling(microtime(true) - $start, memory_get_peak_usage(true)),
+            ),
+        );
+
         try {
-            [$response, $summary] = $this->handleRequest($request, $handler, $start);
+            [$response, $summary] = $this->handleRequest($request, $handler, $start, $tag);
         } catch (Throwable $primaryFailure) {
             $deferredCapture->cancel();
 
             (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
 
             throw $primaryFailure;
+        } finally {
+            $deferredCapture->disarm();
         }
 
         $deferredCapture->defer(
-            function () use ($collectorCoordinator, $start, $summary): void {
-                try {
-                    $this->finalizeCapture(
-                        $summary->withProfiling(microtime(true) - $start, memory_get_peak_usage(true)),
-                    );
-                } finally {
-                    (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
-                }
-            },
+            $this->finalizer(
+                $collectorCoordinator,
+                static fn(): RequestSummary => $summary->withProfiling(
+                    microtime(true) - $start,
+                    memory_get_peak_usage(true),
+                ),
+            ),
         );
 
         return $response;
@@ -255,6 +272,27 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
     }
 
     /**
+     * Builds the finalizer writing the capture for the summary it resolves, stopping the collectors even when the write
+     * fails.
+     *
+     * @param CollectorCoordinator $collectorCoordinator Coordinator owning the collectors.
+     * @param Closure(): RequestSummary $summary Resolves the summary when the finalizer runs, so its timing covers the
+     * work done until then.
+     *
+     * @return Closure(): void Finalizer handed to {@see DeferredCapture}.
+     */
+    private function finalizer(CollectorCoordinator $collectorCoordinator, Closure $summary): Closure
+    {
+        return function () use ($collectorCoordinator, $summary): void {
+            try {
+                $this->finalizeCapture($summary());
+            } finally {
+                (new InstrumentationGuard())->observe($collectorCoordinator->shutdown(...));
+            }
+        };
+    }
+
+    /**
      * Runs the request phase, returning the final response and the summary its capture is finalized from.
      *
      * The toolbar is injected here, so a lazily rendered body is materialized before any collector is read.
@@ -262,6 +300,7 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
      * @param ServerRequestInterface $request Request reaching the middleware.
      * @param RequestHandlerInterface $handler Next handler in the middleware stack.
      * @param float $start Request start, in seconds.
+     * @param string $tag Tag the capture is stored under.
      *
      * @throws Throwable when the request handler fails.
      *
@@ -272,9 +311,8 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
         float $start,
+        string $tag,
     ): array {
-        $tag = str_replace('.', '', uniqid('', true));
-
         $profilingCollector = $this->collectorCoordinator?->collector('profiling');
         $requestCollector = $this->collectorCoordinator?->collector('request');
 
@@ -318,14 +356,7 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
             $observer->collectResponse($response);
         }
 
-        $summary = RequestSummary::create($tag)
-            ->withRequest(
-                url: $this->capturePolicy->redactUrl((string) $request->getUri()),
-                method: strtoupper($request->getMethod()),
-                ip: self::clientIp($request),
-                time: $start,
-                ajax: strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest',
-            )
+        $summary = $this->requestSummary($request, $tag, $start)
             ->withResponse($response->getStatusCode())
             ->withProfiling($processingTime, memory_get_peak_usage(true));
 
@@ -375,6 +406,27 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
     }
 
     /**
+     * Starts the capture summary from the request alone, before any response exists.
+     *
+     * @param ServerRequestInterface $request Request reaching the middleware.
+     * @param string $tag Tag the capture is stored under.
+     * @param float $start Request start, in seconds.
+     *
+     * @return RequestSummary Summary carrying the redacted URL, the method, the client address, and the start time.
+     */
+    private function requestSummary(ServerRequestInterface $request, string $tag, float $start): RequestSummary
+    {
+        return RequestSummary::create($tag)
+            ->withRequest(
+                url: $this->capturePolicy->redactUrl((string) $request->getUri()),
+                method: strtoupper($request->getMethod()),
+                ip: self::clientIp($request),
+                time: $start,
+                ajax: strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest',
+            );
+    }
+
+    /**
      * Returns whether the toolbar may be injected into the response body.
      *
      * @param ServerRequestInterface $request Request reaching the middleware.
@@ -403,5 +455,15 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
         $contentType = strtolower($response->getHeaderLine('Content-Type'));
 
         return str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml');
+    }
+
+    /**
+     * Generates the tag a new capture is stored under.
+     *
+     * @return string Unique, dot-free capture tag.
+     */
+    private static function tag(): string
+    {
+        return str_replace('.', '', uniqid('', true));
     }
 }

@@ -23,7 +23,7 @@ final class MailConfigurationTest extends TestCase
 {
     private string $root = '';
 
-    public function testCollectorCoordinatorPlacesMailBetweenDatabaseAndAssets(): void
+    public function testCollectorCoordinatorPlacesMailBetweenDatabaseAndDump(): void
     {
         $coordinator = $this->container()->get(CollectorCoordinator::class);
 
@@ -33,7 +33,7 @@ final class MailConfigurationTest extends TestCase
             'Coordinator must be packaged.',
         );
         self::assertSame(
-            ['request', 'log', 'event', 'profiling', 'db', 'mail', 'asset'],
+            ['request', 'log', 'event', 'profiling', 'db', 'mail', 'dump', 'asset'],
             array_keys($coordinator->collectors()),
             'Mail must follow the built-in panel order.',
         );
