@@ -115,11 +115,25 @@ final class RequestCollectorTest extends TestCase
         );
 
         $collector->startup();
-        $collector->collectRequest($request);
 
         self::assertNull(
             Captured::request($collector),
-            'A request without its response must not build an invalid status-less snapshot.',
+            'A started collector must wait for the request.',
+        );
+
+        $collector->collectRequest($request);
+
+        $interrupted = Captured::request($collector)?->data() ?? [];
+
+        self::assertSame(
+            0,
+            $interrupted['statusCode'] ?? null,
+            'A request whose handler never returned must carry the status PHP reports, none in CLI.',
+        );
+        self::assertSame(
+            [],
+            $interrupted['responseHeaders'] ?? null,
+            'A request whose handler never returned must not fabricate response headers.',
         );
 
         $collector->collectResponse(
@@ -831,8 +845,9 @@ final class RequestCollectorTest extends TestCase
         $collector->startup();
         $collector->collectRequest(HelperFactory::createRequest(uri: 'https://example.test/second'));
 
-        self::assertNull(
-            Captured::request($collector),
+        self::assertSame(
+            0,
+            Captured::request($collector)?->data()['statusCode'] ?? null,
             'A new request must not inherit the previous response.',
         );
 

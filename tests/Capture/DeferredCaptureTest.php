@@ -15,6 +15,48 @@ use Yii3\Debug\Capture\DeferredCapture;
 #[Group('capture')]
 final class DeferredCaptureTest extends TestCase
 {
+    public function testArmedFallbackRunsOnlyFromTheShutdownFallback(): void
+    {
+        $registered = [];
+        $runs = [];
+
+        $capture = new DeferredCapture(self::registrar($registered));
+
+        $capture->arm(
+            static function () use (&$runs): void {
+                $runs[] = 'armed';
+            },
+        );
+        $capture->defer(
+            static function () use (&$runs): void {
+                $runs[] = 'pending';
+            },
+        );
+        $capture->finalize();
+
+        $beforeShutdown = $runs;
+
+        self::assertCount(
+            1,
+            $registered,
+            'Arming and deferring must share one fallback.',
+        );
+
+        $registered[0]();
+        $registered[0]();
+
+        self::assertSame(
+            ['pending'],
+            $beforeShutdown,
+            'Deferral and finalization must leave the armed capture alone.',
+        );
+        self::assertSame(
+            ['pending', 'armed'],
+            $runs,
+            'Shutdown must write the armed capture exactly once.',
+        );
+    }
+
     public function testCancelDropsThePendingFinalizerWithoutRunningIt(): void
     {
         $registered = [];
@@ -118,6 +160,35 @@ final class DeferredCaptureTest extends TestCase
             1,
             $registered,
             'One instance must never hold more than one fallback.',
+        );
+    }
+
+    public function testDisarmDropsTheArmedFallbackWithoutRunningIt(): void
+    {
+        $registered = [];
+        $runs = 0;
+
+        $capture = new DeferredCapture(self::registrar($registered));
+
+        $capture->arm(
+            static function () use (&$runs): void {
+                $runs++;
+            },
+        );
+        $capture->disarm();
+
+        self::assertCount(
+            1,
+            $registered,
+            'Arming must register the fallback.',
+        );
+
+        $registered[0]();
+
+        self::assertSame(
+            0,
+            $runs,
+            'A disarmed capture must never run.',
         );
     }
 

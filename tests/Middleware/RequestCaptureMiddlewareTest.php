@@ -9,7 +9,7 @@ use PHPForge\Debug\Collector\CollectorCoordinator;
 use PHPForge\Debug\Panel\Db\{DbSnapshot, QueryRow};
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use PHPForge\Debug\Storage\StorageException;
+use PHPForge\Debug\Storage\{RequestSummary, StorageException};
 use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
@@ -25,6 +25,7 @@ use Yii3\Debug\Tests\Support\Stubs\{LazyBodyStreamStub, RequestObserverCollector
 
 use function array_keys;
 use function array_map;
+use function array_values;
 use function json_encode;
 use function microtime;
 
@@ -146,6 +147,104 @@ final class RequestCaptureMiddlewareTest extends TestCase
         );
     }
 
+    public function testDeferredCaptureIsWrittenWhenTheScriptEndsInsideTheHandler(): void
+    {
+        $store = MiddlewareFactory::store();
+
+        $dbCollector = new DbCollector();
+        $requestCollector = new RequestCollector();
+
+        $shutdown = [];
+
+        $middleware = MiddlewareFactory::requestCapture(
+            $store,
+            new CollectorCoordinator([$requestCollector, $dbCollector]),
+            self::recordingDeferredCapture($shutdown),
+        );
+
+        $handler = new readonly class (
+            $dbCollector,
+            static function () use (&$shutdown): void {
+                self::runShutdown($shutdown);
+            },
+        ) implements RequestHandlerInterface {
+            /**
+             * @param DbCollector $collector Collector observing the query run before the script ends.
+             * @param Closure(): void $exit Runs the PHP shutdown fallback, as `exit` or `dd()` would.
+             */
+            public function __construct(
+                private DbCollector $collector,
+                private Closure $exit,
+            ) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $this->collector->observe(QueryRow::create('SELECT 1', 1.0, 1000.0));
+
+                ($this->exit)();
+
+                throw new RuntimeException('Nothing runs after the script ends.');
+            }
+        };
+
+        try {
+            $middleware->process(
+                HelperFactory::createRequest(
+                    'get',
+                    'https://example.test/diary',
+                    serverParams: ['REMOTE_ADDR' => '127.0.0.1'],
+                ),
+                $handler,
+            );
+        } catch (RuntimeException) {
+        }
+
+        $summaries = array_values($store->loadManifest());
+
+        self::assertCount(
+            1,
+            $summaries,
+            'The capture in progress must be written at shutdown.',
+        );
+        self::assertSame(
+            'https://example.test/diary',
+            $summaries[0]->url,
+            'The summary must come from the request alone.',
+        );
+        self::assertSame(
+            'GET',
+            $summaries[0]->method,
+            'The method must be normalized as in a completed capture.',
+        );
+        self::assertStringNotContainsString(
+            '.',
+            $summaries[0]->tag,
+            'The tag must stay dot-free.',
+        );
+        self::assertLessThan(
+            60.0,
+            $summaries[0]->processingTime ?? 60.0,
+            'Duration must stay scoped to the current request.',
+        );
+        self::assertSame(
+            1,
+            $summaries[0]->sqlCount,
+            'Work done before the script ended must be counted.',
+        );
+        self::assertSame(
+            0,
+            RequestSnapshot::fromArray(
+                $store->readSnapshot($summaries[0]->tag)?->panels['request'] ?? [],
+                '$.panels.request',
+            )->statusCode,
+            'The Request panel must be kept with the status PHP reports.',
+        );
+        self::assertNull(
+            $dbCollector->capture(),
+            'Writing the capture must stop the collectors.',
+        );
+    }
+
     public function testDeferredCaptureWithoutCollectorsWritesTheSnapshotImmediately(): void
     {
         $store = MiddlewareFactory::store();
@@ -207,7 +306,9 @@ final class RequestCaptureMiddlewareTest extends TestCase
 
         $collector = new DbCollector();
 
-        $deferredCapture = MiddlewareFactory::deferredCapture();
+        $shutdown = [];
+
+        $deferredCapture = self::recordingDeferredCapture($shutdown);
 
         $stale = 0;
 
@@ -270,10 +371,13 @@ final class RequestCaptureMiddlewareTest extends TestCase
             $collector->capture(),
             'A failed request must stop the collectors.',
         );
+
+        self::runShutdown($shutdown);
+
         self::assertSame(
             [],
             $store->loadManifest(),
-            'A failed request must not be captured.',
+            'A failed request must not be captured, not even at shutdown.',
         );
     }
 
@@ -420,6 +524,34 @@ final class RequestCaptureMiddlewareTest extends TestCase
             20.0,
             (float) $response->getHeaderLine('X-Debug-Duration'),
             'The duration header must keep reporting handler time, in milliseconds.',
+        );
+    }
+
+    public function testDeferredShutdownAfterTheHandlerReturnedWritesOnlyTheCompleteCapture(): void
+    {
+        $store = MiddlewareFactory::store();
+
+        $shutdown = [];
+
+        $middleware = MiddlewareFactory::requestCapture(
+            $store,
+            new CollectorCoordinator([new DbCollector()]),
+            self::recordingDeferredCapture($shutdown),
+        );
+
+        $middleware->process(
+            HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+            MiddlewareFactory::handler(HelperFactory::createResponse(204)),
+        );
+
+        self::runShutdown($shutdown);
+
+        self::assertSame(
+            [204],
+            array_values(
+                array_map(static fn(RequestSummary $summary): int => $summary->statusCode, $store->loadManifest()),
+            ),
+            'Only the complete capture may be written once the handler returned.',
         );
     }
 
@@ -1102,5 +1234,31 @@ final class RequestCaptureMiddlewareTest extends TestCase
             $deferredCapture->isPending(),
             'Nothing may stay pending once the capture is written.',
         );
+    }
+
+    /**
+     * Builds a deferred capture whose PHP shutdown fallback is recorded instead of registered.
+     *
+     * @param list<Closure(): void> $shutdown Receives the fallback.
+     */
+    private static function recordingDeferredCapture(array &$shutdown): DeferredCapture
+    {
+        return new DeferredCapture(
+            static function (callable $fallback) use (&$shutdown): void {
+                $shutdown[] = $fallback(...);
+            },
+        );
+    }
+
+    /**
+     * Runs the recorded shutdown fallbacks, as PHP does when the script ends.
+     *
+     * @param list<Closure(): void> $shutdown Recorded fallbacks.
+     */
+    private static function runShutdown(array $shutdown): void
+    {
+        foreach ($shutdown as $fallback) {
+            $fallback();
+        }
     }
 }

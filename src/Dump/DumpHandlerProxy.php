@@ -21,9 +21,10 @@ use const DEBUG_BACKTRACE_IGNORE_ARGS;
 /**
  * Intercepts `yiisoft/var-dumper` dumps to feed the `DumpCollector`, then forwards each dump unchanged.
  *
- * {@see DumpCollector::startup()} installs the proxy as the var-dumper default handler, so `VarDumper::dump()`, `d()`,
- * `dump()`, and `dd()` all pass through it while the application output stays exactly what the decorated handler
- * produces.
+ * {@see DumpCollector::startup()} installs the proxy as the var-dumper default handler, so `VarDumper::dump()` and the
+ * `yiisoft/var-dumper` helpers `d()`, `dump()`, and `dd()` pass through it while the application output stays exactly
+ * what the decorated handler produces. When `symfony/var-dumper` is loaded first, as Codeception and PsySH do, its own
+ * global `dump()` and `dd()` are defined instead and never reach this proxy.
  *
  * @phpstan-import-type TraceFrame from \PHPForge\Debug\Panel\Log\LogSnapshot
  */
@@ -38,8 +39,9 @@ final readonly class DumpHandlerProxy implements HandlerInterface
     /**
      * Records the dump with its call site, then forwards it to the decorated handler.
      *
-     * Recording comes first, so a dump stays captured when the decorated handler throws or `dd()` ends the script
-     * right after the output.
+     * Recording comes first, so the dump is already in the collector when the decorated handler throws, or when `dd()`
+     * ends the script right after the output and {@see \Yii3\Debug\Capture\DeferredCapture} writes the capture
+     * armed for the request at shutdown.
      *
      * @param mixed $variable Dumped value.
      * @param int $depth Maximum nesting depth requested by the caller.

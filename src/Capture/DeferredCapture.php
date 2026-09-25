@@ -15,9 +15,19 @@ use function register_shutdown_function;
  * response body, log and profiler flushes, and the events dispatched around emission. Deferring the finalizer to
  * `Yiisoft\Yii\Http\Event\ApplicationShutdown` keeps those in the snapshot, and the registered PHP shutdown fallback
  * still writes it when the application never dispatches that event.
+ *
+ * While the request handler runs, {@see arm()} keeps a second, separate fallback for the capture in progress, so a
+ * script that ends inside the handler, through `exit`, `dd()`, or a fatal error, still writes it, as the Yii2 logger
+ * flush does at shutdown.
  */
 final class DeferredCapture
 {
+    /**
+     * Fallback writing the capture of the request still being handled, or `null` when none is armed.
+     *
+     * @var (Closure(): void)|null
+     */
+    private Closure|null $fallback = null;
     /**
      * Finalizer waiting to run, or `null` when nothing is pending.
      *
@@ -45,6 +55,21 @@ final class DeferredCapture
     }
 
     /**
+     * Stores the fallback that writes the capture in progress when the script ends before the request handler returns.
+     *
+     * The fallback is kept apart from the pending finalizer, so a {@see defer()} or {@see finalize()} reached while the
+     * handler runs never writes the capture in progress; only the PHP shutdown fallback runs it.
+     *
+     * @param Closure(): void $fallback Finalizer writing the capture of the request being handled.
+     */
+    public function arm(Closure $fallback): void
+    {
+        $this->fallback = $fallback;
+
+        $this->register();
+    }
+
+    /**
      * Drops the pending finalizer without running it.
      */
     public function cancel(): void
@@ -63,13 +88,15 @@ final class DeferredCapture
 
         $this->finalizer = $finalizer;
 
-        if ($this->registered) {
-            return;
-        }
+        $this->register();
+    }
 
-        $this->registered = true;
-
-        ($this->shutdownRegistrar)($this->finalize(...));
+    /**
+     * Drops the fallback {@see arm()} stored, once the request handler returned or failed.
+     */
+    public function disarm(): void
+    {
+        $this->fallback = null;
     }
 
     /**
@@ -92,5 +119,37 @@ final class DeferredCapture
     public function isPending(): bool
     {
         return $this->finalizer !== null;
+    }
+
+    /**
+     * Hands the PHP shutdown fallback to the registrar the first time a capture is armed or deferred.
+     */
+    private function register(): void
+    {
+        if ($this->registered) {
+            return;
+        }
+
+        $this->registered = true;
+
+        ($this->shutdownRegistrar)($this->shutdown(...));
+    }
+
+    /**
+     * Writes the capture the script left behind: the armed one first, then the pending one.
+     *
+     * Each is cleared before it runs, so neither can run twice.
+     */
+    private function shutdown(): void
+    {
+        $fallback = $this->fallback;
+
+        $this->fallback = null;
+
+        if ($fallback !== null) {
+            $fallback();
+        }
+
+        $this->finalize();
     }
 }
