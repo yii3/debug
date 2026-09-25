@@ -28,6 +28,27 @@ enum Message: string
     case BUILT_IN_PANEL_UNKNOWN = 'Debug panel "%s" is not built in. Built-in panels: %s.';
 
     /**
+     * Indicates that the directory holding the captured `.eml` files could not be created or given its mode.
+     *
+     * Format: "Unable to create captured mail directory: %s"
+     */
+    case CAPTURED_MAIL_DIRECTORY_CREATE_FAILED = 'Unable to create captured mail directory: %s';
+
+    /**
+     * Indicates that a captured message could not be converted to the email the Symfony adapter sends.
+     *
+     * Format: "Unable to convert captured mail to a Symfony email: %s"
+     */
+    case CAPTURED_MAIL_EMAIL_CONVERSION_FAILED = 'Unable to convert captured mail to a Symfony email: %s';
+
+    /**
+     * Indicates that a captured message could not be written as an `.eml` file or given its mode.
+     *
+     * Format: "Unable to persist captured mail file: %s"
+     */
+    case CAPTURED_MAIL_FILE_PERSIST_FAILED = 'Unable to persist captured mail file: %s';
+
+    /**
      * Indicates that a collector registration key does not match the ID the collector declares.
      *
      * Format: "Debug collector registered as \"%s\" must match its ID \"%s\"."

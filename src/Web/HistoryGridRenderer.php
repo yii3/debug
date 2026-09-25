@@ -40,6 +40,7 @@ final class HistoryGridRenderer
         'peakMemory' => ViewMessage::MEMORY->value,
         'ip' => ViewMessage::IP->value,
         'sqlCount' => ViewMessage::QUERY->value,
+        'mailCount' => PanelTitle::MAIL->value,
         'method' => ViewMessage::METHOD->value,
         'ajax' => 'Ajax',
         'url' => ViewMessage::URL->value,
@@ -176,6 +177,7 @@ final class HistoryGridRenderer
                 'tag' => 'yii-debug-col-id',
                 'ip' => 'yii-debug-col-ip',
                 'sqlCount' => 'yii-debug-col-num',
+                'mailCount' => 'yii-debug-col-num yii-debug-col-mail',
                 default => null,
             };
 
@@ -225,6 +227,12 @@ final class HistoryGridRenderer
                 FilterPrefix::DEBUG,
                 'sqlCount',
                 'Query count',
+                $filters,
+            ),
+            'mailCount' => FilterInput::text(
+                FilterPrefix::DEBUG,
+                'mailCount',
+                'Mail count',
                 $filters,
             ),
             'url' => FilterInput::text(
@@ -317,6 +325,7 @@ final class HistoryGridRenderer
                 $dbPanel?->isQueryCountCritical($row->sqlCount) ?? false,
                 $dbPanel?->criticalQueryThreshold() ?? 0,
             ),
+            'mailCount' => (string) $row->mailCount,
             'method' => HistoryCellRenderer::renderMethodCell($row),
             'ajax' => HistoryCellRenderer::renderAjaxCell($row),
             'url' => HistoryCellRenderer::renderUrlCell($row),
@@ -430,6 +439,7 @@ final class HistoryGridRenderer
             'peakMemory' => $row->peakMemory,
             'ip' => $row->ip,
             'sqlCount' => $row->sqlCount,
+            'mailCount' => $row->mailCount,
             'method' => $row->method,
             'ajax' => $row->ajax,
             'url' => $row->url,

@@ -35,6 +35,10 @@ final class BuiltInPanelsTest extends TestCase
             'The Database panel must be built-in.',
         );
         self::assertTrue(
+            BuiltInPanels::isBuiltIn('mail'),
+            'The Mail panel must be built-in.',
+        );
+        self::assertTrue(
             BuiltInPanels::isBuiltIn('asset'),
             'The Asset Bundles panel must be built-in.',
         );

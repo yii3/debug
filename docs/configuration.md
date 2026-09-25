@@ -10,6 +10,7 @@ return [
         'routePrefix' => '/debug',
         'storage' => [
             'path' => '@runtime/debug',
+            'mailPath' => '@runtime/debug/mail',
         ],
         'toolbar' => [
             'position' => 'bottom',
@@ -18,9 +19,10 @@ return [
 ];
 ```
 
-These are the defaults: local access only, up to 50 retained requests, and captures stored under `@runtime/debug`.
-Changing `routePrefix` also changes the History URL, which `Yii3\Debug\Middleware\DebugRouteMiddleware` serves
-directly. The storage path accepts a registered Yii alias.
+These are the defaults: local access only, up to 50 retained requests, captures stored under `@runtime/debug`, and the
+`.eml` files of captured mail under `@runtime/debug/mail`. Changing `routePrefix` also changes the History URL, which
+`Yii3\Debug\Middleware\DebugRouteMiddleware` serves directly. Both storage paths accept a registered Yii alias and
+share `storage.dirMode` and `storage.fileMode`.
 
 `Yii3\Debug\Middleware\ToolbarOptions::fromParams()` reads `routePrefix`, `historySize`,
 `database.excessiveCallerThreshold`, and the `toolbar` block once, and the container hands the same instance to both
@@ -85,8 +87,8 @@ return [
   a panel rendering its own presentation is rejected explicitly.
 - `icon` is a Debug Core icon key matching `[a-z0-9][a-z0-9-]*`. An unknown key renders no icon.
 - `position` orders the `Extensions` group ascending; entries without one follow, sorted by effective title and then
-  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Assets) and
-  reject `position`.
+  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, Assets)
+  and reject `position`.
 
 An extension appears in the sidebar only when the selected request contains its data. Vite's **Production** label
 means it is inspecting built assets in your development application, not that the debugger can run in production.
@@ -307,6 +309,14 @@ needed.
   what it resolves to.
 - `Yiisoft\Db\Connection\ConnectionInterface` receives the application logger and the debugger profiler from the
   `bootstrap` group. A connection no PDO driver backs, or an application without a connection, is left untouched.
+
+- `Yiisoft\Mailer\Event\AfterSend` reaches `Yii3\Debug\Collector\MailCollector` from the `events-web` group when
+  `yiisoft/mailer` is installed; without it the Mail collector is not registered and the Mail panel never appears. The
+  mailer dispatches the event only when it receives the application `Psr\EventDispatcher\EventDispatcherInterface`,
+  which the `yiisoft/mailer-symfony` definition gets through autowiring. With that adapter installed, the body, headers,
+  and stored file come from the Symfony email it sends, as in the Yii2 debugger. Each message is stored under
+  `storage.mailPath`, downloaded from `{routePrefix}/download-mail?file=<name>`, and deleted when its capture leaves the
+  history.
 
 Both groups must belong to the provider and bootstrap groups the application runner loads, and the decorations are
 idempotent, so an application wiring the connection itself keeps working.

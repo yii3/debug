@@ -15,6 +15,7 @@ use Yii3\Debug\Exception\Message;
 use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Panel\{
     BuiltInPanels,
+    CaptureToolbarProviderInterface,
     ExtensionPanelInterface,
     LogPanel,
     PanelContent,
@@ -288,7 +289,9 @@ final class ToolbarDataFactory
             }
 
             try {
-                $items = $panel->toolbarItems($snapshot->panels[$id]);
+                $items = $panel instanceof CaptureToolbarProviderInterface
+                    ? $panel->toolbarItemsForCapture($tag, $snapshot->panels[$id])
+                    : $panel->toolbarItems($snapshot->panels[$id]);
 
                 self::assertToolbarItems($id, $items);
 

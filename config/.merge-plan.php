@@ -15,6 +15,9 @@ return [
             'yiisoft/yii-dataview' => [
                 'config/di.php',
             ],
+            'yiisoft/mailer-symfony' => [
+                'config/di.php',
+            ],
             'yiisoft/router-fastroute' => [
                 'config/di.php',
             ],
@@ -36,6 +39,9 @@ return [
             'yiisoft/validator' => [
                 'config/di.php',
             ],
+            'yiisoft/mailer' => [
+                'config/di.php',
+            ],
             'yiisoft/translator' => [
                 'config/di.php',
             ],
@@ -51,6 +57,9 @@ return [
                 'config/params.php',
             ],
             'yiisoft/yii-dataview' => [
+                'config/params.php',
+            ],
+            'yiisoft/mailer-symfony' => [
                 'config/params.php',
             ],
             'yiisoft/router-fastroute' => [
@@ -72,6 +81,9 @@ return [
                 'config/params.php',
             ],
             'yiisoft/widget' => [
+                'config/params.php',
+            ],
+            'yiisoft/mailer' => [
                 'config/params.php',
             ],
             'yiisoft/translator' => [

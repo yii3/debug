@@ -1441,6 +1441,7 @@ final class DebugPageRendererTest extends TestCase
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=processingTime">Duration</a></th>
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=peakMemory">Memory</a></th>
             <th scope="col" class="yii-debug-col-ip"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ip">IP</a></th>
+            <th scope="col" class="yii-debug-col-num yii-debug-col-mail"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=mailCount">Mail</a></th>
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=method">Method</a></th>
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ajax">Ajax</a></th>
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=url">URL</a></th>
@@ -1452,6 +1453,7 @@ final class DebugPageRendererTest extends TestCase
             <td></td>
             <td></td>
             <td class="yii-debug-col-ip"><input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP"></td>
+            <td class="yii-debug-col-num yii-debug-col-mail"><input class="yii-debug-input" name="Debug[mailCount]" type="text" aria-label="Filter by Mail count"></td>
             <td><select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
             <option>
             </option>
@@ -1501,6 +1503,7 @@ final class DebugPageRendererTest extends TestCase
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">15 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">2.000 MB</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td class="yii-debug-col-ip">127.0.0.1</td>
+            <td class="yii-debug-col-num yii-debug-col-mail">0</td>
             <td><span class="yii-debug-method yii-debug-verb-post">POST</span></td>
             <td>Yes</td>
             <td><span class="yii-debug-url-cell" title="https://example.test/missing">https://example.test/missing</span></td>
@@ -1671,6 +1674,7 @@ final class DebugPageRendererTest extends TestCase
             <th scope="col"><a href="/debug?sort=processingTime">Duration</a></th>
             <th scope="col"><a href="/debug?sort=peakMemory">Memory</a></th>
             <th scope="col" class="yii-debug-col-ip"><a href="/debug?sort=ip">IP</a></th>
+            <th scope="col" class="yii-debug-col-num yii-debug-col-mail"><a href="/debug?sort=mailCount">Mail</a></th>
             <th scope="col"><a href="/debug?sort=method">Method</a></th>
             <th scope="col"><a href="/debug?sort=ajax">Ajax</a></th>
             <th scope="col"><a href="/debug?sort=url">URL</a></th>
@@ -1682,6 +1686,7 @@ final class DebugPageRendererTest extends TestCase
             <td></td>
             <td></td>
             <td class="yii-debug-col-ip"><input class="yii-debug-input" name="Debug[ip]" type="text" aria-label="Filter by IP"></td>
+            <td class="yii-debug-col-num yii-debug-col-mail"><input class="yii-debug-input" name="Debug[mailCount]" type="text" aria-label="Filter by Mail count"></td>
             <td><select class="yii-debug-select" name="Debug[method]" aria-label="Filter by Method">
             <option selected>
             </option>
@@ -1731,6 +1736,7 @@ final class DebugPageRendererTest extends TestCase
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 60%;'><span class="yii-debug-gauge-value">9 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 54.613%;'><span class="yii-debug-gauge-value">1.092 MB</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td class="yii-debug-col-ip">127.0.0.1</td>
+            <td class="yii-debug-col-num yii-debug-col-mail">0</td>
             <td><span class="yii-debug-method yii-debug-verb-get">GET</span></td>
             <td>No</td>
             <td><span class="yii-debug-url-cell" title="https://example.test/?page=2">https://example.test/?page=2</span></td>
@@ -1742,6 +1748,7 @@ final class DebugPageRendererTest extends TestCase
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">15 ms</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td><span class="yii-debug-gauge" style='--yii-debug-gauge: 100%;'><span class="yii-debug-gauge-value">2.000 MB</span><span class="yii-debug-gauge-bar" aria-hidden="true"></span></span></td>
             <td class="yii-debug-col-ip">127.0.0.1</td>
+            <td class="yii-debug-col-num yii-debug-col-mail">0</td>
             <td><span class="yii-debug-method yii-debug-verb-post">POST</span></td>
             <td>Yes</td>
             <td><span class="yii-debug-url-cell" title="https://example.test/missing">https://example.test/missing</span></td>

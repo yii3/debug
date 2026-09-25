@@ -6,6 +6,7 @@ namespace Yii3\Debug\Tests\Panel;
 
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\Trace;
+use PHPForge\Debug\Storage\SnapshotStore;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\Panel\{
@@ -16,12 +17,14 @@ use Yii3\Debug\Panel\{
     EventPanel,
     ExtensionPanelInterface,
     LogPanel,
+    MailPanel,
     ProfilingPanel,
     RequestPanel,
 };
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 use function array_map;
+use function sys_get_temp_dir;
 
 /**
  * Unit tests for {@see BuiltInPanelList} ordering the built-in panels from {@see BuiltInPanels::IDS} alone.
@@ -34,6 +37,7 @@ final class BuiltInPanelListTest extends TestCase
             [
                 'asset' => new AssetPanel(),
                 'db' => new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()),
+                'mail' => self::mailPanel(),
                 'profiling' => new ProfilingPanel(),
                 'event' => new EventPanel(),
                 'log' => new LogPanel(Trace::create()),
@@ -80,10 +84,15 @@ final class BuiltInPanelListTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            'Debug panel "mail" is not built in. Built-in panels: request, log, event, profiling, db, asset.',
+            'Debug panel "queue" is not built in. Built-in panels: request, log, event, profiling, db, mail, asset.',
         );
 
-        BuiltInPanelList::fromMap([...self::panelsById(), 'mail' => new RequestPanel()]);
+        BuiltInPanelList::fromMap([...self::panelsById(), 'queue' => new RequestPanel()]);
+    }
+
+    private static function mailPanel(): MailPanel
+    {
+        return new MailPanel(new SnapshotStore(sys_get_temp_dir() . '/yii3-debug-built-in-list', 0o700, 0o600));
     }
 
     /**
@@ -97,6 +106,7 @@ final class BuiltInPanelListTest extends TestCase
             'event' => new EventPanel(),
             'profiling' => new ProfilingPanel(),
             'db' => new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()),
+            'mail' => self::mailPanel(),
             'asset' => new AssetPanel(),
         ];
     }
