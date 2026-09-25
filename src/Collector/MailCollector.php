@@ -9,7 +9,6 @@ use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Panel\Mail\MailSnapshot;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Mime\Email;
-use Symfony\Component\Mime\Exception\LogicException;
 use Symfony\Component\Mime\Part\TextPart;
 use Throwable;
 use Yii3\Debug\Exception\Message;
@@ -128,7 +127,7 @@ final class MailCollector implements CollectorInterface
 
             try {
                 $file = $this->files->write($email->toString());
-            } catch (LogicException) {
+            } catch (Throwable) {
                 $file = $this->files->write((string) $message);
             }
         }
