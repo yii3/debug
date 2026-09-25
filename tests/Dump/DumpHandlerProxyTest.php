@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Dump;
 
 use PHPForge\Debug\Storage\Json;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Collector\DumpCollector;
@@ -29,6 +30,7 @@ final class DumpHandlerProxyTest extends TestCase
     private HandlerInterface|null $originalHandler = null;
     private string $root = '';
 
+    #[RequiresOperatingSystemFamily('Linux')]
     public function testCallSiteFileIsMadeValidUtf8(): void
     {
         $this->root = TemporaryDirectory::create('yii3-debug-dump-');
