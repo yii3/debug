@@ -8,7 +8,15 @@ use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use stdClass;
-use Yii3\Debug\Action\{CompareAction, ConfigAction, DbExplainAction, HistoryAction, PhpInfoAction, ToolbarDataAction};
+use Yii3\Debug\Action\{
+    CompareAction,
+    ConfigAction,
+    DbExplainAction,
+    DownloadMailAction,
+    HistoryAction,
+    PhpInfoAction,
+    ToolbarDataAction,
+};
 use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Tests\Provider\DebugRequestHandlerProvider;
 use Yii3\Debug\Tests\Support\HelperFactory;
@@ -197,6 +205,7 @@ final class DebugRequestHandlerTest extends TestCase
                     CompareAction::class => new DebugActionStub('compare'),
                     ConfigAction::class => new DebugActionStub('config'),
                     DbExplainAction::class => new DebugActionStub('db-explain'),
+                    DownloadMailAction::class => new DebugActionStub('download-mail'),
                     HistoryAction::class => new DebugActionStub('history'),
                     PhpInfoAction::class => new DebugActionStub('php-info'),
                     ToolbarDataAction::class => new DebugActionStub('toolbar'),

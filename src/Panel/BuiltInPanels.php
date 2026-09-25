@@ -23,6 +23,7 @@ final class BuiltInPanels
         'event',
         'profiling',
         'db',
+        'mail',
         'asset',
     ];
 

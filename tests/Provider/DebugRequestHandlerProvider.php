@@ -20,6 +20,7 @@ final class DebugRequestHandlerProvider
         yield 'history with query' => ['/debug?page=2', 'history'];
         yield 'history with trailing slash' => ['/debug/', 'history'];
         yield 'history' => ['/debug', 'history'];
+        yield 'mail download' => ['/debug/download-mail', 'download-mail'];
         yield 'php info' => ['/debug/php-info', 'php-info'];
         yield 'toolbar data' => ['/debug/toolbar', 'toolbar'];
     }

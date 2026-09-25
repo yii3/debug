@@ -14,10 +14,11 @@ use Psr\Http\Message\{ResponseInterface, ServerRequestInterface, StreamFactoryIn
 use Psr\Http\Server\{MiddlewareInterface, RequestHandlerInterface};
 use Throwable;
 use Yii3\Debug\Capture\DeferredCapture;
-use Yii3\Debug\Collector\{ProfilingCollector, RequestObserverInterface};
+use Yii3\Debug\Collector\{MailCollector, ProfilingCollector, RequestObserverInterface};
 use Yii3\Debug\Web\ToolbarRenderer;
 use Yiisoft\NetworkUtilities\{IpHelper, IpRanges};
 
+use function count;
 use function is_float;
 use function is_int;
 use function is_string;
@@ -196,10 +197,22 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
     /**
      * Captures every collector into the summary and writes the snapshot to the store.
      *
+     * The summary records the `.eml` files the Mail collector stored, so the History grid counts them and a capture
+     * rotated out of the history, or one that failed to commit, takes its files along, as the Yii2 log target does.
+     *
      * @param RequestSummary $summary Metadata the capture is written for.
+     *
+     * @throws Throwable when the snapshot cannot be written.
      */
     private function finalizeCapture(RequestSummary $summary): void
     {
+        $mailCollector = $this->collectorCoordinator?->collector('mail');
+
+        if ($mailCollector instanceof MailCollector) {
+            $mailFiles = $mailCollector->mailFiles();
+            $summary = $summary->withMail(count($mailFiles), $mailFiles);
+        }
+
         $snapshot = $this->collectorCoordinator?->capture($summary) ?? new DebugSnapshot($summary, [], []);
 
         if (isset($snapshot->panels['db'])) {
@@ -214,7 +227,31 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
             );
         }
 
-        $this->store->writeSnapshot($snapshot, $this->options->historySize);
+        try {
+            $result = $this->store->writeSnapshotResult($snapshot, $this->options->historySize);
+        } catch (Throwable $failure) {
+            if ($mailCollector instanceof MailCollector) {
+                $mailCollector->removeFiles($snapshot->summary->mailFiles);
+            }
+
+            throw $failure;
+        }
+
+        if ($mailCollector instanceof MailCollector) {
+            $referencedFiles = [];
+
+            foreach ($result->removed as $removed) {
+                $mailCollector->removeFiles($removed->mailFiles);
+            }
+
+            foreach ($result->entries as $entry) {
+                foreach ($entry->mailFiles as $file) {
+                    $referencedFiles[] = $file;
+                }
+            }
+
+            $mailCollector->reconcileFiles($referencedFiles);
+        }
     }
 
     /**

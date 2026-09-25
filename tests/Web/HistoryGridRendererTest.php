@@ -34,7 +34,7 @@ final class HistoryGridRendererTest extends TestCase
         preg_match_all('/aria-label="Filter by ([^"]+)"/', $html, $matches);
 
         self::assertSame(
-            ['ID', 'IP', 'Method', 'AJAX', 'URL'],
+            ['ID', 'IP', 'Mail count', 'Method', 'AJAX', 'URL'],
             $matches[1],
             'Every History filter must expose an accessible name.',
         );
@@ -52,6 +52,55 @@ final class HistoryGridRendererTest extends TestCase
             '/<a[^>]*aria-label="Page 2"[^>]*aria-current="page"/',
             $html,
             'The second page must be announced as current.',
+        );
+    }
+
+    public function testMailColumnCountsStoredMessagesAndFiltersAndSortsTheCapturedRequests(): void
+    {
+        $summaries = [
+            'none' => RequestSummary::create('none')
+                ->withRequest('/none', 'GET', '', 3.0),
+            'two' => RequestSummary::create('two')
+                ->withRequest('/two', 'POST', '', 2.0)
+                ->withMail(2, ['first.eml', 'second.eml']),
+            'one' => RequestSummary::create('one')
+                ->withRequest('/one', 'POST', '', 1.0)
+                ->withMail(1, ['only.eml']),
+        ];
+
+        $html = HistoryGridRenderer::render($summaries, ['per-page' => 'all'], '/debug');
+
+        self::assertStringContainsString(
+            '<th scope="col" class="yii-debug-col-num yii-debug-col-mail">'
+            . '<a href="/debug?per-page=all&amp;sort=mailCount">Mail</a></th>',
+            $html,
+            'Header must be sortable and styled like the Yii2 column.',
+        );
+        self::assertStringContainsString(
+            '<td class="yii-debug-col-num yii-debug-col-mail">2</td>',
+            $html,
+            'Cell must show the stored message count.',
+        );
+        self::assertStringContainsString(
+            'name="Debug[mailCount]" type="text" aria-label="Filter by Mail count"',
+            $html,
+            'Column must expose a named filter.',
+        );
+        self::assertSame(
+            ['two', 'one'],
+            self::tags(
+                HistoryGridRenderer::render(
+                    $summaries,
+                    ['per-page' => 'all', 'Debug' => ['mailCount' => '>0']],
+                    '/debug',
+                ),
+            ),
+            'A numeric comparison must narrow the captures.',
+        );
+        self::assertSame(
+            ['none', 'one', 'two'],
+            self::tags(HistoryGridRenderer::render($summaries, ['per-page' => 'all', 'sort' => 'mailCount'], '/debug')),
+            'Ascending order must lead with the lower count.',
         );
     }
 

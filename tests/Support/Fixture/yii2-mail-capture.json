@@ -1,0 +1,35 @@
+{
+    "summary": {
+        "tag": "304584fd5c1f45e7ce47b1804f702cc0",
+        "url": "http://localhost:8080/index.php?r=site%2Fcontact",
+        "method": "POST",
+        "mailCount": 1,
+        "mailFiles": [
+            "20260922-195548-9776-4473.eml"
+        ]
+    },
+    "panels": {
+        "mail": {
+            "entries": [
+                {
+                    "from": "noreply@example.com",
+                    "to": [
+                        "admin@example.com"
+                    ],
+                    "cc": [],
+                    "bcc": [],
+                    "replyTo": [
+                        "phase1@example.com"
+                    ],
+                    "subject": "Mail chip check",
+                    "body": "Checking the toolbar mail chip.",
+                    "headers": "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n",
+                    "charset": "text/plain charset: utf-8",
+                    "file": "20260922-195548-9776-4473.eml",
+                    "isSuccessful": true,
+                    "time": null
+                }
+            ]
+        }
+    }
+}

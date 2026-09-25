@@ -27,6 +27,7 @@ return [
             'path' => '@runtime/debug',
             'dirMode' => 0o700,
             'fileMode' => 0o600,
+            'mailPath' => '@runtime/debug/mail',
         ],
         'viewPath' => '@yii3DebugViews',
         'toolbar' => [

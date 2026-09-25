@@ -12,7 +12,7 @@ use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\{Panel, PanelView};
-use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
+use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary, SnapshotStore};
 use PHPForge\Debug\Toolbar\ToolbarItem;
 use PHPForge\Inertia\Debug\InertiaPanel;
 use PHPForge\Vite\Debug\VitePanel;
@@ -27,11 +27,13 @@ use Yii3\Debug\Panel\{
     EventPanel,
     ExtensionPanelInterface,
     LogPanel,
+    MailPanel,
     ProfilingPanel,
     ProviderPanel,
     RequestPanel,
     ToolbarPanelProviderInterface,
 };
+use Yii3\Debug\Tests\Support\TemporaryDirectory;
 use Yii3\Debug\ToolbarDataFactory;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -839,6 +841,54 @@ final class ToolbarDataFactoryTest extends TestCase
                 $payload['items'],
             ),
             'Built-in chips must lead regardless of registration.',
+        );
+    }
+
+    public function testCreateForSnapshotPointsTheMailChipAtThePostThatSentTheMail(): void
+    {
+        $root = TemporaryDirectory::create('yii3-debug-toolbar-mail-');
+
+        try {
+            $store = new SnapshotStore($root, 0o700, 0o600);
+
+            foreach ([['post', 'POST', 1], ['get', 'GET', 0]] as [$tag, $method, $mailCount]) {
+                $store->writeSnapshot(
+                    new DebugSnapshot(
+                        RequestSummary::create($tag)
+                            ->withRequest('http://localhost/contact', $method, '127.0.0.1', 1_700_000_000.0, false)
+                            ->withMail($mailCount, []),
+                        [],
+                        [],
+                    ),
+                    50,
+                );
+            }
+
+            $payload = (new ToolbarDataFactory($this->assetManager()))
+                ->withExtensionPanels([new MailPanel($store)])
+                ->createForSnapshot(new DebugSnapshot(RequestSummary::create('get'), ['mail' => ['entries' => []]], []))
+                ->jsonSerialize();
+        } finally {
+            TemporaryDirectory::remove($root);
+        }
+
+        self::assertSame(
+            [
+                'id' => 'mail',
+                'title' => 'Mail',
+                'url' => '/debug/view?tag=post&panel=mail',
+                'icon' => 'mail',
+                'items' => [
+                    [
+                        'value' => '1',
+                        'status' => 'cross-request',
+                        'title' => 'Sent in the previous request (POST /contact) — open it.',
+                        'url' => '/debug/view?tag=post&panel=mail',
+                    ],
+                ],
+            ],
+            $payload['items'][0] ?? null,
+            'Chip must match the Yii2 cross-request payload.',
         );
     }
 

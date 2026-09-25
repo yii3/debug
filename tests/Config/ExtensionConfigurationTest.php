@@ -12,11 +12,13 @@ use PHPForge\Inertia\{PageInput, Protocol, RequestContext};
 use PHPForge\Vite\Debug\{ViteCollector, VitePanel};
 use PHPUnit\Framework\TestCase;
 use Throwable;
+use Yii3\Debug\Collector\MailCollector;
 use Yii3\Debug\ExtensionRegistry;
 use Yii3\Debug\Panel\{ExtensionPanelInterface, ProviderPanel};
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Tests\Support\PackageConfiguration;
 use Yii3\Debug\Tests\Support\Stubs\Cache\{Cache, CacheCollector, CachePanel};
+use Yiisoft\Mailer\Event\AfterSend;
 
 use function array_keys;
 use function array_map;
@@ -217,15 +219,21 @@ final class ExtensionConfigurationTest extends TestCase
         );
     }
 
-    public function testPackagedEventsConfigurationDeclaresOnlyTheShutdownListener(): void
+    public function testPackagedEventsConfigurationDeclaresOnlyBuiltInListeners(): void
     {
         $listeners = PackageConfiguration::events(PackageConfiguration::params());
 
         // yiisoft/yii-http is not a dependency of this package; the packaged configuration only names the class.
+        // yiisoft/mailer is installed for the suite, so the built-in Mail listener is packaged too.
         self::assertSame(
-            ['Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown'],
+            ['Yiisoft\\Yii\\Http\\Event\\ApplicationShutdown', AfterSend::class],
             array_keys($listeners),
             'No provider listener may be packaged.',
+        );
+        self::assertSame(
+            [[MailCollector::class, 'collect']],
+            $listeners[AfterSend::class] ?? null,
+            'Sent mail must reach the Mail collector.',
         );
     }
 

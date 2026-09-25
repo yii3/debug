@@ -1,6 +1,10 @@
 {
     "symbol-whitelist": [
-        "ctype_digit"
+        "ctype_digit",
+        "Symfony\\Component\\Mime\\Exception\\LogicException",
+        "Symfony\\Component\\Mime\\Part\\TextPart",
+        "Yiisoft\\Mailer\\Event\\AfterSend",
+        "Yiisoft\\Mailer\\MessageInterface"
     ],
     "php-core-extensions": [
         "Core",

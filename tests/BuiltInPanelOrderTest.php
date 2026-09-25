@@ -8,9 +8,10 @@ use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Panel\Asset\{AssetBundleRow, AssetSnapshot};
 use PHPForge\Debug\Panel\Event\{EventRow, EventSnapshot};
 use PHPForge\Debug\Panel\Log\LogSnapshot;
+use PHPForge\Debug\Panel\Mail\MailSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
-use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
+use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\{ConfigDataFactory, ExtensionRegistry, ToolbarDataFactory};
@@ -22,6 +23,7 @@ use Yii3\Debug\Panel\{
     DbPanel,
     EventPanel,
     LogPanel,
+    MailPanel,
     ProfilingPanel,
     RequestPanel,
 };
@@ -53,6 +55,7 @@ final class BuiltInPanelOrderTest extends TestCase
                 'db' => new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()),
                 'event' => new EventPanel(),
                 'log' => new LogPanel(Trace::create()),
+                'mail' => new MailPanel(new SnapshotStore(self::aliases()->get('@assets'), 0o700, 0o600)),
                 'profiling' => new ProfilingPanel(),
                 'request' => new RequestPanel(),
             ],
@@ -175,6 +178,9 @@ final class BuiltInPanelOrderTest extends TestCase
                     )
                 )->jsonSerialize(),
                 'log' => LogSnapshot::capture([['request started', 4, 'application', 1.0, [], 1024]])->jsonSerialize(),
+                'mail' => MailSnapshot::capture(
+                    [['from' => 'a@example.com', 'to' => 'b@example.com']],
+                )->jsonSerialize(),
                 'profiling' => (new ProfilingSnapshot(2_097_152, 0.25, [], []))->jsonSerialize(),
                 'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
             ],
