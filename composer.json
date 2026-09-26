@@ -21,7 +21,7 @@
     "require": {
         "php": ">=8.3",
         "composer-runtime-api": "^2.2",
-        "php-forge/debug": "^0.3",
+        "php-forge/debug": "^0.4",
         "php-forge/debug-core": "^0.1@dev",
         "psr/container": "^2.0",
         "psr/event-dispatcher": "^1.0",
