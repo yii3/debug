@@ -87,8 +87,8 @@ return [
   a panel rendering its own presentation is rejected explicitly.
 - `icon` is a Debug Core icon key matching `[a-z0-9][a-z0-9-]*`. An unknown key renders no icon.
 - `position` orders the `Extensions` group ascending; entries without one follow, sorted by effective title and then
-  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, Dump,
-  Assets) and reject `position`.
+  by ID. Built-in panels keep their fixed order (History, Request, Logs, Events, Profiling, Database, Mail, User,
+  Dump, Assets) and reject `position`.
 
 An extension appears in the sidebar only when the selected request contains its data. Vite's **Production** label
 means it is inspecting built assets in your development application, not that the debugger can run in production.
@@ -324,6 +324,15 @@ needed.
   and stored file come from the Symfony email it sends, as in the Yii2 debugger. Each message is stored under
   `storage.mailPath`, downloaded from `{routePrefix}/download-mail?file=<name>`, and deleted when its capture leaves the
   history.
+- `Yiisoft\User\CurrentUser` is read by `Yii3\Debug\Collector\UserCollector` when `yiisoft/user` is installed; without
+  it the User collector is not registered and the User panel never appears, and a container that defines no current
+  user records nothing. The identity is read when the response leaves the application, before the session closes. A
+  guest request shows the panel empty state and a `Guest` toolbar metric; a signed-in one shows the user ID, as in the
+  Yii2 debugger. Identity keys the capture policy lists (such as `password_hash` and `auth_key`) are stored redacted,
+  also inside nested arrays and objects. A failure while reading the identity never breaks the request; it is recorded
+  as a User panel failure instead. When the container defines `Yiisoft\Rbac\ManagerInterface` (`yiisoft/rbac`), the
+  roles and permissions assigned to the user are listed too; a manager that fails is ignored, so the identity stays
+  inspectable.
 - The `yiisoft/var-dumper` default handler is decorated by `Yii3\Debug\Collector\DumpCollector` while a request is
   captured, so `VarDumper::dump()` and the `d()`, `dump()`, and `dd()` helpers keep printing through the handler the
   application set, and each value also appears in the Dump panel with the file and line that dumped it. The previous
@@ -333,6 +342,25 @@ needed.
 
 Both groups must belong to the provider and bootstrap groups the application runner loads, and the decorations are
 idempotent, so an application wiring the connection itself keeps working.
+
+The User panel reads the identity attributes from `toArray()`, then `jsonSerialize()` when it returns an array, then
+the public properties. An identity that wraps an entity exposes none of its own, so give the collector a reader in
+`user.identityData`:
+
+```php
+use App\Identity\UserIdentity;
+
+return [
+    'yii3/debug' => [
+        'user' => [
+            'identityData' => static fn(UserIdentity $identity): array => [
+                'id' => $identity->getId(),
+                ...get_object_vars($identity->user),
+            ],
+        ],
+    ],
+];
+```
 
 Database capture still requires a Yii DB 2 driver. EXPLAIN supports MySQL, SQLite, and PostgreSQL and requires the
 application's `Yiisoft\Db\Connection\ConnectionInterface` binding to match the captured queries. Leave EXPLAIN

@@ -37,6 +37,9 @@ return [
         ],
         'traceLine' => null,
         'tracePathMappings' => [],
+        'user' => [
+            'identityData' => null,
+        ],
     ],
     'yiisoft/aliases' => [
         'aliases' => [

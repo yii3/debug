@@ -18,6 +18,9 @@ return [
             'yiisoft/mailer-symfony' => [
                 'config/di.php',
             ],
+            'yiisoft/rbac' => [
+                'config/di.php',
+            ],
             'yiisoft/router-fastroute' => [
                 'config/di.php',
             ],
@@ -65,6 +68,9 @@ return [
             'yiisoft/router-fastroute' => [
                 'config/params.php',
             ],
+            'yiisoft/user' => [
+                'config/params.php',
+            ],
             'yiisoft/aliases' => [
                 'config/params.php',
             ],
@@ -84,6 +90,12 @@ return [
                 'config/params.php',
             ],
             'yiisoft/mailer' => [
+                'config/params.php',
+            ],
+            'yiisoft/auth' => [
+                'config/params.php',
+            ],
+            'yiisoft/session' => [
                 'config/params.php',
             ],
             'yiisoft/translator' => [
@@ -121,7 +133,13 @@ return [
             'yiisoft/router-fastroute' => [
                 'config/di-web.php',
             ],
+            'yiisoft/user' => [
+                'config/di-web.php',
+            ],
             'yiisoft/view' => [
+                'config/di-web.php',
+            ],
+            'yiisoft/session' => [
                 'config/di-web.php',
             ],
             '/' => [

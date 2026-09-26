@@ -21,6 +21,7 @@ use Yii3\Debug\Panel\{
     MailPanel,
     ProfilingPanel,
     RequestPanel,
+    UserPanel,
 };
 use Yii3\Debug\Web\DebugUrlGenerator;
 
@@ -44,6 +45,7 @@ final class BuiltInPanelListTest extends TestCase
                 'event' => new EventPanel(),
                 'log' => new LogPanel(Trace::create()),
                 'request' => new RequestPanel(),
+                'user' => new UserPanel(),
             ],
         )->panels();
 
@@ -86,7 +88,7 @@ final class BuiltInPanelListTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            'Debug panel "queue" is not built in. Built-in panels: request, log, event, profiling, db, mail, dump, asset.',
+            'Debug panel "queue" is not built in. Built-in panels: request, log, event, profiling, db, mail, user, dump, asset.',
         );
 
         BuiltInPanelList::fromMap([...self::panelsById(), 'queue' => new RequestPanel()]);
@@ -109,6 +111,7 @@ final class BuiltInPanelListTest extends TestCase
             'profiling' => new ProfilingPanel(),
             'db' => new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()),
             'mail' => self::mailPanel(),
+            'user' => new UserPanel(),
             'dump' => new DumpPanel(Trace::create()),
             'asset' => new AssetPanel(),
         ];

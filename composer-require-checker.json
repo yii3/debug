@@ -3,8 +3,12 @@
         "ctype_digit",
         "Symfony\\Component\\Mime\\Exception\\LogicException",
         "Symfony\\Component\\Mime\\Part\\TextPart",
+        "Yiisoft\\Auth\\IdentityInterface",
         "Yiisoft\\Mailer\\Event\\AfterSend",
-        "Yiisoft\\Mailer\\MessageInterface"
+        "Yiisoft\\Mailer\\MessageInterface",
+        "Yiisoft\\Rbac\\Item",
+        "Yiisoft\\Rbac\\ManagerInterface",
+        "Yiisoft\\User\\CurrentUser"
     ],
     "php-core-extensions": [
         "Core",

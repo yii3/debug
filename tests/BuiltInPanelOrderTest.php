@@ -12,6 +12,7 @@ use PHPForge\Debug\Panel\Log\LogSnapshot;
 use PHPForge\Debug\Panel\Mail\MailSnapshot;
 use PHPForge\Debug\Panel\Profile\ProfilingSnapshot;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
+use PHPForge\Debug\Panel\User\UserSnapshot;
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary, SnapshotStore};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -28,6 +29,7 @@ use Yii3\Debug\Panel\{
     MailPanel,
     ProfilingPanel,
     RequestPanel,
+    UserPanel,
 };
 use Yii3\Debug\Tests\Support\DatabaseFixture;
 use Yii3\Debug\Tests\Support\Stubs\Cache\AlphaPanel;
@@ -61,6 +63,7 @@ final class BuiltInPanelOrderTest extends TestCase
                 'mail' => new MailPanel(new SnapshotStore(self::aliases()->get('@assets'), 0o700, 0o600)),
                 'profiling' => new ProfilingPanel(),
                 'request' => new RequestPanel(),
+                'user' => new UserPanel(),
             ],
         );
         $panels = ExtensionRegistry::create(panels: [new AlphaPanel()])->panelsWithBuiltIns($builtIns->panels());
@@ -187,6 +190,7 @@ final class BuiltInPanelOrderTest extends TestCase
                 )->jsonSerialize(),
                 'profiling' => (new ProfilingSnapshot(2_097_152, 0.25, [], []))->jsonSerialize(),
                 'request' => RequestSnapshot::capture(['statusCode' => 200])->jsonSerialize(),
+                'user' => UserSnapshot::capture(['id' => null])->jsonSerialize(),
             ],
             [],
         );

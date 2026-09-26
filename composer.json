@@ -55,6 +55,8 @@
         "maglnet/composer-require-checker": "^4.1",
         "php-forge/baseline": "^0.1",
         "php-forge/coding-standard": "^0.3",
+        "php-forge/inertia": "^0.5",
+        "php-forge/vite": "^0.5",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.2 <2.2.15",
         "phpstan/phpstan-phpunit": "^2.0",
@@ -65,13 +67,15 @@
         "yiisoft/db-sqlite": "^2.0",
         "yiisoft/mailer": "^6.1",
         "yiisoft/mailer-symfony": "^4.0",
+        "yiisoft/rbac": "^2.1",
         "yiisoft/router-fastroute": "^4.0",
-        "php-forge/inertia": "^0.5@dev",
-        "php-forge/vite": "^0.5@dev"
+        "yiisoft/user": "^2.3"
     },
     "suggest": {
         "yiisoft/mailer": "Captures every sent message in the built-in Mail panel and stores it as a downloadable `.eml` file.",
         "yiisoft/mailer-symfony": "Stores each captured message as its RFC 5322 source and reads its body and headers the way the Yii2 debugger does.",
+        "yiisoft/rbac": "Lists the roles and permissions assigned to the captured identity in the built-in User panel.",
+        "yiisoft/user": "Captures the identity of the current user in the built-in User panel.",
         "php-forge/vite": "Captures resolved Vite assets in its own panel. Register its collector and panel under `yii3/debug.collectors`/`yii3/debug.panels` and route `AssetsResolved` to the collector in `events-web`; see docs/configuration.md.",
         "yii3/inertia": "Registers the Inertia collector, panel, and listener through its own configuration groups; see docs/configuration.md."
     },
