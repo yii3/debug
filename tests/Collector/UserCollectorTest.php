@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
+use stdClass;
 use Yii3\Debug\Collector\UserCollector;
 use Yii3\Debug\Tests\Support\HelperFactory;
 use Yii3\Debug\Tests\Support\Stubs\{ContainerStub, IdentityStub};
@@ -357,6 +358,33 @@ final class UserCollectorTest extends TestCase
         );
     }
 
+    public function testCaptureRedactsNestedSensitiveKeys(): void
+    {
+        $user = new stdClass();
+
+        $user->login = 'admin';
+        $user->password_hash = 'hash';
+
+        $identity = self::capture(
+            new UserCollector(
+                new ContainerStub([CurrentUser::class => self::currentUser(new IdentityStub())]),
+                identityData: static fn(IdentityInterface $identity): array => [
+                    'profile' => ['auth_key' => 'secret', 'theme' => 'dark'],
+                    'user' => $user,
+                ],
+            ),
+        )['identity'] ?? null;
+
+        self::assertSame(
+            [
+                'profile' => "[\n    'auth_key' => '[redacted]'\n    'theme' => 'dark'\n]",
+                'user' => "[\n    'login' => 'admin'\n    'password_hash' => '[redacted]'\n]",
+            ],
+            $identity,
+            'Sensitive keys must be redacted inside arrays and objects too.',
+        );
+    }
+
     public function testCaptureRedactsTheKeysOfTheConfiguredPolicy(): void
     {
         $identity = self::capture(
@@ -384,22 +412,25 @@ final class UserCollectorTest extends TestCase
 
     public function testCollectResponseIsIgnoredOutsideTheCaptureWindow(): void
     {
+        $read = false;
+
         $container = self::createStub(ContainerInterface::class);
 
         $container
             ->method('has')
-            ->willReturn(true);
-        $container
-            ->method('get')
-            ->willThrowException(new RuntimeException('Container must not be read.'));
+            ->willReturnCallback(
+                static function () use (&$read): bool {
+                    $read = true;
 
-        $collector = new UserCollector($container);
+                    return true;
+                },
+            );
 
-        $collector->collectResponse(HelperFactory::createResponse());
+        (new UserCollector($container))->collectResponse(HelperFactory::createResponse());
 
-        self::assertNull(
-            $collector->capture(),
-            'Idle collector must not read the user.',
+        self::assertFalse(
+            $read,
+            'Idle collector must not read the container.',
         );
     }
 
@@ -410,6 +441,32 @@ final class UserCollectorTest extends TestCase
             (new UserCollector(new ContainerStub()))->id(),
             'ID must pair the collector with the User panel.',
         );
+    }
+
+    public function testThrowRuntimeExceptionFromCaptureWhenTheIdentityReaderFailsForTheResponse(): void
+    {
+        $failure = new RuntimeException('Identity reader failed.');
+
+        $calls = 0;
+
+        $collector = new UserCollector(
+            new ContainerStub([CurrentUser::class => self::currentUser(new IdentityStub())]),
+            identityData: static function (IdentityInterface $identity) use (&$calls, $failure): array {
+                if (++$calls === 1) {
+                    throw $failure;
+                }
+
+                return ['retried' => 'yes'];
+            },
+        );
+
+        $collector->startup();
+
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $this->expectExceptionObject($failure);
+
+        $collector->capture();
     }
 
     /**

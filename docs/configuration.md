@@ -328,9 +328,11 @@ needed.
   it the User collector is not registered and the User panel never appears, and a container that defines no current
   user records nothing. The identity is read when the response leaves the application, before the session closes. A
   guest request shows the panel empty state and a `Guest` toolbar metric; a signed-in one shows the user ID, as in the
-  Yii2 debugger. Identity keys the capture policy lists (such as `password_hash` and `auth_key`) are stored redacted.
-  When the container defines `Yiisoft\Rbac\ManagerInterface` (`yiisoft/rbac`), the roles and permissions assigned to
-  the user are listed too; a manager that fails is ignored, so the identity stays inspectable.
+  Yii2 debugger. Identity keys the capture policy lists (such as `password_hash` and `auth_key`) are stored redacted,
+  also inside nested arrays and objects. A failure while reading the identity never breaks the request; it is recorded
+  as a User panel failure instead. When the container defines `Yiisoft\Rbac\ManagerInterface` (`yiisoft/rbac`), the
+  roles and permissions assigned to the user are listed too; a manager that fails is ignored, so the identity stays
+  inspectable.
 - The `yiisoft/var-dumper` default handler is decorated by `Yii3\Debug\Collector\DumpCollector` while a request is
   captured, so `VarDumper::dump()` and the `d()`, `dump()`, and `dd()` helpers keep printing through the handler the
   application set, and each value also appears in the Dump panel with the file and line that dumped it. The previous

@@ -35,6 +35,10 @@ use function method_exists;
 final class UserCollector implements CollectorInterface, RequestObserverInterface
 {
     /**
+     * Failure raised while the identity was read for the response, reported by the capture instead, or `null`.
+     */
+    private Throwable|null $failure = null;
+    /**
      * Payload read when the response left the application, or `null` before that.
      *
      * @var array<string, mixed>|null
@@ -47,7 +51,8 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
 
     /**
      * @param ContainerInterface $container Container resolving the current user and the optional RBAC manager.
-     * @param CapturePolicy $capturePolicy Policy naming the identity attributes stored as the redaction placeholder.
+     * @param CapturePolicy $capturePolicy Policy naming the identity attributes, at any depth, stored as the redaction
+     * placeholder.
      * @param (Closure(IdentityInterface): array<array-key, mixed>)|null $identityData Reader returning the attributes
      * of an identity the default rule cannot see, such as one wrapping an entity; `null` reads `toArray()`, then
      * `jsonSerialize()`, then the public properties.
@@ -62,9 +67,9 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
      * Encodes the identity into the User panel payload.
      *
      * A capture finalized without a response, such as one written when the application exits early, reads the identity
-     * now.
+     * now. A failure kept from the response is thrown here, so the capture records it as a panel failure.
      *
-     * @throws Throwable when the current user cannot be resolved or its identity cannot be restored.
+     * @throws Throwable when the current user cannot be resolved, or its identity cannot be restored or read.
      *
      * @return array<string, mixed>|null Encoded User panel payload; `null` when the collector never started or the
      * container defines no current user.
@@ -73,6 +78,10 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
     {
         if (!$this->started) {
             return null;
+        }
+
+        if ($this->failure !== null) {
+            throw $this->failure;
         }
 
         return $this->payload ?? $this->snapshot();
@@ -88,14 +97,20 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
     /**
      * Reads the identity before the response is sent and the session is closed.
      *
-     * @param ResponseInterface $response Response produced for the captured request.
+     * A failure never reaches the application, which already produced its response; it is kept for {@see capture()}.
      *
-     * @throws Throwable when the current user cannot be resolved or its identity cannot be restored.
+     * @param ResponseInterface $response Response produced for the captured request.
      */
     public function collectResponse(ResponseInterface $response): void
     {
-        if ($this->started) {
+        if (!$this->started) {
+            return;
+        }
+
+        try {
             $this->payload = $this->snapshot();
+        } catch (Throwable $failure) {
+            $this->failure = $failure;
         }
     }
 
@@ -110,11 +125,12 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
     }
 
     /**
-     * Stops capturing and discards the identity read for the request.
+     * Stops capturing and discards the identity, or the failure, read for the request.
      */
     public function shutdown(): void
     {
         $this->started = false;
+        $this->failure = null;
         $this->payload = null;
     }
 
@@ -127,6 +143,7 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
             return;
         }
 
+        $this->failure = null;
         $this->payload = null;
         $this->started = true;
     }
@@ -237,7 +254,7 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
 
         $identityData = [];
 
-        foreach ($this->identityData($identity) as $key => $value) {
+        foreach ($this->capturePolicy->redact($this->identityData($identity)) as $key => $value) {
             $key = (string) $key;
 
             $identityData[$key] = $this->capturePolicy->isSensitiveKey($key)
