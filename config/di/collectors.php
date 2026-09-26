@@ -14,17 +14,23 @@ use Yii3\Debug\Collector\{
     MailCollector,
     ProfilingCollector,
     RequestCollector,
+    UserCollector,
 };
 use Yii3\Debug\ExtensionRegistry;
 use Yiisoft\Mailer\Event\AfterSend;
 use Yiisoft\Mailer\MessageInterface;
 use Yiisoft\Mailer\Symfony\EmailFactory;
+use Yiisoft\User\CurrentUser;
 
 if (!(require dirname(__DIR__) . '/enabled.php')) {
     return [];
 }
 
+/** @var array<string, mixed> $params */
+$config = $params['yii3/debug'];
+
 $mailerInstalled = class_exists(AfterSend::class);
+$userInstalled = class_exists(CurrentUser::class);
 
 return [
     CollectorCoordinator::class => static fn(
@@ -46,6 +52,7 @@ return [
                 $profilingCollector,
                 $dbCollector,
                 ...($mailerInstalled ? [$container->get(MailCollector::class)] : []),
+                ...($userInstalled ? [$container->get(UserCollector::class)] : []),
                 $dumpCollector,
                 $assetCollector,
             ],
@@ -56,6 +63,11 @@ return [
             'emailFactory' => class_exists(EmailFactory::class)
                 ? static fn(MessageInterface $message): Email => (new EmailFactory())->create($message)
                 : null,
+        ],
+    ],
+    UserCollector::class => [
+        '__construct()' => [
+            'identityData' => $config['user']['identityData'],
         ],
     ],
 ];

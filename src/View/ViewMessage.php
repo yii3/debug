@@ -93,4 +93,9 @@ enum ViewMessage: string
      * Tooltip of the sidebar entry for a captured panel that no registered presenter can render.
      */
     case RAW_PANEL_TOOLTIP = 'View captured data without an installed presenter';
+
+    /**
+     * Value of the User toolbar metric for a capture where nobody was signed in, as the Yii2 host words it.
+     */
+    case USER_GUEST = 'Guest';
 }

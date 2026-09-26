@@ -1,0 +1,502 @@
+{
+    "summary": {
+        "tag": "fefff6b8d07fd299a4c659abe75e4c31",
+        "url": "http://localhost:8080/",
+        "method": "GET"
+    },
+    "panels": {
+        "user": {
+            "data": {
+                "type": "array",
+                "entries": [
+                    {
+                        "keyType": "string",
+                        "key": "id",
+                        "value": {
+                            "type": "int",
+                            "value": 1
+                        }
+                    },
+                    {
+                        "keyType": "string",
+                        "key": "identity",
+                        "value": {
+                            "type": "array",
+                            "entries": [
+                                {
+                                    "keyType": "string",
+                                    "key": "id",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "1"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "username",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "'admin'"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "auth_key",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "[redacted]"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "password_hash",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "[redacted]"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "password_reset_token",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "[redacted]"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "email",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "'admin@example.com'"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "status",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "10"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "created_at",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "1776089952"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "updated_at",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "1776089952"
+                                    }
+                                },
+                                {
+                                    "keyType": "string",
+                                    "key": "verification_token",
+                                    "value": {
+                                        "type": "string",
+                                        "value": "[redacted]"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "keyType": "string",
+                        "key": "attributes",
+                        "value": {
+                            "type": "array",
+                            "entries": [
+                                {
+                                    "keyType": "int",
+                                    "key": 0,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "id"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Id"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 1,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "username"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Username"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 2,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "auth_key"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Auth Key"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 3,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "password_hash"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Password Hash"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 4,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "password_reset_token"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Password Reset Token"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 5,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "email"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Email"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 6,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "status"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Status"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 7,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "created_at"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Created At"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 8,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "updated_at"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Updated At"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "keyType": "int",
+                                    "key": 9,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "attribute",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "verification_token"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "label",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Verification Token"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "keyType": "string",
+                        "key": "roles",
+                        "value": {
+                            "type": "array",
+                            "entries": [
+                                {
+                                    "keyType": "int",
+                                    "key": 0,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "name",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "admin"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "description",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "Administrator"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "ruleName",
+                                                "value": {
+                                                    "type": "null"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "data",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "null"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "createdAt",
+                                                "value": {
+                                                    "type": "int",
+                                                    "value": 1786124372
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "updatedAt",
+                                                "value": {
+                                                    "type": "int",
+                                                    "value": 1786124372
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "keyType": "string",
+                        "key": "permissions",
+                        "value": {
+                            "type": "array",
+                            "entries": [
+                                {
+                                    "keyType": "int",
+                                    "key": 0,
+                                    "value": {
+                                        "type": "array",
+                                        "entries": [
+                                            {
+                                                "keyType": "string",
+                                                "key": "name",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "viewUsers"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "description",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "View the users grid"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "ruleName",
+                                                "value": {
+                                                    "type": "null"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "data",
+                                                "value": {
+                                                    "type": "string",
+                                                    "value": "null"
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "createdAt",
+                                                "value": {
+                                                    "type": "int",
+                                                    "value": 1786124372
+                                                }
+                                            },
+                                            {
+                                                "keyType": "string",
+                                                "key": "updatedAt",
+                                                "value": {
+                                                    "type": "int",
+                                                    "value": 1786124372
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

@@ -13,6 +13,7 @@ use Yii3\Debug\Panel\{
     MailPanel,
     ProfilingPanel,
     RequestPanel,
+    UserPanel,
 };
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
@@ -33,6 +34,7 @@ return [
         ProfilingPanel $profilingPanel,
         DbPanel $dbPanel,
         MailPanel $mailPanel,
+        UserPanel $userPanel,
         DumpPanel $dumpPanel,
         AssetPanel $assetPanel,
     ): BuiltInPanelList => BuiltInPanelList::fromMap(
@@ -43,6 +45,7 @@ return [
             'profiling' => $profilingPanel,
             'db' => $dbPanel,
             'mail' => $mailPanel,
+            'user' => $userPanel,
             'dump' => $dumpPanel,
             'asset' => $assetPanel,
         ],
