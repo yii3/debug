@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Web;
 
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
+use PHPForge\Debug\View\ViewMessage;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Comparison\HistoryComparison;
@@ -15,6 +16,7 @@ use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\View\WebView;
 
+use function preg_quote;
 use function str_repeat;
 use function substr;
 use function sys_get_temp_dir;
@@ -56,6 +58,20 @@ final class HistoryComparisonRendererTest extends TestCase
             $html,
             'Panel structure heading must expose the compared panel count.',
         );
+
+        $captions = [
+            ViewMessage::COMPARISON_METRICS_CAPTION,
+            ViewMessage::COMPARISON_PANELS_CAPTION,
+        ];
+
+        foreach ($captions as $caption) {
+            self::assertMatchesRegularExpression(
+                '~<div\b(?=[^>]*\bclass="yii-debug-table-wrap")(?=[^>]*\brole="region")(?=[^>]*\btabindex="0")'
+                . '(?=[^>]*\baria-label="' . preg_quote($caption->value, '~') . '")[^>]*>~',
+                $html,
+                "Region `{$caption->value}` must be focusable and named by its own caption.",
+            );
+        }
     }
 
     public function testHistoryGridOffersComparisonOnlyWhenTwoCapturesExist(): void
