@@ -15,6 +15,7 @@ use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
 use Yiisoft\View\WebView;
 
+use function preg_match_all;
 use function str_repeat;
 use function substr;
 use function sys_get_temp_dir;
@@ -55,6 +56,15 @@ final class HistoryComparisonRendererTest extends TestCase
             '<span class="yii-debug-section-count">2</span>',
             $html,
             'Panel structure heading must expose the compared panel count.',
+        );
+        self::assertSame(
+            2,
+            preg_match_all(
+                '~<div\b(?=[^>]*\bclass="yii-debug-table-wrap")(?=[^>]*\brole="region")(?=[^>]*\btabindex="0")'
+                . '(?=[^>]*\baria-label="[^"]+")[^>]*>~',
+                $html,
+            ),
+            'Both tables must scroll inside a labelled, focusable region.',
         );
     }
 

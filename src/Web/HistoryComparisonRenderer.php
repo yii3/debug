@@ -262,9 +262,12 @@ final class HistoryComparisonRenderer
     /**
      * Renders a comparison table as a GridView with a visually hidden caption.
      *
+     * The tables scroll horizontally on narrow viewports, so the wrapper is a labelled region that takes keyboard focus,
+     * like the Debug Core table block.
+     *
      * @template TRow of object
      *
-     * @param string $caption Visually hidden caption naming the table.
+     * @param string $caption Visually hidden caption naming the table and its scroll region.
      * @param list<TRow> $rows Rows to render.
      * @param list<GridColumn<TRow>> $columns Columns in display order.
      *
@@ -280,6 +283,9 @@ final class HistoryComparisonRenderer
         return $grid
             ->caption($caption, ['class' => 'yii-debug-sr-only'])
             ->columns(...$columns)
+            // `containerAttributes()` replaces the class `PanelGrid` set, so the wrapper class is added back.
+            ->containerAttributes(['aria-label' => $caption, 'role' => 'region', 'tabindex' => '0'])
+            ->addContainerClass('yii-debug-table-wrap')
             ->tableClass('yii-debug-table', 'yii-debug-compare-grid')
             ->render();
     }
