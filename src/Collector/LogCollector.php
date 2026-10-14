@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Collector;
 
+use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Helper\LogLevel;
-use PHPForge\Debug\Panel\Log\LogSnapshot;
+use PHPForge\Debug\Panel\Log\{LogContext, LogSnapshot};
 use PHPForge\Debug\Storage\Json;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel as PsrLogLevel;
@@ -24,6 +25,13 @@ use function is_string;
 final class LogCollector implements CollectorInterface
 {
     /**
+     * Context keys `yiisoft/log` injects itself, already captured as row fields and excluded from the context.
+     *
+     * @var list<string>
+     */
+    private const array RESERVED_CONTEXT_KEYS = ['category', 'time', 'trace', 'memory'];
+
+    /**
      * Whether the collector is capturing for the current request.
      */
     private bool $started = false;
@@ -31,14 +39,19 @@ final class LogCollector implements CollectorInterface
     /**
      * @param DebugLogTarget $target Log target accumulating the messages of the request.
      * @param LoggerInterface|null $logger Application logger flushed before reading, or `null` to skip flushing.
+     * @param CapturePolicy $capturePolicy Policy redacting the sensitive keys and string values of the PSR-3 context;
+     * the message text is never redacted.
      */
     public function __construct(
         private readonly DebugLogTarget $target,
         private readonly LoggerInterface|null $logger = null,
+        private readonly CapturePolicy $capturePolicy = new CapturePolicy(),
     ) {}
 
     /**
      * Encodes the captured messages into the Logs panel payload.
+     *
+     * Each row carries the PSR-3 context without the reserved keys, normalized into a bounded, redacted JSON tree.
      *
      * @return array<string, mixed>|null Encoded Logs panel payload; `null` when the collector never started.
      */
@@ -53,6 +66,7 @@ final class LogCollector implements CollectorInterface
         $messages = [];
 
         foreach ($this->target->messages() as $message) {
+            $context = $message->context();
             $memory = $message->context('memory');
 
             $messages[] = [
@@ -62,6 +76,11 @@ final class LogCollector implements CollectorInterface
                 (float) $message->time()->format('U.u'),
                 self::trace($message),
                 is_int($memory) ? $memory : 0,
+                LogContext::normalize(
+                    is_array($context) ? $context : [],
+                    $this->capturePolicy,
+                    self::RESERVED_CONTEXT_KEYS,
+                ),
             ];
         }
 

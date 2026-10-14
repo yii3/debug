@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests\Collector;
 
+use DateTimeImmutable;
 use PHPForge\Debug\Helper\LogLevel;
-use PHPForge\Debug\Panel\Log\LogRow;
+use PHPForge\Debug\Panel\Log\{LogRow, LogSnapshot};
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\{LogLevel as PsrLogLevel, NullLogger};
@@ -15,6 +16,7 @@ use Yii3\Debug\Tests\Support\Captured;
 use Yiisoft\Log\{Logger, Message};
 
 use function array_map;
+use function json_decode;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -112,6 +114,68 @@ final class LogCollectorTest extends TestCase
         );
     }
 
+    public function testCaptureNormalizesAndRedactsThePsrContext(): void
+    {
+        $target = new DebugLogTarget();
+        $logger = new Logger([$target]);
+        $collector = new LogCollector($target, $logger);
+
+        $collector->startup();
+        $logger->debug(
+            'Привет, мир!',
+            [
+                'test' => 1,
+                'user' => ['id' => 42, 'roles' => ['admin', 'editor']],
+                'at' => new DateTimeImmutable('2026-10-14T12:00:00+00:00'),
+                'handler' => new \stdClass(),
+                'payload' => "\xB1\xB2",
+                'password' => 'secret',
+            ],
+        );
+
+        $snapshot = Captured::log($collector);
+
+        self::assertNotNull(
+            $snapshot,
+            'The active request must produce a Log snapshot.',
+        );
+
+        $expected = [
+            'test' => 1,
+            'user' => ['id' => 42, 'roles' => ['admin', 'editor']],
+            'at' => '2026-10-14T12:00:00+00:00',
+            'handler' => '{stdClass}',
+            'payload' => '(binary: base64 sbI=)',
+            'password' => '[redacted]',
+        ];
+
+        self::assertSame(
+            [$expected],
+            array_map(static fn(LogRow $row): array => $row->context, $snapshot->entries()),
+            'Context must be JSON-safe, redacted, and free of the reserved keys.',
+        );
+
+        $stored = json_decode(
+            json_encode($snapshot->jsonSerialize(), JSON_THROW_ON_ERROR),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        self::assertIsArray(
+            $stored,
+            'Stored payload must decode to an array.',
+        );
+        self::assertSame(
+            [$expected],
+            array_map(
+                static fn(LogRow $row): array => $row->context,
+                LogSnapshot::fromArray($stored, '$.panels.log')->entries(),
+            ),
+            'Context must survive the JSON store unchanged.',
+        );
+    }
+
     public function testCaptureNormalizesMalformedAndBinaryLogDataForJsonStorage(): void
     {
         $target = new DebugLogTarget();
@@ -123,8 +187,10 @@ final class LogCollectorTest extends TestCase
             "message\xB1",
             [
                 'category' => "category\xB2",
+                'memory' => 'not a sample',
                 'trace' => [
                     'not a frame',
+                    new \stdClass(),
                     [
                         'file' => "/app/source\xB3.php",
                         'line' => 42,
@@ -172,7 +238,11 @@ final class LogCollectorTest extends TestCase
             $entries[0]->trace,
             'Only valid standard trace fields must be retained and their strings must be JSON-safe.',
         );
-
+        self::assertSame(
+            0,
+            $entries[0]->memory,
+            'A non-integer memory sample must fall back to `0`.',
+        );
         self::assertStringContainsString(
             '(binary: base64',
             json_encode($snapshot->jsonSerialize(), JSON_THROW_ON_ERROR),
@@ -194,6 +264,10 @@ final class LogCollectorTest extends TestCase
                 'function' => 'run',
                 'class' => 'App\\Service',
                 'type' => '::',
+            ],
+            [
+                'file' => '/app/public/index.php',
+                'line' => 7,
             ],
         ];
 
@@ -244,6 +318,11 @@ final class LogCollectorTest extends TestCase
             4096,
             $entry->memory,
             'The Yiisoft memory sample must be preserved.',
+        );
+        self::assertSame(
+            [],
+            $entry->context,
+            'Reserved keys alone must leave the context empty.',
         );
     }
 
