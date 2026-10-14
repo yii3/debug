@@ -155,9 +155,9 @@ nothing until the debugger starts it.
 
 ### Redacting a provider capture
 
-`PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel applies. The Inertia collector
-`yii3/inertia` declares already receives them. Hand the same rules to an application-owned collector that captures
-user data, in the application's `di-web` group:
+`PHPForge\Debug\Capture\CapturePolicy` holds the redaction rules the Request panel, the User identity, and the PSR-3
+context of the Logs panel apply. The Inertia collector `yii3/inertia` declares already receives them. Hand the same
+rules to an application-owned collector that captures user data, in the application's `di-web` group:
 
 ```php
 use Acme\Debug\CacheCollector;

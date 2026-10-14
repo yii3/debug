@@ -104,6 +104,10 @@ a merged one under the same name:
 ],
 ```
 
+Each Logs row shows the PSR-3 context passed with the message, such as `['id' => 42]`, under the message in a
+collapsed "Context" disclosure. The `category`, `time`, `trace`, and `memory` keys that `yiisoft/log` adds to every
+context are left out, because the row already stores them.
+
 The snapshot itself is written when the application dispatches `Yiisoft\Yii\Http\Event\ApplicationShutdown`, through
 the merged `events-web` listeners the Yii HTTP runner uses. Finalizing there, rather than inside the middleware
 pipeline, is what makes the logs, the profiler spans flushed after emission, and the queries issued while the view is
@@ -129,11 +133,11 @@ Inertia and Vite, database thresholds, and IDE links.
 The toolbar and debugger routes allow `127.0.0.1` and `::1` by default. Access checks use the direct client address,
 not forwarded proxy headers. Add only trusted development addresses to `allowedIPs`; never expose the debugger publicly.
 
-Request captures redact sensitive fields and URL query values; hand the same capture policy to a provider collector
-that records user data, as the configuration reference shows. Logs preserve original diagnostic values and are not
-redacted by the capture policy; SQL diagnostics can include substituted query values. Treat stored captures
-as sensitive and review them before sharing. In the Events panel, context capture and source traces are disabled by
-default; this does not affect source traces in Logs or Database.
+Request captures redact sensitive fields and URL query values; hand the same capture policy to a provider collector that
+records user data, as the configuration reference shows. In Logs, the log message is not redacted; the PSR-3 context is
+redacted by the capture policy; SQL diagnostics can include substituted query values. Treat stored captures as sensitive
+and review them before sharing. In the Events panel, context capture and source traces are disabled by default; this
+does not affect source traces in Logs or Database.
 
 ## Documentation
 

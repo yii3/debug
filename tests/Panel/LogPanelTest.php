@@ -449,6 +449,36 @@ final class LogPanelTest extends TestCase
         );
     }
 
+    public function testRenderShowsTheCapturedContextUnderTheMessage(): void
+    {
+        $payload = LogSnapshot::capture(
+            [
+                ['request started', 4, 'application', 1.0, [], 1024, ['<user>' => '<b>admin</b>']],
+                ['plain message', 4, 'application', 2.0, [], 1024],
+            ],
+        )->jsonSerialize();
+
+        $html = (new LogPanel(Trace::create()))->render(
+            HelperFactory::createPanelRenderInput($payload, self::context([])),
+        );
+
+        self::assertSame(
+            1,
+            substr_count($html, '<dl class="yii-debug-log-context">'),
+            'Only the row with a context must render the disclosure.',
+        );
+        self::assertStringContainsString(
+            'Context · 1',
+            $html,
+            'Disclosure summary must count the context keys.',
+        );
+        self::assertStringContainsString(
+            "<dt>\n&lt;user&gt;\n</dt><dd>\n<code>'&lt;b&gt;admin&lt;/b&gt;'</code>\n</dd>",
+            $html,
+            'Context keys and values must be escaped.',
+        );
+    }
+
     public function testRenderShowsTheDedicatedEmptyCaptureState(): void
     {
         self::assertSame(
