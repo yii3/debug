@@ -682,8 +682,9 @@ final class EventCollectorTest extends TestCase
             ($rows[2] ?? self::fail('Expected row 2.'))->inspection()?->getContextStatus(),
             'Unknown event types must not be inspected generically.',
         );
-        self::assertNotEmpty(
-            ($rows[0] ?? self::fail('Expected row 0.'))->inspection()?->getTrace(),
+        self::assertNotSame(
+            [],
+            ($rows[0] ?? self::fail('Expected row 0.'))->inspection()?->getTrace() ?? [],
             'Opt-in traces must contain argument-free source locations.',
         );
         self::assertStringNotContainsString(

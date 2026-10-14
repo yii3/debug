@@ -33,7 +33,7 @@ final class HistoryGridRendererProvider
     }
 
     /**
-     * Provides the attributes compared as text, boolean, or address rather than as a metric.
+     * Provides the attributes every capture reports, compared as text, boolean, address, or status code.
      *
      * @return iterable<string, array{string}>
      */
@@ -42,6 +42,7 @@ final class HistoryGridRendererProvider
         yield 'ajax' => ['ajax'];
         yield 'ip' => ['ip'];
         yield 'method' => ['method'];
+        yield 'statusCode' => ['statusCode'];
         yield 'tag' => ['tag'];
         yield 'url' => ['url'];
     }

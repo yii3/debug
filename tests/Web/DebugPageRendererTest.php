@@ -1443,7 +1443,8 @@ final class DebugPageRendererTest extends TestCase
             <th scope="col" class="yii-debug-col-ip"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ip">IP</a></th>
             <th scope="col" class="yii-debug-col-num yii-debug-col-mail"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=mailCount">Mail</a></th>
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=method">Method</a></th>
-            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ajax">Ajax</a></th>
+            <th scope="col" class="yii-debug-col-status"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=statusCode">Status</a></th>
+            <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=ajax">AJAX</a></th>
             <th scope="col"><a href="/debug?Debug%5Bmethod%5D=POST&amp;sort=url">URL</a></th>
             </tr>
             <tr class="filters">
@@ -1482,6 +1483,7 @@ final class DebugPageRendererTest extends TestCase
             COMMAND
             </option>
             </select></td>
+            <td class="yii-debug-col-status"><input class="yii-debug-input" name="Debug[statusCode]" type="text" aria-label="Filter by Status"></td>
             <td><select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
             <option selected>
             </option>
@@ -1505,6 +1507,7 @@ final class DebugPageRendererTest extends TestCase
             <td class="yii-debug-col-ip">127.0.0.1</td>
             <td class="yii-debug-col-num yii-debug-col-mail">0</td>
             <td><span class="yii-debug-method yii-debug-verb-post">POST</span></td>
+            <td class="yii-debug-col-status"><span class="yii-debug-badge yii-debug-status-4xx">404</span></td>
             <td>Yes</td>
             <td><span class="yii-debug-url-cell" title="https://example.test/missing">https://example.test/missing</span></td>
             </tr>
@@ -1676,7 +1679,8 @@ final class DebugPageRendererTest extends TestCase
             <th scope="col" class="yii-debug-col-ip"><a href="/debug?sort=ip">IP</a></th>
             <th scope="col" class="yii-debug-col-num yii-debug-col-mail"><a href="/debug?sort=mailCount">Mail</a></th>
             <th scope="col"><a href="/debug?sort=method">Method</a></th>
-            <th scope="col"><a href="/debug?sort=ajax">Ajax</a></th>
+            <th scope="col" class="yii-debug-col-status"><a href="/debug?sort=statusCode">Status</a></th>
+            <th scope="col"><a href="/debug?sort=ajax">AJAX</a></th>
             <th scope="col"><a href="/debug?sort=url">URL</a></th>
             </tr>
             <tr class="filters">
@@ -1715,6 +1719,7 @@ final class DebugPageRendererTest extends TestCase
             COMMAND
             </option>
             </select></td>
+            <td class="yii-debug-col-status"><input class="yii-debug-input" name="Debug[statusCode]" type="text" aria-label="Filter by Status"></td>
             <td><select class="yii-debug-select" name="Debug[ajax]" aria-label="Filter by AJAX">
             <option selected>
             </option>
@@ -1738,6 +1743,7 @@ final class DebugPageRendererTest extends TestCase
             <td class="yii-debug-col-ip">127.0.0.1</td>
             <td class="yii-debug-col-num yii-debug-col-mail">0</td>
             <td><span class="yii-debug-method yii-debug-verb-get">GET</span></td>
+            <td class="yii-debug-col-status"><span class="yii-debug-badge yii-debug-status-2xx">200</span></td>
             <td>No</td>
             <td><span class="yii-debug-url-cell" title="https://example.test/?page=2">https://example.test/?page=2</span></td>
             </tr>
@@ -1750,6 +1756,7 @@ final class DebugPageRendererTest extends TestCase
             <td class="yii-debug-col-ip">127.0.0.1</td>
             <td class="yii-debug-col-num yii-debug-col-mail">0</td>
             <td><span class="yii-debug-method yii-debug-verb-post">POST</span></td>
+            <td class="yii-debug-col-status"><span class="yii-debug-badge yii-debug-status-4xx">404</span></td>
             <td>Yes</td>
             <td><span class="yii-debug-url-cell" title="https://example.test/missing">https://example.test/missing</span></td>
             </tr>

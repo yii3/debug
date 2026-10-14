@@ -902,7 +902,8 @@ final class HistoryComparisonTest extends TestCase
 
     private static function firstPanel(HistoryComparison $comparison): HistoryPanelComparison
     {
-        self::assertNotEmpty(
+        self::assertNotSame(
+            [],
             $comparison->panels,
             'At least one panel comparison must exist.',
         );

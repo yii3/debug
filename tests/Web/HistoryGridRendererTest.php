@@ -34,7 +34,7 @@ final class HistoryGridRendererTest extends TestCase
         preg_match_all('/aria-label="Filter by ([^"]+)"/', $html, $matches);
 
         self::assertSame(
-            ['ID', 'IP', 'Mail count', 'Method', 'AJAX', 'URL'],
+            ['ID', 'IP', 'Mail count', 'Method', 'Status', 'AJAX', 'URL'],
             $matches[1],
             'Every History filter must expose an accessible name.',
         );
@@ -302,6 +302,11 @@ final class HistoryGridRendererTest extends TestCase
             self::tags(HistoryGridRenderer::render($summaries, ['sort' => "-{$attribute}"], '/debug')),
             'Descending order must lead with the higher value.',
         );
+        self::assertSame(
+            ['beta'],
+            self::criticalTags(HistoryGridRenderer::render($summaries, ['sort' => $attribute], '/debug')),
+            'Only status `400` and above must flag the row.',
+        );
     }
 
     public function testUnmatchedFiltersExplainTheEmptyResult(): void
@@ -318,14 +323,16 @@ final class HistoryGridRendererTest extends TestCase
             'Unmatched filters must not display unrelated captures.',
         );
         self::assertStringContainsString(
-            'No requests match the current filters.',
+            '<td colspan="11" class="yii-debug-muted">No requests match the current filters.</td>',
             $html,
-            'An empty result must be explained.',
+            'An empty result must be explained in a muted cell.',
         );
     }
 
     /**
-     * Returns two captures whose tag, IP, method, AJAX flag, and URL all order `alpha` before `beta`.
+     * Returns two captures whose tag, IP, method, status code, AJAX flag, and URL all order `alpha` before `beta`.
+     *
+     * Their status codes `399` and `400` straddle the critical-row boundary.
      *
      * @return array<string, RequestSummary>
      */
@@ -333,14 +340,26 @@ final class HistoryGridRendererTest extends TestCase
     {
         return [
             'beta' => RequestSummary::create('beta')
-                ->withRequest('/zulu', 'POST', '10.0.0.2', 1.0, true),
+                ->withRequest('/zulu', 'POST', '10.0.0.2', 1.0, true)
+                ->withResponse(400),
             'alpha' => RequestSummary::create('alpha')
-                ->withRequest('/alpha', 'GET', '10.0.0.1', 2.0),
+                ->withRequest('/alpha', 'GET', '10.0.0.1', 2.0)
+                ->withResponse(399),
         ];
     }
 
     /**
-     * Returns two captures whose query counts straddle the critical threshold.
+     * @return list<string>
+     */
+    private static function criticalTags(string $html): array
+    {
+        preg_match_all('/<tr class="yii-debug-row-danger" data-yii-debug-tag="([^"]+)"/', $html, $matches);
+
+        return $matches[1];
+    }
+
+    /**
+     * Returns two captures whose query counts straddle the critical threshold, in the opposite order of their time.
      *
      * @return array<string, RequestSummary>
      */
@@ -348,10 +367,10 @@ final class HistoryGridRendererTest extends TestCase
     {
         return [
             'busy' => RequestSummary::create('busy')
-                ->withRequest('/busy', 'GET', '', 2.0)
+                ->withRequest('/busy', 'GET', '', 1.0)
                 ->withDatabase(12, 2),
             'calm' => RequestSummary::create('calm')
-                ->withRequest('/calm', 'GET', '', 1.0)
+                ->withRequest('/calm', 'GET', '', 2.0)
                 ->withDatabase(3),
         ];
     }

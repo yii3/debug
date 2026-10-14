@@ -400,9 +400,16 @@ final class MailCollectorTest extends TestCase
 
         $collector->collect(new AfterSend(new Message(from: 'a@example.com', to: 'b@example.com', textBody: 'Body')));
 
+        $entries = Captured::mail($collector)?->entries() ?? [];
+
+        self::assertCount(
+            1,
+            $entries,
+            'Message must be captured despite the storage failure.',
+        );
         self::assertSame(
             '',
-            Captured::mail($collector)?->entries()[0]?->getFile(),
+            $entries[0]->getFile(),
             'Entry must carry no file.',
         );
         self::assertSame(

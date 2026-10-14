@@ -162,8 +162,12 @@ final class EventCollector implements CollectorInterface
 
         $clock = hrtime(true) / 1_000_000_000;
 
+        // Names are matched as strings: another dispatcher version may declare the same name with other return
+        // types, so the guards below must keep treating `$event` as an untyped object.
+        $eventClass = $event::class;
+
         if (
-            in_array($event::class, self::MIDDLEWARE_EVENTS, true)
+            in_array($eventClass, self::MIDDLEWARE_EVENTS, true)
             && method_exists($event, 'getMiddleware')
         ) {
             $middleware = $event->getMiddleware();
@@ -171,7 +175,7 @@ final class EventCollector implements CollectorInterface
             if (is_object($middleware)) {
                 $this->scopes ??= new WeakMap();
                 $stack = $this->scopes[$middleware] ?? [];
-                $phase = $event::class === self::MIDDLEWARE_EVENTS[0] ? 'enter' : 'leave';
+                $phase = $eventClass === self::MIDDLEWARE_EVENTS[0] ? 'enter' : 'leave';
 
                 if ($phase === 'enter') {
                     $pairId = ++$this->nextScope;
