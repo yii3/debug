@@ -22,7 +22,6 @@ use Yiisoft\Yii\DataView\GridView\GridView;
 use function array_filter;
 use function array_keys;
 use function http_build_query;
-use function iterator_to_array;
 use function usort;
 
 /**
@@ -42,7 +41,8 @@ final class HistoryGridRenderer
         'sqlCount' => ViewMessage::QUERY->value,
         'mailCount' => PanelTitle::MAIL->value,
         'method' => ViewMessage::METHOD->value,
-        'ajax' => 'Ajax',
+        'statusCode' => ViewMessage::STATUS->value,
+        'ajax' => ViewMessage::AJAX->value,
         'url' => ViewMessage::URL->value,
     ];
 
@@ -97,7 +97,7 @@ final class HistoryGridRenderer
                 $routePrefix,
                 $queryParams,
                 [
-                    FilterPrefix::DEBUG => ['statusCode' => (string) $bucket->sampleCode],
+                    FilterPrefix::DEBUG => ['statusCode' => $bucket->sampleCode],
                     'page' => null,
                 ],
             );
@@ -178,6 +178,7 @@ final class HistoryGridRenderer
                 'ip' => 'yii-debug-col-ip',
                 'sqlCount' => 'yii-debug-col-num',
                 'mailCount' => 'yii-debug-col-num yii-debug-col-mail',
+                'statusCode' => 'yii-debug-col-status',
                 default => null,
             };
 
@@ -233,6 +234,12 @@ final class HistoryGridRenderer
                 FilterPrefix::DEBUG,
                 'mailCount',
                 'Mail count',
+                $filters,
+            ),
+            'statusCode' => FilterInput::text(
+                FilterPrefix::DEBUG,
+                'statusCode',
+                ViewMessage::STATUS->value,
                 $filters,
             ),
             'url' => FilterInput::text(
@@ -293,7 +300,7 @@ final class HistoryGridRenderer
      * @param key-of<self::HEADERS> $attribute Attribute the column renders.
      * @param HistoryScale $scale Page maxima scaling the duration and memory gauges.
      * @param string $routePrefix Base route used to generate debugger URLs.
-     * @param DbPanel|null $dbPanel Registered Database panel supplying the critical-query threshold, or `null`.
+     * @param DbPanel|null $dbPanel Database panel supplying the query thresholds, or `null` for an empty Query cell.
      *
      * @return string Rendered cell.
      */
@@ -319,14 +326,15 @@ final class HistoryGridRenderer
                 $scale->maxPeakMemory,
             ),
             'ip' => $row->ip,
-            'sqlCount' => HistoryCellRenderer::renderSqlCountCell(
+            'sqlCount' => $dbPanel === null ? '' : HistoryCellRenderer::renderSqlCountCell(
                 $row,
                 "{$routePrefix}/view?tag=" . rawurlencode($row->tag) . '&panel=db',
-                $dbPanel?->isQueryCountCritical($row->sqlCount) ?? false,
-                $dbPanel?->criticalQueryThreshold() ?? 0,
+                $dbPanel->isQueryCountCritical($row->sqlCount),
+                $dbPanel->criticalQueryThreshold(),
             ),
             'mailCount' => (string) $row->mailCount,
             'method' => HistoryCellRenderer::renderMethodCell($row),
+            'statusCode' => HistoryCellRenderer::renderStatusCell($row),
             'ajax' => HistoryCellRenderer::renderAjaxCell($row),
             'url' => HistoryCellRenderer::renderUrlCell($row),
         };
@@ -352,7 +360,7 @@ final class HistoryGridRenderer
         array $queryParams,
         DbPanel|null $dbPanel,
     ): string {
-        $rows = iterator_to_array($paginator->read(), false);
+        $rows = [...$paginator->read()];
 
         /** @var GridView<HistoryRow> $grid */
         $grid = PanelGrid::filterable(
@@ -441,6 +449,7 @@ final class HistoryGridRenderer
             'sqlCount' => $row->sqlCount,
             'mailCount' => $row->mailCount,
             'method' => $row->method,
+            'statusCode' => $row->statusCode,
             'ajax' => $row->ajax,
             'url' => $row->url,
             default => $row->time,
