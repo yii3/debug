@@ -24,6 +24,9 @@ These are the defaults: local access only, up to 50 retained requests, captures 
 `Yii3\Debug\Middleware\DebugRouteMiddleware` serves directly. Both storage paths accept a registered Yii alias and
 share `storage.dirMode` and `storage.fileMode`.
 
+Choose a prefix that no application route or other debugger already owns. The debug route middleware runs before the
+application router and claims every path at or below that prefix, including unknown subpaths.
+
 `Yii3\Debug\Middleware\ToolbarOptions::fromParams()` reads `routePrefix`, `historySize`,
 `database.excessiveCallerThreshold`, and the `toolbar` block once, and the container hands the same instance to both
 middlewares, the toolbar payload, and the debugger pages. A key you declare with the wrong type fails at startup with
@@ -370,26 +373,8 @@ unconfigured when one binding cannot represent all captured connections.
 
 `Psr\Log\LoggerInterface` is not decorated. The debugger merges its `debug` target, and a `stream` target, into
 `yiisoft/log.targets`, so the application must build its logger from `$params['yiisoft/log']['targets']`. The
-`yiisoft/app` template already builds the logger this way:
-
-```php
-use Psr\Log\LoggerInterface;
-use Yiisoft\Definitions\ReferencesArray;
-use Yiisoft\Log\{Logger, StreamTarget};
-
-/** @var array $params */
-
-return [
-    LoggerInterface::class => [
-        'class' => Logger::class,
-        '__construct()' => [
-            'targets' => ReferencesArray::from(
-                array_values($params['yiisoft/log']['targets'] ?? [StreamTarget::class]),
-            ),
-        ],
-    ],
-];
-```
+`yiisoft/app` template already builds the logger this way; see the complete
+[logger definition](examples.md#configure-application-metadata-and-log-targets).
 
 An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
 the `?? [StreamTarget::class]` fallback needs no parameters of its own: the merged key bypasses that fallback, yet it
@@ -423,6 +408,9 @@ For containers or remote environments, map captured paths to your local project:
 'tracePathMappings' => ['/var/www/html' => '/home/developer/projects/app'],
 ```
 
----
+## Next steps
+
+- 💡 [Application integration examples](examples.md)
+- 🧪 [Testing guide](testing.md)
 
 [← Back to documentation](../README.md#documentation)
