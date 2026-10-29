@@ -9,15 +9,18 @@ use PHPForge\Debug\Capture\CapturePolicy;
 use PHPForge\Debug\Helper\SensitiveDataRedactor;
 use PHPForge\Debug\Panel\Request\RequestSnapshot;
 use PHPForge\Debug\Panel\Request\Routing\RouteDefinition;
-use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\{DataProviderExternal, Group};
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\StreamInterface;
 use ReflectionProperty;
+use RuntimeException;
 use Yii3\Debug\Collector\RequestCollector;
-use Yii3\Debug\Tests\Support\Captured;
-use Yii3\Debug\Tests\Support\HelperFactory;
+use Yii3\Debug\Tests\Provider\RequestCollectorProvider;
+use Yii3\Debug\Tests\Support\{Captured, HelperFactory};
 use Yiisoft\Router\{CurrentRoute, Route, RouteCollection, RouteCollector};
 
+use function array_keys;
+use function str_repeat;
 use function strlen;
 
 use const SEEK_SET;
@@ -25,11 +28,33 @@ use const UPLOAD_ERR_OK;
 
 /**
  * Unit tests for PSR-7 request and response capture in the shared Request panel shape.
+ *
+ * {@see RequestCollectorProvider} for test case data providers.
  */
 #[Group('collector')]
 #[Group('request')]
 final class RequestCollectorTest extends TestCase
 {
+    /**
+     * @param array<string, string> $headers Headers of the request.
+     * @param array<string, bool|string> $expectedGeneral General request data expected in the payload.
+     */
+    #[DataProviderExternal(RequestCollectorProvider::class, 'clientFlagHeaders')]
+    public function testCaptureDerivesFlashAndPjaxFlagsIndependently(array $headers, array $expectedGeneral): void
+    {
+        $collector = new RequestCollector();
+
+        $collector->startup();
+        $collector->collectRequest(HelperFactory::createRequest(uri: 'http://example.test/', headers: $headers));
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        self::assertSame(
+            $expectedGeneral,
+            Captured::request($collector)?->data()['general'] ?? null,
+            'Either user-agent token must flag Flash; PJAX requires an AJAX request.',
+        );
+    }
+
     public function testCaptureFallsBackToPublicMatchedRouteMetadataWithoutACollection(): void
     {
         $route = Route::post('/articles/{id}')
@@ -164,6 +189,28 @@ final class RequestCollectorTest extends TestCase
 
         $data = $snapshot->data();
 
+        self::assertSame(
+            [
+                'action',
+                'actionParams',
+                'flashes',
+                'general',
+                'requestBody',
+                'requestHeaders',
+                'route',
+                'COOKIE',
+                'FILES',
+                'GET',
+                'POST',
+                'SERVER',
+                'SESSION',
+                'responseHeaders',
+                'routeDefinition',
+                'statusCode',
+            ],
+            array_keys($data),
+            'Payload keys must keep the canonical order the comparison diff follows.',
+        );
         self::assertSame(
             '',
             $data['route'] ?? null,
@@ -434,6 +481,75 @@ final class RequestCollectorTest extends TestCase
         );
     }
 
+    public function testCaptureReadsTheBodyInBoundedChunks(): void
+    {
+        $collector = new RequestCollector();
+
+        $content = str_repeat('a', 20000);
+        $source = HelperFactory::createStream($content);
+
+        $readLengths = [];
+
+        $body = self::createStub(StreamInterface::class);
+
+        $body
+            ->method('isSeekable')
+            ->willReturn(true);
+        $body
+            ->method('tell')
+            ->willReturnCallback(
+                static fn(): int => $source->tell(),
+            );
+        $body
+            ->method('eof')
+            ->willReturnCallback(
+                static fn(): bool => $source->eof(),
+            );
+        $body
+            ->method('seek')
+            ->willReturnCallback(
+                static function (int $offset, int $whence = SEEK_SET) use ($source): void {
+                    $source->seek($offset, $whence);
+                },
+            );
+        $body
+            ->method('read')
+            ->willReturnCallback(
+                static function (int $length) use (&$readLengths, $source): string {
+                    $readLengths[] = $length;
+
+                    return $source->read($length);
+                },
+            );
+
+        $collector->startup();
+        $collector->collectRequest(
+            HelperFactory::createRequest(
+                method: 'POST',
+                uri: 'https://example.test/body',
+                headers: ['Content-Type' => 'text/plain'],
+            )->withBody($body),
+        );
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $requestBody = Captured::request($collector)?->data()['requestBody'] ?? null;
+
+        self::assertIsArray(
+            $requestBody,
+            'A retained request body must remain an array.',
+        );
+        self::assertSame(
+            $content,
+            $requestBody['Raw'] ?? null,
+            'Every chunk must be appended to the raw body.',
+        );
+        self::assertSame(
+            [8192, 8192, 8192],
+            $readLengths,
+            'Each read must request at most 8192 bytes.',
+        );
+    }
+
     public function testCaptureRedactsDefaultSecretsAcrossRequestAndResponse(): void
     {
         $collector = new RequestCollector();
@@ -600,6 +716,41 @@ final class RequestCollectorTest extends TestCase
         );
     }
 
+    /**
+     * @param string $name Name of the request header.
+     * @param string $value Value of the request header.
+     * @param string $expectedValue Redacted value expected in the payload.
+     */
+    #[DataProviderExternal(RequestCollectorProvider::class, 'redactedHeaderValues')]
+    public function testCaptureRedactsHeaderValuesByTheirSyntax(
+        string $name,
+        string $value,
+        string $expectedValue,
+    ): void {
+        $collector = new RequestCollector();
+
+        $collector->startup();
+        $collector->collectRequest(
+            HelperFactory::createRequest(
+                uri: 'https://example.test/',
+                headers: [$name => $value],
+            ),
+        );
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        $requestHeaders = Captured::request($collector)?->data()['requestHeaders'] ?? null;
+
+        self::assertIsArray(
+            $requestHeaders,
+            'Request headers must remain an array.',
+        );
+        self::assertSame(
+            $expectedValue,
+            $requestHeaders[$name] ?? null,
+            'URI header values must be redacted as URLs; other values as text.',
+        );
+    }
+
     public function testCaptureRedactsRouteDefinitionWhenTheCanonicalRouteIsSensitive(): void
     {
         $route = Route::get('/')
@@ -632,6 +783,53 @@ final class RequestCollectorTest extends TestCase
         self::assertNull(
             $data['routeDefinition'],
             'Route metadata must not bypass redaction through its duplicated definition.',
+        );
+    }
+
+    public function testCaptureStopsReadingTheBodyAtTheFirstEmptyChunk(): void
+    {
+        $collector = new RequestCollector();
+
+        $reads = 0;
+
+        $body = self::createStub(StreamInterface::class);
+
+        $body
+            ->method('isSeekable')
+            ->willReturn(true);
+        $body
+            ->method('eof')
+            ->willReturn(false);
+        $body
+            ->method('read')
+            ->willReturnCallback(
+                static function () use (&$reads): string {
+                    if (++$reads > 1) {
+                        throw new LogicException('The body must not be read past an empty chunk.');
+                    }
+
+                    return '';
+                },
+            );
+
+        $collector->startup();
+        $collector->collectRequest(
+            HelperFactory::createRequest(
+                method: 'POST',
+                uri: 'https://example.test/body',
+            )->withBody($body),
+        );
+        $collector->collectResponse(HelperFactory::createResponse());
+
+        self::assertSame(
+            1,
+            $reads,
+            'An empty chunk must end the body read.',
+        );
+        self::assertSame(
+            [],
+            Captured::request($collector)?->data()['requestBody'] ?? null,
+            'An empty body must not be captured.',
         );
     }
 
@@ -766,6 +964,14 @@ final class RequestCollectorTest extends TestCase
             ->method('isSeekable')
             ->willReturn(false);
         $nonSeekable
+            ->method('seek')
+            ->willThrowException(new RuntimeException('Stream is not seekable.'));
+        $nonSeekable
+            ->method('read')
+            ->willReturnCallback(
+                static fn(int $length): string => $inner->read($length),
+            );
+        $nonSeekable
             ->method('getContents')
             ->willReturnCallback(
                 static fn(): string => $inner->getContents(),
@@ -889,6 +1095,7 @@ final class RequestCollectorTest extends TestCase
                 uri: 'https://example.test/',
                 serverParams: [
                     'SERVER_PORT' => 443,
+                    'REQUEST_URI' => '/?token=server-secret',
                 ],
             ),
         );
@@ -899,9 +1106,67 @@ final class RequestCollectorTest extends TestCase
         self::assertSame(
             [
                 'SERVER_PORT' => 443,
+                'REQUEST_URI' => '/?token=%5Bredacted%5D',
             ],
             $data['SERVER'] ?? null,
             'Repeated startup calls must preserve the active request and non-string server entries.',
+        );
+    }
+
+    public function testThrowRuntimeExceptionWhenTheBodyReadFails(): void
+    {
+        $collector = new RequestCollector();
+
+        $source = HelperFactory::createStream('unreadable-body');
+
+        $source->seek(3);
+
+        $body = self::createStub(StreamInterface::class);
+
+        $body
+            ->method('isSeekable')
+            ->willReturn(true);
+        $body
+            ->method('tell')
+            ->willReturnCallback(
+                static fn(): int => $source->tell(),
+            );
+        $body
+            ->method('seek')
+            ->willReturnCallback(
+                static function (int $offset, int $whence = SEEK_SET) use ($source): void {
+                    $source->seek($offset, $whence);
+                },
+            );
+        $body
+            ->method('read')
+            ->willThrowException(new RuntimeException('Unable to read the body.'));
+
+        $collector->startup();
+
+        try {
+            $collector->collectRequest(
+                HelperFactory::createRequest(
+                    method: 'POST',
+                    uri: 'https://example.test/body',
+                )->withBody($body),
+            );
+
+            self::fail(
+                'The read failure must propagate.',
+            );
+        } catch (RuntimeException $exception) {
+            self::assertSame(
+                'Unable to read the body.',
+                $exception->getMessage(),
+                'The read failure must propagate unchanged.',
+            );
+        }
+
+        self::assertSame(
+            3,
+            $source->tell(),
+            'The original cursor must be restored after the failure.',
         );
     }
 

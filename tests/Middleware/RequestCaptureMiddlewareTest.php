@@ -28,6 +28,7 @@ use function array_map;
 use function array_values;
 use function json_encode;
 use function microtime;
+use function round;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -924,6 +925,27 @@ final class RequestCaptureMiddlewareTest extends TestCase
         );
     }
 
+    /**
+     * @param string $contentType Content type of the HTML response.
+     */
+    #[DataProviderExternal(RequestCaptureMiddlewareProvider::class, 'injectedContentTypes')]
+    public function testProcessInjectsToolbarForEveryHtmlContentType(string $contentType): void
+    {
+        $response = MiddlewareFactory::requestCapture(MiddlewareFactory::store())
+            ->process(
+                HelperFactory::createRequest('GET', '/', serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                MiddlewareFactory::handler(
+                    HelperFactory::createResponse(200, ['Content-Type' => $contentType], '<html><body>App</body></html>'),
+                ),
+            );
+
+        self::assertStringContainsString(
+            '<yii-debug-toolbar',
+            (string) $response->getBody(),
+            'The content type must be matched case-insensitively.',
+        );
+    }
+
     public function testProcessKeepsFallbackSummaryAndProfilingTimingCoherent(): void
     {
         $store = MiddlewareFactory::store();
@@ -970,6 +992,46 @@ final class RequestCaptureMiddlewareTest extends TestCase
             0.05,
             $profiling->time - $processingTime,
             'Summary and profiling fallback timing must differ only by snapshot-capture overhead.',
+        );
+    }
+
+    /**
+     * @param string $method Method of the request.
+     * @param int $statusCode Status code of the HTML response.
+     * @param array<string, string> $headers Headers of the request.
+     */
+    #[DataProviderExternal(RequestCaptureMiddlewareProvider::class, 'uninjectedResponses')]
+    public function testProcessLeavesTheHtmlBodyUntouchedWhenTheToolbarCannotBeInjected(
+        string $method,
+        int $statusCode,
+        array $headers,
+    ): void {
+        $response = MiddlewareFactory::requestCapture(MiddlewareFactory::store())
+            ->process(
+                HelperFactory::createRequest($method, '/', $headers, serverParams: ['REMOTE_ADDR' => '127.0.0.1']),
+                MiddlewareFactory::handler(
+                    HelperFactory::createResponse(
+                        $statusCode,
+                        ['Content-Length' => '29', 'Content-Type' => 'text/html'],
+                        '<html><body>App</body></html>',
+                    ),
+                ),
+            );
+
+        self::assertNotSame(
+            '',
+            $response->getHeaderLine('X-Debug-Tag'),
+            'The request must still be captured.',
+        );
+        self::assertSame(
+            '<html><body>App</body></html>',
+            (string) $response->getBody(),
+            'The body must not receive toolbar markup.',
+        );
+        self::assertSame(
+            '29',
+            $response->getHeaderLine('Content-Length'),
+            'The content length must be kept.',
         );
     }
 
@@ -1174,6 +1236,38 @@ final class RequestCaptureMiddlewareTest extends TestCase
             60.0,
             $profiling->time,
             'Profiling time must remain scoped to the current request.',
+        );
+    }
+
+    public function testProcessReportsTheDurationHeaderInWholeMilliseconds(): void
+    {
+        $store = MiddlewareFactory::store();
+
+        $response = MiddlewareFactory::requestCapture($store)
+            ->process(
+                HelperFactory::createRequest(
+                    'GET',
+                    '/',
+                    serverParams: ['REMOTE_ADDR' => '127.0.0.1', 'REQUEST_TIME_FLOAT' => microtime(true) - 1000.0],
+                ),
+                MiddlewareFactory::handler(HelperFactory::createResponse(204)),
+            );
+
+        $processingTime = array_values($store->loadManifest())[0]->processingTime ?? null;
+
+        self::assertNotNull(
+            $processingTime,
+            'The summary must retain its duration.',
+        );
+        self::assertGreaterThanOrEqual(
+            1000.0,
+            $processingTime,
+            'The duration must start at the reported request time.',
+        );
+        self::assertSame(
+            (string) round($processingTime * 1000),
+            $response->getHeaderLine('X-Debug-Duration'),
+            'The header must carry the summary duration in whole milliseconds.',
         );
     }
 

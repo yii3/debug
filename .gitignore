@@ -11,6 +11,9 @@ c3.php
 # composer
 composer.lock
 
+# generated reports (if present)
+/internal/
+
 # GitHub Copilot config (if present)
 .github/agents/**
 .github/copilot-instructions.md

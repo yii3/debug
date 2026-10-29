@@ -35,4 +35,27 @@ final class ProfilingPanelProvider
             ['Yii3\\Application::handle', 'Yii3\\View::render', 'Yiisoft\\Db\\Command::query'],
         ];
     }
+
+    /**
+     * @return iterable<string, array{float, string}>
+     */
+    public static function timelineRulers(): iterable
+    {
+        yield '100 ms uses a 50 ms step' => [
+            0.1,
+            <<<HTML
+            <header class="yii-debug-tl-axis">
+            <span class="yii-debug-tl-tick" style='left: 0%;'>0 ms</span><span class="yii-debug-tl-tick" style='left: 50%;'>50 ms</span>
+            </header>
+            HTML,
+        ];
+        yield '80 ms uses a 20 ms step' => [
+            0.08,
+            <<<HTML
+            <header class="yii-debug-tl-axis">
+            <span class="yii-debug-tl-tick" style='left: 0%;'>0 ms</span><span class="yii-debug-tl-tick" style='left: 25%;'>20 ms</span><span class="yii-debug-tl-tick" style='left: 50%;'>40 ms</span><span class="yii-debug-tl-tick" style='left: 75%;'>60 ms</span>
+            </header>
+            HTML,
+        ];
+    }
 }

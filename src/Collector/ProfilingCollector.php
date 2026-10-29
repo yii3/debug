@@ -77,7 +77,7 @@ final class ProfilingCollector implements CollectorInterface
     {
         $start = $request->getServerParams()['REQUEST_TIME_FLOAT'] ?? null;
 
-        $this->collectRequestStart(is_float($start) || is_int($start) ? (float) $start : microtime(true));
+        $this->collectRequestStart(is_float($start) || is_int($start) ? $start : microtime(true));
     }
 
     /**
@@ -107,7 +107,6 @@ final class ProfilingCollector implements CollectorInterface
     {
         $this->started = false;
         $this->messageCursor = null;
-        $this->start = 0.0;
 
         $this->target?->reset();
     }
@@ -123,7 +122,7 @@ final class ProfilingCollector implements CollectorInterface
 
         $start = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
 
-        $this->start = is_float($start) || is_int($start) ? (float) $start : microtime(true);
+        $this->start = is_float($start) || is_int($start) ? $start : microtime(true);
 
         $this->messageCursor = null;
 

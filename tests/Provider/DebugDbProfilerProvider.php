@@ -9,9 +9,10 @@ use Yii3\Debug\Tests\Db\DebugDbProfilerTest;
 use Yiisoft\Db\Profiler\Context\{CommandContext, ConnectionContext};
 
 /**
- * Native context forwarding cases for {@see DebugDbProfilerTest}.
+ * Native context forwarding and capture boundary cases for {@see DebugDbProfilerTest}.
  *
- * Covers command and connection method categories without forwarding diagnostic parameters or exceptions.
+ * Covers command and connection method categories without forwarding diagnostic parameters or exceptions, and
+ * profiler calls that cross a capture boundary.
  */
 final class DebugDbProfilerProvider
 {
@@ -40,6 +41,17 @@ final class DebugDbProfilerProvider
                     ),
                 'native.open',
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, array{list<string>}>
+     */
+    public static function inactiveBoundarySequences(): array
+    {
+        return [
+            'begin before startup' => [['begin', 'startup', 'end']],
+            'end after shutdown' => [['startup', 'begin', 'shutdown', 'end']],
         ];
     }
 }

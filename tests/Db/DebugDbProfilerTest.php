@@ -26,7 +26,7 @@ use function array_values;
  * Tests for {@see DebugDbProfiler} covering SQLite command capture, driver row counts, application-profiler
  * forwarding, trace limits, and observer lifecycle and failure handling.
  *
- * {@see DebugDbProfilerProvider} for context forwarding cases.
+ * {@see DebugDbProfilerProvider} for context forwarding and capture boundary cases.
  */
 #[Group('db')]
 final class DebugDbProfilerTest extends TestCase
@@ -187,6 +187,36 @@ final class DebugDbProfilerTest extends TestCase
         );
     }
 
+    /**
+     * @param list<string> $steps Capture lifecycle and profiler calls, in call order.
+     */
+    #[DataProviderExternal(DebugDbProfilerProvider::class, 'inactiveBoundarySequences')]
+    public function testInactiveBoundariesDoNotLeaveOrCompleteApplicationSpans(array $steps): void
+    {
+        $collector = new DbCollector();
+        $applicationProfiler = new Profiler(new NullLogger());
+        $profiler = new DebugDbProfiler($collector, $applicationProfiler);
+        $context = new CommandContext('native.query', 'capture boundary', 'SELECT 1', []);
+
+        foreach ($steps as $step) {
+            if ($step === 'begin') {
+                $profiler->begin('SELECT 1', $context);
+            } elseif ($step === 'end') {
+                $profiler->end('SELECT 1', $context);
+            } elseif ($step === 'startup') {
+                $collector->startup();
+            } else {
+                $collector->shutdown();
+            }
+        }
+
+        self::assertSame(
+            [],
+            $applicationProfiler->getMessages(),
+            'A span must be completed only when begin and end both run during capture.',
+        );
+    }
+
     public function testInactiveObserversDoNotCaptureOrForwardCommands(): void
     {
         $collector = new DbCollector();
@@ -241,6 +271,41 @@ final class DebugDbProfilerTest extends TestCase
             $this->reported($collector),
             'Counts must be the unmodified driver values.'
         );
+    }
+
+    public function testInstrumentedCommandTracesSkipYiiDbFrames(): void
+    {
+        $collector = new DbCollector();
+
+        $collector->startup();
+
+        $db = DatabaseFixture::connection();
+
+        (new DebugDbProfiler($collector))->instrument($db);
+
+        $db->createCommand('SELECT 1')->queryScalar();
+
+        $trace = Captured::db($collector)?->entries()[0]?->getTrace() ?? [];
+
+        self::assertSame(
+            ['file' => __FILE__, 'function' => 'queryScalar'],
+            array_intersect_key($trace[0] ?? [], ['file' => true, 'function' => true]),
+            'The first frame must be the application call site.',
+        );
+
+        foreach ($trace as $frame) {
+            $file = $frame['file'] ?? null;
+
+            self::assertIsString(
+                $file,
+                'Every retained frame must name its source file.',
+            );
+            self::assertStringNotContainsString(
+                '/vendor/yiisoft/db',
+                $file,
+                'Yii DB internals must not appear in the trace.',
+            );
+        }
     }
 
     public function testInstrumentedConnectionsOpenedBeforeCaptureStillReportRowCounts(): void

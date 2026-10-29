@@ -7,8 +7,7 @@ namespace Yii3\Debug\Web;
 use InvalidArgumentException;
 use PHPForge\Debug\Helper\{Format, Icon, Text};
 use PHPForge\Debug\Panel\Config\ConfigPanel;
-use PHPForge\Debug\Panel\{PanelRenderContext, PanelRenderer};
-use PHPForge\Debug\Panel\PanelTitle;
+use PHPForge\Debug\Panel\{PanelRenderContext, PanelRenderer, PanelTitle};
 use PHPForge\Debug\PhpInfo\{PhpInfoDataNormalizer, PhpInfoRenderer};
 use PHPForge\Debug\Storage\{DebugSnapshot, RequestSummary};
 use PHPForge\Debug\View\Sidebar\{SidebarNavItem, SidebarNavigation, SidebarRenderer, SidebarSnapshot, SidebarView};
@@ -647,7 +646,7 @@ final class DebugPageRenderer
         $newestTag = $tags[0] ?? null;
         $oldestTag = $tags[$requestCount - 1] ?? null;
         $newerTag = $index !== false && $index > 0 ? ($tags[$index - 1] ?? null) : null;
-        $olderTag = $index !== false && $index < $requestCount - 1 ? ($tags[$index + 1] ?? null) : null;
+        $olderTag = $index === false ? null : ($tags[$index + 1] ?? null);
 
         return SidebarSnapshot::fromSummary(
             $summary,

@@ -25,6 +25,35 @@ use function uniqid;
 #[Group('toolbar')]
 final class ToolbarDataActionTest extends TestCase
 {
+    public function testInvokeKeepsSlashesAndUnicodeUnescapedInTheJsonBody(): void
+    {
+        $store = $this->store();
+
+        $store->writeSnapshot(
+            new DebugSnapshot(
+                RequestSummary::create('request-1'),
+                [
+                    'request' => RequestSnapshot::capture(
+                        [
+                            'route' => 'café/índice',
+                            'statusCode' => 200,
+                        ],
+                    )->jsonSerialize(),
+                ],
+                [],
+            ),
+            50,
+        );
+
+        $response = ($this->action($store))(HelperFactory::createRequest(uri: '/debug/toolbar?tag=request-1'));
+
+        self::assertStringContainsString(
+            '"value": "café/índice"',
+            (string) $response->getBody(),
+            'Slashes and non-ASCII characters must stay literal.',
+        );
+    }
+
     public function testInvokeRejectsMissingOrMalformedTags(): void
     {
         $action = $this->action();

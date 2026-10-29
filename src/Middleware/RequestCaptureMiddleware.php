@@ -337,7 +337,7 @@ final readonly class RequestCaptureMiddleware implements MiddlewareInterface
             ->withHeader(DebugHeader::TAG->value, $tag)
             ->withHeader(
                 DebugHeader::DURATION->value,
-                number_format($processingTime * 1000, 0, '.', ''),
+                number_format($processingTime * 1000, thousands_separator: ''),
             )
             ->withHeader(
                 DebugHeader::LINK->value,

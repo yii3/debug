@@ -14,8 +14,7 @@ use PHPUnit\Framework\TestCase;
 use Yii3\Debug\Db\DbExplain;
 use Yii3\Debug\Panel\DbPanel;
 use Yii3\Debug\Tests\Provider\DbPanelProvider;
-use Yii3\Debug\Tests\Support\DatabaseFixture;
-use Yii3\Debug\Tests\Support\HelperFactory;
+use Yii3\Debug\Tests\Support\{DatabaseFixture, HelperFactory};
 use Yii3\Debug\Web\DebugUrlGenerator;
 
 /**
@@ -180,6 +179,66 @@ final class DbPanelTest extends TestCase
             'No-match states must retain filter recovery.',
         );
     }
+
+    public function testGridColumnsRenderTheirOwnCellsAndAlignmentClasses(): void
+    {
+        $html = (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))
+            ->render(HelperFactory::createPanelRenderInput(
+                DatabaseFixture::snapshot()->jsonSerialize(),
+                self::context(['per-page' => '1']),
+            ));
+
+        self::assertStringContainsString(
+            <<<HTML
+            <th scope="col"><a href="/inspect/view?tag=capture&amp;panel=db&amp;per-page=1&amp;sort=type">Type</a></th>
+            <th scope="col" aria-sort="ascending" class="sort-numerical"><a class="asc" href="/inspect/view?tag=capture&amp;panel=db&amp;per-page=1&amp;sort=-seq">Time</a></th>
+            <th scope="col" class="sort-numerical"><a href="/inspect/view?tag=capture&amp;panel=db&amp;per-page=1&amp;sort=duration">Duration</a></th>
+            <th scope="col" class="sort-numerical"><a href="/inspect/view?tag=capture&amp;panel=db&amp;per-page=1&amp;sort=rows">Rows</a></th>
+            <th scope="col" class="sort-numerical"><a href="/inspect/view?tag=capture&amp;panel=db&amp;per-page=1&amp;sort=duplicate">Dup</a></th>
+            <th scope="col"><a href="/inspect/view?tag=capture&amp;panel=db&amp;per-page=1&amp;sort=query">Query</a></th>
+            HTML,
+            $html,
+            'Only numeric headers must carry the numerical sort class.',
+        );
+        self::assertStringContainsString(
+            <<<HTML
+            <tbody>
+            <tr>
+            <td class="yii-debug-cell-mono yii-debug-nowrap"><span class="yii-debug-db-type yii-debug-verb-get">SELECT</span></td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap">00:00:01.000</td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap">3.0 ms</td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap">10 rows</td>
+            <td class="yii-debug-cell-mono yii-debug-nowrap">2</td>
+            <td><div class="yii-debug-db-sql">
+            <span class="yii-debug-sql-kw">SELECT</span> alpha
+            </div></td>
+            </tr>
+            </tbody>
+            HTML,
+            $html,
+            'Each cell must use its column renderer, with the monospace class on every column but Query.',
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $query
+     * @param non-empty-string $expectedPrefix
+     */
+    #[DataProviderExternal(DbPanelProvider::class, 'headingStates')]
+    public function testHeadingAndSummaryPrecedeEveryPanelState(
+        array $payload,
+        array $query,
+        string $expectedPrefix,
+    ): void {
+        self::assertStringStartsWith(
+            $expectedPrefix,
+            (new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create()))
+                ->render(HelperFactory::createPanelRenderInput($payload, self::context($query))),
+            'The panel heading and the summary must open the panel.',
+        );
+    }
+
     public function testMetadataEmptyCaptureAndGridColumns(): void
     {
         $panel = new DbPanel(new DbExplain(), new DebugUrlGenerator(), Trace::create());
@@ -336,6 +395,70 @@ final class DbPanelTest extends TestCase
                 HelperFactory::createPanelRenderInput($payload, self::context(['per-page' => '3', 'page' => '2'])),
             ),
             'N+1 groups must not include rows outside the current page.'
+        );
+    }
+
+    public function testNPlusOneSummaryPrecedesTheGridAndTheExplainAllControlClosesThePanel(): void
+    {
+        $rows = [];
+
+        for ($i = 0; $i < 3; $i++) {
+            $rows[] = QueryRow::create('SELECT ' . $i, 1.0, 1000.0 + $i)
+                ->withTrace([['file' => '/app/a.php', 'line' => 5]])->withSequence($i);
+        }
+
+        $html = (new DbPanel(
+            new DbExplain(DatabaseFixture::connection()),
+            new DebugUrlGenerator(),
+            Trace::create(),
+        ))->render(HelperFactory::createPanelRenderInput(DbSnapshot::capture($rows)->jsonSerialize(), self::context([])));
+
+        self::assertStringStartsWith(
+            <<<HTML
+            <h1 class="yii-debug-sr-only">
+            Database
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>3</strong> queries</span><span class="yii-debug-grid-summary-sep">·</span><span><strong>3.000</strong> ms total</span><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <option value="10">
+            10
+            </option>
+            <option value="25">
+            25
+            </option>
+            <option value="50" selected>
+            50
+            </option>
+            <option value="100">
+            100
+            </option>
+            <option value="all">
+            All
+            </option>
+            </select></label>
+            </header><div class="yii-debug-db-n1-summary" role="region" aria-label="Potential N+1 query groups on this page">
+            <div class="yii-debug-db-n1-heading">
+            <strong>Potential N+1 queries on this page</strong><a class="yii-debug-db-n1-clear" href="#" hidden data-yii-debug-n1-clear="true">Show all queries</a>
+            </div><ul class="yii-debug-db-n1-list">
+            <li>
+            <a class="yii-debug-db-n1-link" href="#yii-debug-db-n1-0" title="SELECT 0" data-yii-debug-n1-filter="yii-debug-db-n1-0"><strong>3×</strong><span class="yii-debug-db-n1-fingerprint">SELECT 0</span><span>3.0 ms</span></a>
+            </li>
+            </ul><span class="yii-debug-sr-only" aria-atomic="true" aria-live="polite" data-yii-debug-n1-status="true"></span>
+            </div><div class="yii-debug-grid yii-debug-grid-db">
+            HTML,
+            $html,
+            'Order: heading, summary, N+1 summary, then the grid.',
+        );
+        self::assertStringEndsWith(
+            <<<HTML
+            </div><div class="yii-debug-grid-footer">
+            <span class="summary yii-debug-grid-count">Showing 1-3 of 3 items.</span>
+            </div>
+            </div><div class="yii-debug-db-explain-all">
+            <button class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-sm yii-debug-db-explain-all-toggle" type="button" aria-expanded="false">Explain all</button>
+            </div>
+            HTML,
+            $html,
+            'The Explain all control must follow the grid footer.',
         );
     }
 

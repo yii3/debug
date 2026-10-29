@@ -13,8 +13,6 @@ use Yiisoft\Db\Profiler\Context\ConnectionContext;
 use Yiisoft\Db\Profiler\{ContextInterface, ProfilerAwareInterface, ProfilerInterface};
 use Yiisoft\Profiler\ProfilerInterface as ApplicationProfilerInterface;
 
-use function array_flip;
-use function array_intersect_key;
 use function debug_backtrace;
 use function microtime;
 use function str_contains;
@@ -89,7 +87,7 @@ final class DebugDbProfiler implements ProfilerInterface
                         continue;
                     }
 
-                    $trace[] = array_intersect_key($frame, array_flip(['file', 'line', 'class', 'function', 'type']));
+                    $trace[] = $frame;
                 }
 
                 $this->collector->begin($token, microtime(true), $trace);

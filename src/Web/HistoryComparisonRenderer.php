@@ -21,11 +21,13 @@ use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Data\Reader\Iterable\IterableDataReader;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
+use function array_keys;
 use function count;
 use function in_array;
-use function max;
 use function rawurlencode;
 use function rtrim;
+
+use const PHP_INT_MAX;
 
 /**
  * Renders capture-comparison selection and results with the shared Debug Core primitives.
@@ -128,25 +130,13 @@ final class HistoryComparisonRenderer
      */
     public static function renderHistoryForm(array $manifest, string $routePrefix): string
     {
-        if (count($manifest) < 2) {
+        $tags = array_keys($manifest);
+
+        if (count($tags) < 2) {
             return '';
         }
 
-        $target = '';
-        $baseline = '';
-        $position = 0;
-
-        foreach ($manifest as $tag => $_summary) {
-            if ($position++ === 0) {
-                $target = $tag;
-
-                continue;
-            }
-
-            $baseline = $tag;
-
-            break;
-        }
+        [$target, $baseline] = $tags;
 
         return self::section(
             'yii-debug-history-compare-title',
@@ -277,7 +267,7 @@ final class HistoryComparisonRenderer
     {
         /** @var GridView<TRow> $grid */
         $grid = PanelGrid::create(
-            (new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(max(1, count($rows))),
+            (new OffsetPaginator(new IterableDataReader($rows)))->withPageSize(PHP_INT_MAX),
         );
 
         return $grid
@@ -384,7 +374,6 @@ final class HistoryComparisonRenderer
                 new GridColumn(
                     header: 'Metric',
                     content: static fn(HistoryMetricComparison $metric): string => $metric->label,
-                    encodeContent: true,
                 ),
                 new GridColumn(
                     header: 'Baseline',
@@ -505,25 +494,21 @@ final class HistoryComparisonRenderer
                     new GridColumn(
                         header: 'Added',
                         content: static fn(HistoryPanelComparison $panel): string => (string) $panel->added(),
-                        encodeContent: true,
                         bodyClass: 'yii-debug-cell-numeric',
                     ),
                     new GridColumn(
                         header: 'Removed',
                         content: static fn(HistoryPanelComparison $panel): string => (string) $panel->removed(),
-                        encodeContent: true,
                         bodyClass: 'yii-debug-cell-numeric',
                     ),
                     new GridColumn(
                         header: ViewMessage::CHANGED->value,
                         content: static fn(HistoryPanelComparison $panel): string => (string) $panel->changed(),
-                        encodeContent: true,
                         bodyClass: 'yii-debug-cell-numeric',
                     ),
                     new GridColumn(
                         header: 'Unchanged',
                         content: static fn(HistoryPanelComparison $panel): string => (string) $panel->unchanged(),
-                        encodeContent: true,
                         bodyClass: 'yii-debug-cell-numeric',
                     ),
                 ],

@@ -140,7 +140,6 @@ final readonly class EventPanel implements ToolbarPanelProviderInterface
                 header: EventMessage::NUMBER->value,
                 content: static fn(EventRow $row): string => (string) $sequence->index($row),
                 filter: '',
-                encodeContent: true,
                 class: 'yii-debug-col-num',
             ),
             new GridColumn(

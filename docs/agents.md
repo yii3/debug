@@ -38,6 +38,12 @@ enabled, later installs and updates synchronize trusted bundles. If it is disabl
 dependency changes. Installing `yii3/debug` alone leaves a bundle inside `vendor/`; clients opened at the application
 root do not discover it automatically.
 
+The plugin creates `.claude/skills` only as a link to `.agents/skills`. If that path already exists as a real directory,
+synchronization still copies trusted bundles to `.agents/skills`, then refuses to replace the directory and exits with
+an error, so Claude Code does not discover them. Back up the existing directory, move each skill it contains into
+`.agents/skills` without replacing a skill of the same name, remove the emptied directory, and run
+`composer skills:update`.
+
 ### Optional npx installation
 
 From the application root, list a local checkout before installing its unpublished work:

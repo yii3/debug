@@ -66,8 +66,10 @@ same parameter and event group names; otherwise duplicate nested keys can fail o
 
 The application must also do both of the following:
 
-- Build `Psr\Log\LoggerInterface` from `array_values($params['yiisoft/log']['targets'])`, normally with
-  `Yiisoft\Definitions\ReferencesArray`. A hardcoded target list omits `DebugLogTarget`, so Logs stays empty.
+- Build `Psr\Log\LoggerInterface` from `array_values($params['yiisoft/log']['targets'] ?? [StreamTarget::class])`,
+  normally with `Yiisoft\Definitions\ReferencesArray`. The `Yiisoft\Log\StreamTarget` fallback keeps the logger
+  resolvable when the package returns empty configuration. A hardcoded target list omits `DebugLogTarget`, so Logs
+  stays empty.
 - Prepend `...($params['yiisoft/middleware-dispatcher']['middlewares'] ?? [])` to every intended middleware list.
   `DebugRouteMiddleware` serves the configured prefix directly and `RequestCaptureMiddleware` captures requests and
   injects the HTML toolbar. No application route is needed.

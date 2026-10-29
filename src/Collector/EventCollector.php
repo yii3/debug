@@ -154,7 +154,7 @@ final class EventCollector implements CollectorInterface
         $trace = [];
 
         $contextStatus = $this->captureContext ? 'unsupported' : 'disabled';
-        $traceStatus = $this->traceLimit > 0 ? 'captured' : 'disabled';
+        $traceStatus = 'disabled';
 
         $pairId = null;
         $phase = '';
@@ -187,8 +187,9 @@ final class EventCollector implements CollectorInterface
                     $pairId = $scope['id'] ?? null;
                     $depth = $scope['depth'] ?? 0;
 
+                    // A popped scope implies its enter is still counted, so the depth never drops below zero.
                     if ($scope !== null) {
-                        $this->depth = max(0, $this->depth - 1);
+                        $this->depth--;
                     }
                 }
 
@@ -238,6 +239,8 @@ final class EventCollector implements CollectorInterface
         }
 
         if ($this->traceLimit > 0) {
+            $traceStatus = 'captured';
+
             try {
                 $trace = EventCapture::trace(
                     debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 32),
@@ -337,7 +340,8 @@ final class EventCollector implements CollectorInterface
 
         [$class, $method] = $callback;
 
-        if (!is_string($class) || !is_string($method) || $class === '' || $method === '') {
+        // Empty names need no guard: no class is named `''`, and no class declares a method named `''`.
+        if (!is_string($class) || !is_string($method)) {
             return null;
         }
 

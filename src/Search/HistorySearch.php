@@ -8,7 +8,6 @@ use PHPForge\Debug\Data\{FilterEngine, FilterPrefix, QueryInput};
 use PHPForge\Debug\View\History\HistoryRow;
 
 use function array_filter;
-use function array_values;
 
 /**
  * Filters captured request rows from the `Debug[...]` query group.
@@ -33,9 +32,7 @@ final readonly class HistorySearch
 
         if ($ajax === '0' || $ajax === '1') {
             $expected = $ajax === '1';
-            $rows = array_values(
-                array_filter($rows, static fn(HistoryRow $row): bool => $row->ajax === $expected),
-            );
+            $rows = array_filter($rows, static fn(HistoryRow $row): bool => $row->ajax === $expected);
         }
 
         $engine = new FilterEngine();

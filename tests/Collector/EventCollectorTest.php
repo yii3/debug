@@ -11,15 +11,16 @@ use Psr\Http\Message\{ResponseInterface, ServerRequestInterface};
 use Psr\Http\Server\MiddlewareInterface;
 use RuntimeException;
 use Yii3\Debug\Collector\EventCollector;
+use Yii3\Debug\Event\DebugEventDispatcher;
 use Yii3\Debug\Tests\Provider\EventCollectorProvider;
-use Yii3\Debug\Tests\Support\Captured;
-use Yii3\Debug\Tests\Support\HelperFactory;
+use Yii3\Debug\Tests\Support\{Captured, HelperFactory};
 use Yii3\Debug\Tests\Support\Stubs\{
     AlternateEventStub,
     AnonymousEventStubFactory,
     AnonymousMiddlewareStubFactory,
     EventStub,
     MiddlewareStub,
+    PassthroughEventDispatcherStub,
     SensitiveEventStub,
     WrappedEventActionStub,
 };
@@ -30,6 +31,8 @@ use function dirname;
 use function get_debug_type;
 use function json_encode;
 use function microtime;
+use function spl_autoload_register;
+use function spl_autoload_unregister;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -154,9 +157,27 @@ final class EventCollectorTest extends TestCase
 
         $collector = new EventCollector();
 
-        $collector->startup();
-        $collector->record(new $beforeMiddleware($invalidMiddleware, $request), 'AnonymousMiddlewareStack');
-        $collector->record(new $beforeMiddleware($throwingMiddleware, $request), 'AnonymousMiddlewareStack');
+        $autoloaded = [];
+
+        $autoloader = static function (string $class) use (&$autoloaded): void {
+            $autoloaded[] = $class;
+        };
+
+        spl_autoload_register($autoloader, prepend: true);
+
+        try {
+            $collector->startup();
+            $collector->record(new $beforeMiddleware($invalidMiddleware, $request), 'AnonymousMiddlewareStack');
+            $collector->record(new $beforeMiddleware($throwingMiddleware, $request), 'AnonymousMiddlewareStack');
+        } finally {
+            spl_autoload_unregister($autoloader);
+        }
+
+        self::assertSame(
+            [],
+            $autoloaded,
+            'Debug metadata naming an unloaded class must not trigger autoloading.',
+        );
 
         $snapshot = Captured::event($collector);
 
@@ -389,6 +410,117 @@ final class EventCollectorTest extends TestCase
             'A later capture must include events dispatched after the first snapshot.',
         );
     }
+
+    public function testCaptureTraceScansOnlyTheInnermostThirtyTwoFrames(): void
+    {
+        $collector = new EventCollector();
+
+        $collector->traceLimit = 1;
+
+        $collector->startup();
+
+        $dispatcher = new PassthroughEventDispatcherStub();
+
+        // Decorator layer N records with N + 3 instrumentation frames above the application caller.
+        for ($layer = 0; $layer < 29; $layer++) {
+            $dispatcher = new DebugEventDispatcher($dispatcher, $collector);
+        }
+
+        $line = __LINE__ + 2;
+
+        $dispatcher->dispatch(new EventStub());
+
+        $traces = array_map(
+            static fn(EventRow $row): array => $row->inspection()?->getTrace() ?? [],
+            Captured::event($collector)?->entries() ?? [],
+        );
+
+        self::assertCount(
+            29,
+            $traces,
+            'Every decorator layer must record the event.',
+        );
+        self::assertSame(
+            [__FILE__ . ":{$line}"],
+            $traces[27],
+            'A caller at the thirty-second frame must still be traced.',
+        );
+        self::assertSame(
+            [],
+            $traces[28],
+            'A caller beyond the thirty-second frame must not be traced.',
+        );
+    }
+
+    public function testCaptureTraceStartsAtTheApplicationDispatchCall(): void
+    {
+        $collector = new EventCollector();
+
+        $collector->traceLimit = 2;
+
+        $collector->startup();
+
+        $dispatcher = new DebugEventDispatcher(new PassthroughEventDispatcherStub(), $collector);
+
+        $line = __LINE__ + 2;
+
+        $dispatcher->dispatch(new EventStub());
+
+        $entry = Captured::event($collector)?->entries()[0] ?? null;
+
+        self::assertInstanceOf(
+            EventRow::class,
+            $entry,
+            'The dispatched event must produce one typed row.',
+        );
+
+        $inspection = $entry->inspection();
+
+        self::assertInstanceOf(
+            EventInspection::class,
+            $inspection,
+            'A traced event must carry an inspection.',
+        );
+        self::assertSame(
+            'captured',
+            $inspection->getTraceStatus(),
+            'A positive limit must report a captured trace.',
+        );
+
+        $trace = $inspection->getTrace();
+
+        self::assertCount(
+            2,
+            $trace,
+            'The trace must honor the configured frame limit.',
+        );
+        self::assertSame(
+            __FILE__ . ":{$line}",
+            $trace[0],
+            'Collector and dispatcher frames must be skipped before the application caller.',
+        );
+    }
+
+    public function testCaptureTraceStaysDisabledWithoutATraceLimit(): void
+    {
+        $beforeMiddleware = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+
+        $inspection = self::inspectLifecycleEvent(
+            new $beforeMiddleware(new MiddlewareStub(), HelperFactory::createRequest()),
+        );
+
+        self::assertSame(
+            'disabled',
+            $inspection->getTraceStatus(),
+            'A zero limit must report a disabled trace.',
+        );
+        self::assertSame(
+            [],
+            $inspection->getTrace(),
+            'A disabled trace must expose no frames.',
+        );
+    }
+
     public function testCaptureUsesTheConcreteMiddlewareClassAsLifecycleEventSource(): void
     {
         $middleware = new MiddlewareStub();
@@ -630,6 +762,46 @@ final class EventCollectorTest extends TestCase
             (new \PHPForge\Debug\Panel\Event\EventSequence($rows))
                 ->interval(($rows[0] ?? self::fail('Expected row 0.'))),
             'An unrelated leave must not complete an observed interval.',
+        );
+    }
+
+    public function testMiddlewareScopesRestoreTheNestingDepthAfterEveryLeave(): void
+    {
+        $collector = new EventCollector();
+
+        $collector->startup();
+
+        $outer = new MiddlewareStub();
+        $first = new MiddlewareStub();
+        $orphan = new MiddlewareStub();
+        $second = new MiddlewareStub();
+        $next = new MiddlewareStub();
+
+        $before = 'Yiisoft\\Middleware\\Dispatcher\\Event\\BeforeMiddleware';
+        $after = 'Yiisoft\\Middleware\\Dispatcher\\Event\\AfterMiddleware';
+
+        $request = HelperFactory::createRequest();
+
+        $collector->record(new $before($outer, $request));
+        $collector->record(new $before($first, $request));
+        $collector->record(new $after($first, null));
+        $collector->record(new $after($orphan, null));
+        $collector->record(new $before($second, $request));
+        $collector->record(new $after($second, null));
+        $collector->record(new $after($outer, null));
+        $collector->record(new $before($next, $request));
+
+        $rows = Captured::event($collector)?->entries() ?? [];
+
+        self::assertSame(
+            [1, 2, 2, null, 3, 3, 1, 4],
+            array_map(static fn(EventRow $row): int|null => $row->inspection()?->getPairId(), $rows),
+            'Only matched leave markers must reuse an enter identity.',
+        );
+        self::assertSame(
+            [0, 1, 1, 0, 1, 1, 0, 0],
+            array_map(static fn(EventRow $row): int|null => $row->inspection()?->getDepth(), $rows),
+            'Matched leaves must close one level; an unmatched leave must sit at the root and keep the depth.',
         );
     }
 

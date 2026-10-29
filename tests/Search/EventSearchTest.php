@@ -36,6 +36,18 @@ final class EventSearchTest extends TestCase
                 senderClass: 'App\\Service\\UserWriter',
                 isStatic: '1',
             ),
+            self::row(
+                name: 'App\\Event\\UserCreated',
+                class: 'App\\Audit\\UserCreated',
+                senderClass: 'App\\Service\\UserWriter',
+                isStatic: '0',
+            ),
+            self::row(
+                name: 'App\\Event\\UserCreated',
+                class: 'App\\Event\\UserCreated',
+                senderClass: 'App\\Http\\UserWriter',
+                isStatic: '0',
+            ),
         ];
 
         $search = EventSearch::fromQueryParams(

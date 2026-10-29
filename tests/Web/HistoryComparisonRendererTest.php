@@ -6,11 +6,13 @@ namespace Yii3\Debug\Tests\Web;
 
 use PHPForge\Debug\Storage\{DebugSnapshot, PanelFailure, RequestSummary};
 use PHPForge\Debug\View\ViewMessage;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Middleware\ToolbarOptions;
+use Yii3\Debug\Tests\Provider\HistoryComparisonRendererProvider;
 use Yii3\Debug\Web\{DebugPageRenderer, HistoryComparisonRenderer, HistoryGridRenderer};
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
@@ -72,6 +74,56 @@ final class HistoryComparisonRendererTest extends TestCase
                 "Region `{$caption->value}` must be focusable and named by its own caption.",
             );
         }
+    }
+
+    public function testHistoryFormSelectsTheTwoNewestCapturesWhenMoreAreRetained(): void
+    {
+        self::assertSame(
+            <<<HTML
+            <section class="yii-debug-section" aria-labelledby="yii-debug-history-compare-title">
+            <h2 class="yii-debug-section-title" id="yii-debug-history-compare-title">
+            <span class="yii-debug-section-mark">Compare</span>Capture changes
+            </h2><form class="yii-debug-compare-form" action="/developer/debug/compare" method="get">
+            <div class="yii-debug-field">
+            <label class="yii-debug-label" for="yii-debug-compare-baseline">Baseline capture</label><select class="yii-debug-select" id="yii-debug-compare-baseline" name="baseline" required>
+            <option value="newest">
+            time unavailable · UNKNOWN ·  · newest
+            </option>
+            <option value="middle" selected>
+            time unavailable · UNKNOWN ·  · middle
+            </option>
+            <option value="oldest">
+            time unavailable · UNKNOWN ·  · oldest
+            </option>
+            </select>
+            </div><div class="yii-debug-field">
+            <label class="yii-debug-label" for="yii-debug-compare-target">Target capture</label><select class="yii-debug-select" id="yii-debug-compare-target" name="target" required>
+            <option value="newest" selected>
+            time unavailable · UNKNOWN ·  · newest
+            </option>
+            <option value="middle">
+            time unavailable · UNKNOWN ·  · middle
+            </option>
+            <option value="oldest">
+            time unavailable · UNKNOWN ·  · oldest
+            </option>
+            </select>
+            </div><div class="yii-debug-field">
+            <button class="yii-debug-btn yii-debug-btn-primary" type="submit">Compare captures</button>
+            </div>
+            </form>
+            </section>
+            HTML,
+            HistoryComparisonRenderer::renderHistoryForm(
+                [
+                    'newest' => RequestSummary::create('newest'),
+                    'middle' => RequestSummary::create('middle'),
+                    'oldest' => RequestSummary::create('oldest'),
+                ],
+                '/developer/debug',
+            ),
+            'Baseline must be the second-newest capture and target the newest one.',
+        );
     }
 
     public function testHistoryGridOffersComparisonOnlyWhenTwoCapturesExist(): void
@@ -147,6 +199,7 @@ final class HistoryComparisonRendererTest extends TestCase
             'The pager must render a link for the current page.',
         );
     }
+
     public function testRegisteredPanelsUseCustomLabelsAndOnlyAvailableCaptureLinks(): void
     {
         $baseline = new DebugSnapshot(
@@ -192,6 +245,34 @@ final class HistoryComparisonRendererTest extends TestCase
             'panel=unknown',
             $html,
             'Historical unregistered panels must not produce broken links.',
+        );
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $baselinePanels Panel payloads captured by the baseline.
+     * @param array<string, string> $panelLabels Display names indexed by panel ID.
+     */
+    #[DataProviderExternal(HistoryComparisonRendererProvider::class, 'resultFragments')]
+    public function testResultsContainRenderedFragment(
+        RequestSummary $baseline,
+        RequestSummary $target,
+        array $baselinePanels,
+        array $panelLabels,
+        string $routePrefix,
+        string $expected,
+    ): void {
+        self::assertStringContainsString(
+            $expected,
+            HistoryComparisonRenderer::render(
+                HistoryComparison::fromSnapshots(
+                    new DebugSnapshot($baseline, $baselinePanels, []),
+                    new DebugSnapshot($target, [], []),
+                    $panelLabels,
+                ),
+                ['target' => $target, 'baseline' => $baseline],
+                $routePrefix,
+            ),
+            'Comparison page must contain the expected markup.',
         );
     }
 
@@ -339,6 +420,139 @@ final class HistoryComparisonRendererTest extends TestCase
             'panel=failed',
             $html,
             'Failed custom panels must render their state without a deep link.',
+        );
+    }
+
+    public function testResultsRenderTheFullPageForIdenticalCaptures(): void
+    {
+        $baseline = RequestSummary::create('baseline');
+        $target = RequestSummary::create('target');
+
+        self::assertSame(
+            <<<HTML
+            <h1 class="yii-debug-hero-title">
+            Compare captures
+            </h1><section class="yii-debug-section" aria-labelledby="yii-debug-compare-selection">
+            <h2 class="yii-debug-section-title" id="yii-debug-compare-selection">
+            <span class="yii-debug-section-mark">01</span>Selection
+            </h2><form class="yii-debug-compare-form" action="/developer/debug/compare" method="get">
+            <div class="yii-debug-field">
+            <label class="yii-debug-label" for="yii-debug-compare-baseline">Baseline capture</label><select class="yii-debug-select" id="yii-debug-compare-baseline" name="baseline" required>
+            <option value="target">
+            time unavailable · UNKNOWN ·  · target
+            </option>
+            <option value="baseline" selected>
+            time unavailable · UNKNOWN ·  · baseline
+            </option>
+            </select>
+            </div><div class="yii-debug-field">
+            <label class="yii-debug-label" for="yii-debug-compare-target">Target capture</label><select class="yii-debug-select" id="yii-debug-compare-target" name="target" required>
+            <option value="target" selected>
+            time unavailable · UNKNOWN ·  · target
+            </option>
+            <option value="baseline">
+            time unavailable · UNKNOWN ·  · baseline
+            </option>
+            </select>
+            </div><div class="yii-debug-field">
+            <button class="yii-debug-btn yii-debug-btn-primary" type="submit">Compare captures</button>
+            </div>
+            </form>
+            </section><section class="yii-debug-section" aria-labelledby="yii-debug-compare-overview-title">
+            <h2 class="yii-debug-section-title" id="yii-debug-compare-overview-title">
+            <span class="yii-debug-section-mark">02</span>Capture overview
+            </h2><div class="yii-debug-compare-overview">
+            <article class="yii-debug-readout-card">
+            <span class="yii-debug-readout-label">Baseline</span><a class="yii-debug-readout-value" href="/developer/debug/view?tag=baseline&amp;panel=config">baseline</a><span class="yii-debug-readout-meta"> · 0</span><span class="yii-debug-muted"></span>
+            </article><article class="yii-debug-readout-card">
+            <span class="yii-debug-readout-label">Target</span><a class="yii-debug-readout-value" href="/developer/debug/view?tag=target&amp;panel=config">target</a><span class="yii-debug-readout-meta"> · 0</span><span class="yii-debug-muted"></span>
+            </article><article class="yii-debug-readout-card">
+            <span class="yii-debug-readout-label">Result</span><span class="yii-debug-readout-value">Identical</span><span class="yii-debug-readout-meta">Summary and panel structure</span>
+            </article>
+            </div>
+            </section><section class="yii-debug-section" aria-labelledby="yii-debug-compare-metrics-title">
+            <h2 class="yii-debug-section-title" id="yii-debug-compare-metrics-title">
+            <span class="yii-debug-section-mark">03</span>Request metrics
+            </h2><div aria-label="Request summary comparison" role="region" tabindex="0" class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-compare-grid">
+            <caption class="yii-debug-sr-only">Request summary comparison</caption>
+            <thead>
+            <tr>
+            <th scope="col">Metric</th>
+            <th scope="col">Baseline</th>
+            <th scope="col">Target</th>
+            <th scope="col">Delta</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+            <td>Status</td>
+            <td class="yii-debug-cell-mono">Not captured</td>
+            <td class="yii-debug-cell-mono">Not captured</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>Method</td>
+            <td class="yii-debug-cell-mono"></td>
+            <td class="yii-debug-cell-mono"></td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>AJAX</td>
+            <td class="yii-debug-cell-mono">No</td>
+            <td class="yii-debug-cell-mono">No</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>Duration</td>
+            <td class="yii-debug-cell-mono">Not captured</td>
+            <td class="yii-debug-cell-mono">Not captured</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>Peak memory</td>
+            <td class="yii-debug-cell-mono">Not captured</td>
+            <td class="yii-debug-cell-mono">Not captured</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>SQL queries</td>
+            <td class="yii-debug-cell-mono">0</td>
+            <td class="yii-debug-cell-mono">0</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>Mail messages</td>
+            <td class="yii-debug-cell-mono">0</td>
+            <td class="yii-debug-cell-mono">0</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            <tr>
+            <td>Excessive DB callers</td>
+            <td class="yii-debug-cell-mono">0</td>
+            <td class="yii-debug-cell-mono">0</td>
+            <td><span class="yii-debug-delta-neutral">No change</span></td>
+            </tr>
+            </tbody>
+            </table>
+            </div>
+            </section><section class="yii-debug-section" aria-labelledby="yii-debug-compare-panels-title">
+            <h2 class="yii-debug-section-title" id="yii-debug-compare-panels-title">
+            <span class="yii-debug-section-mark">04</span>Panel structure<span class="yii-debug-section-count">0</span>
+            </h2><p class="yii-debug-muted">
+            Neither capture contains panel payloads to compare.
+            </p>
+            </section>
+            HTML,
+            HistoryComparisonRenderer::render(
+                HistoryComparison::fromSnapshots(
+                    new DebugSnapshot($baseline, [], []),
+                    new DebugSnapshot($target, [], []),
+                ),
+                ['target' => $target, 'baseline' => $baseline],
+                '/developer/debug',
+            ),
+            'Order: heading, selection, overview, metrics, panels; matching captures report `Identical`.',
         );
     }
 

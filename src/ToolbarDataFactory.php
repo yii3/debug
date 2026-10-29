@@ -238,7 +238,7 @@ final class ToolbarDataFactory
                     $urls->panel(
                         $tag,
                         'log',
-                        [FilterPrefix::LOG => ['level' => (string) $level]],
+                        [FilterPrefix::LOG => ['level' => $level]],
                     ),
                 );
         }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests\Provider;
 
 /**
- * Filter navigation, sorting, and pagination cases for {@see \Yii3\Debug\Tests\Panel\LogPanelTest}.
+ * Filter navigation, heading order, sorting, and pagination cases for {@see \Yii3\Debug\Tests\Panel\LogPanelTest}.
  */
 final class LogPanelProvider
 {
@@ -48,6 +48,73 @@ final class LogPanelProvider
                 'message' => false,
             ],
             ['', ''],
+        ];
+    }
+
+    /**
+     * @return iterable<string, array{array<array-key, mixed>, non-empty-string}>
+     */
+    public static function headingStates(): iterable
+    {
+        yield 'grid follows the summary' => [
+            [],
+            <<<HTML
+            <h1 class="yii-debug-sr-only">
+            Log Messages
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>4</strong> messages</span><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-danger" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=1" title="Show only error log messages" aria-label="1 errors; filter log messages by error level"><strong>1</strong> errors</a><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-warn" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=2" title="Show only warning log messages" aria-label="1 warnings; filter log messages by warning level"><strong>1</strong> warnings</a><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-info" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=4" title="Show only info log messages" aria-label="1 info; filter log messages by info level"><strong>1</strong> info</a><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-trace" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=8" title="Show only trace log messages" aria-label="1 trace; filter log messages by trace level"><strong>1</strong> trace</a><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <option value="10">
+            10
+            </option>
+            <option value="25">
+            25
+            </option>
+            <option value="50" selected>
+            50
+            </option>
+            <option value="100">
+            100
+            </option>
+            <option value="all">
+            All
+            </option>
+            </select></label>
+            </header><div class="yii-debug-grid yii-debug-grid-log">
+            HTML,
+        ];
+        yield 'no-match card follows the summary and the filter banner' => [
+            ['Log' => ['message' => 'missing']],
+            <<<HTML
+            <h1 class="yii-debug-sr-only">
+            Log Messages
+            </h1><header class="yii-debug-grid-summary">
+            <span><strong>4</strong> messages</span><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-danger" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=1" title="Show only error log messages" aria-label="1 errors; filter log messages by error level"><strong>1</strong> errors</a><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-warn" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=2" title="Show only warning log messages" aria-label="1 warnings; filter log messages by warning level"><strong>1</strong> warnings</a><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-info" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=4" title="Show only info log messages" aria-label="1 info; filter log messages by info level"><strong>1</strong> info</a><span class="yii-debug-grid-summary-sep">·</span><a class="yii-debug-grid-summary-stat-trace" href="/debug/view?tag=request-1&amp;panel=log&amp;Log%5Blevel%5D=8" title="Show only trace log messages" aria-label="1 trace; filter log messages by trace level"><strong>1</strong> trace</a><label class="yii-debug-grid-pagesize"><span class="yii-debug-grid-pagesize-label">Rows</span><select class="yii-debug-grid-pagesize-select" name="per-page" data-yii-debug-pagesize="true">
+            <option value="10">
+            10
+            </option>
+            <option value="25">
+            25
+            </option>
+            <option value="50" selected>
+            50
+            </option>
+            <option value="100">
+            100
+            </option>
+            <option value="all">
+            All
+            </option>
+            </select></label>
+            </header><div class="yii-debug-active-filters" role="group" aria-label="Active filters">
+            <span class="yii-debug-active-filters-label">1 filter active</span><span class="yii-debug-active-filters-list"><a class="yii-debug-active-filter-pill" href="/debug/view?tag=request-1&amp;panel=log" title="Remove this filter" aria-label="Remove message: missing filter"><span class="yii-debug-active-filter-attr">message</span><span class="yii-debug-active-filter-sep">:</span><span class="yii-debug-active-filter-value">missing</span><span class="yii-debug-active-filter-x" aria-hidden="true">×</span></a></span><a class="yii-debug-active-filters-clear" href="/debug/view?tag=request-1&amp;panel=log" title="Clear all filters and show every row" aria-label="Clear all active filters">Clear all</a>
+            </div><div class="yii-debug-empty-state">
+            <h2>
+            No log messages match the active filters
+            </h2><p>
+            Adjust or clear the filters to show the captured messages.
+            </p>
+            </div>
+            HTML,
         ];
     }
 
