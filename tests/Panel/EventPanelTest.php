@@ -156,16 +156,18 @@ final class EventPanelTest extends TestCase
         );
     }
 
-    public function testHeadingPrecedesTheGridSummary(): void
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $query
+     * @param non-empty-string $expectedPrefix
+     */
+    #[DataProviderExternal(EventPanelProvider::class, 'headingStates')]
+    public function testHeadingPrecedesThePanelContent(array $payload, array $query, string $expectedPrefix): void
     {
-        $html = (new EventPanel())->render(
-            HelperFactory::createPanelRenderInput(self::payload(), self::context([])),
-        );
-
-        self::assertStringContainsString(
-            '<h1 class="yii-debug-sr-only">' . "\nEvents\n" . '</h1><header class="yii-debug-grid-summary">',
-            $html,
-            'Order: heading, then summary.',
+        self::assertStringStartsWith(
+            $expectedPrefix,
+            (new EventPanel())->render(HelperFactory::createPanelRenderInput($payload, self::context($query))),
+            'Order: heading, then the summary or the empty-state card.',
         );
     }
 
@@ -190,6 +192,11 @@ final class EventPanelTest extends TestCase
             '<strong>3</strong> events',
             $html,
             'Malformed and unknown filters must not change the result set.',
+        );
+        self::assertStringContainsString(
+            '<strong>1</strong> static',
+            $html,
+            'The summary must count the static event.',
         );
         self::assertStringNotContainsString(
             'yii-debug-active-filters',
@@ -397,9 +404,9 @@ final class EventPanelTest extends TestCase
             'The distinct-class count must describe the complete filtered set.',
         );
         self::assertStringNotContainsString(
-            '<strong>1</strong> static',
+            '</strong> static',
             $html,
-            'Static events removed by filters must not remain in the summary.',
+            'A filtered set without static events must omit the static chip.',
         );
         self::assertStringContainsString(
             '<span class="yii-debug-active-filters-label">4 filters active</span>',

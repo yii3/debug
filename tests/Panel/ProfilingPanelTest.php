@@ -1183,6 +1183,29 @@ final class ProfilingPanelTest extends TestCase
         );
     }
 
+    #[DataProviderExternal(ProfilingPanelProvider::class, 'timelineRulers')]
+    public function testTimelineAxisSplitsTheRequestIntoFourRulerIntervals(float $time, string $expected): void
+    {
+        $payload = self::payload();
+
+        $payload['time'] = $time;
+
+        $html = (new ProfilingPanel())
+            ->render(HelperFactory::createPanelRenderInput(
+                $payload,
+                self::context([]),
+                RequestSummary::create('request-1')
+                    ->withRequest('https://example.test/profile', 'GET', '127.0.0.1', 1.0)
+                    ->withProfiling($time, 2_097_152),
+            ));
+
+        self::assertStringContainsString(
+            $expected,
+            $html,
+            'Ruler ticks must follow a four-interval step.',
+        );
+    }
+
     public function testTimelineIgnoresMalformedSiblingLogPayload(): void
     {
         $payload = self::payload();
@@ -1214,6 +1237,11 @@ final class ProfilingPanelTest extends TestCase
             'yii-debug-tl-memory-gradient',
             $html,
             'Malformed optional Log data must not discard valid profiler memory samples.',
+        );
+        self::assertStringContainsString(
+            'points="0 40 0 20 1920 0 1920 0"',
+            $html,
+            'Every profiler memory sample must remain plotted.',
         );
     }
 

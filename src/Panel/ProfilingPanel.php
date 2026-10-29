@@ -24,7 +24,6 @@ use Yiisoft\Data\Paginator\OffsetPaginator;
 use Yiisoft\Yii\DataView\GridView\GridView;
 
 use function count;
-use function str_replace;
 use function strcasecmp;
 
 /**
@@ -355,15 +354,8 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
         PanelRenderContext $context,
         array $filters = [],
     ): string {
-        $queryParams = FilterRemoval::withGroup(
-            $context->queryParams,
-            FilterPrefix::PROFILE,
-            $filters,
-            ['view', FilterPrefix::TIMELINE],
-        );
-
         $state = SortState::fromQuery(
-            QueryInput::scalar($queryParams, 'sort'),
+            QueryInput::scalar($context->queryParams, 'sort'),
             self::SORT_ATTRIBUTES,
             'duration',
             'desc',
@@ -373,8 +365,8 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
 
         $paginator = PageWindow::paginate(
             $sortedRows,
-            QueryInput::scalar($queryParams, 'per-page'),
-            QueryInput::scalar($queryParams, 'page'),
+            QueryInput::scalar($context->queryParams, 'per-page'),
+            QueryInput::scalar($context->queryParams, 'page'),
         );
 
         return self::renderGrid($paginator, ProfileRow::maxDuration($entries), $state, $context, $filters);
@@ -404,16 +396,11 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
      * @param int $filteredCount Spans matching the active filters.
      * @param int $totalCount Spans captured in total.
      * @param ProfilingSnapshot $snapshot Typed snapshot of the capture.
-     * @param int $memoryPrecision Decimal places used for the memory readout.
      *
      * @return string Rendered heading.
      */
-    private static function renderSummary(
-        int $filteredCount,
-        int $totalCount,
-        ProfilingSnapshot $snapshot,
-        int $memoryPrecision = 3,
-    ): string {
+    private static function renderSummary(int $filteredCount, int $totalCount, ProfilingSnapshot $snapshot): string
+    {
         $spanLabel = $totalCount === 1
             ? ProfileMessage::SPAN_SUFFIX->value
             : ProfileMessage::SPANS_SUFFIX->value;
@@ -425,7 +412,7 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
             SummaryChip::render(Format::milliseconds($snapshot->time), ProfileMessage::TOTAL_SUFFIX->value),
             SummaryChip::separator(),
             SummaryChip::render(
-                Format::bytesToMb($snapshot->memory, $memoryPrecision),
+                Format::bytesToMb($snapshot->memory, 2),
                 ProfileMessage::PEAK_SUFFIX->value,
             ),
         ];
@@ -468,15 +455,11 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
             $profiling->memory,
         );
 
-        return str_replace(
-            '<wbr>',
-            '',
-            TimelineRenderer::renderChart(
-                $spans,
-                TimelineGeometry::rulers($duration, 4),
-                $memorySvg,
-                $profiling->memory,
-            ),
+        return TimelineRenderer::renderChart(
+            $spans,
+            TimelineGeometry::rulers($duration, 4),
+            $memorySvg,
+            $profiling->memory,
         );
     }
 
@@ -521,12 +504,7 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
 
         $filteredRows = $search->filter($entries);
 
-        $content = self::renderSummary(
-            count($filteredRows),
-            count($entries),
-            $profiling,
-            2,
-        );
+        $content = self::renderSummary(count($filteredRows), count($entries), $profiling);
 
         if ($entries === []) {
             return $content . self::renderEmptyState();
@@ -594,6 +572,8 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
     /**
      * Collects the memory samples plotted under the Timeline, merging the Logs panel readings when available.
      *
+     * A missing or malformed Logs payload fails hydration and leaves the profiler samples unchanged.
+     *
      * @param ProfilingSnapshot $profiling Typed snapshot of the capture.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      *
@@ -604,15 +584,10 @@ final readonly class ProfilingPanel implements ToolbarPanelProviderInterface, To
         PanelRenderContext $context,
     ): array {
         $samples = $profiling->samples();
-        $logPayload = $context->panelPayload('log');
-
-        if ($logPayload === null) {
-            return $samples;
-        }
 
         try {
             $entries = LogSnapshot::fromArray(
-                $logPayload,
+                $context->panelPayload('log'),
                 '$.panels.log',
             )->entries();
         } catch (HydrationException) {

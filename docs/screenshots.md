@@ -93,6 +93,9 @@ Expand a panel to preview it. Images follow your GitHub light or dark theme.
 </picture>
 </details>
 
----
+## Next steps
+
+- 📚 [Getting started](index.md)
+- ⚙️ [Configuration reference](configuration.md)
 
 [← Back to documentation](../README.md#documentation)

@@ -21,6 +21,7 @@ use PHPForge\Vite\Vite;
 use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Yii3\Debug\Comparison\HistoryComparison;
 use Yii3\Debug\ConfigDataFactory;
 use Yii3\Debug\Middleware\ToolbarOptions;
 use Yii3\Debug\Panel\{
@@ -32,10 +33,11 @@ use Yii3\Debug\Panel\{
     ProviderPanel,
     RequestPanel,
 };
-use Yii3\Debug\Tests\Provider\UrlPathProvider;
+use Yii3\Debug\Tests\Provider\{DebugPageRendererProvider, UrlPathProvider};
 use Yii3\Debug\Web\DebugPageRenderer;
 use Yiisoft\Aliases\Aliases;
 use Yiisoft\Assets\{AssetLoader, AssetManager, AssetPublisher};
+use Yiisoft\View\Exception\ViewNotFoundException;
 use Yiisoft\View\WebView;
 
 use function date;
@@ -45,6 +47,9 @@ use function ini_get;
 use function php_uname;
 use function preg_match;
 use function preg_match_all;
+use function strlen;
+use function strpos;
+use function substr;
 use function sys_get_temp_dir;
 
 use const PHP_SAPI;
@@ -87,6 +92,52 @@ final class DebugPageRendererTest extends TestCase
             $original,
             $summary->jsonSerialize(),
             'Presentation must not mutate the request summary.',
+        );
+    }
+
+    public function testCompareLinksTheConfigurationPanelOfBothCaptures(): void
+    {
+        $baseline = new DebugSnapshot(RequestSummary::create('baseline'), ['config' => ['debug' => false]], []);
+        $target = new DebugSnapshot(RequestSummary::create('target'), ['config' => ['debug' => true]], []);
+
+        $html = $this->renderer()->compare(
+            HistoryComparison::fromSnapshots($baseline, $target),
+            ['target' => $target->summary, 'baseline' => $baseline->summary],
+            'light',
+        );
+
+        self::assertSame(
+            <<<HTML
+            <div aria-label="Panel structure comparison" role="region" tabindex="0" class="yii-debug-table-wrap">
+            <table class="yii-debug-table yii-debug-compare-grid">
+            <caption class="yii-debug-sr-only">Panel structure comparison</caption>
+            <thead>
+            <tr>
+            <th scope="col">Panel</th>
+            <th scope="col">Baseline</th>
+            <th scope="col">Target</th>
+            <th scope="col">Added</th>
+            <th scope="col">Removed</th>
+            <th scope="col">Changed</th>
+            <th scope="col">Unchanged</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+            <td>Configuration</td>
+            <td><span class="yii-debug-badge yii-debug-badge-success">Captured</span> <a class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-sm" href="/debug/view?tag=baseline&amp;panel=config">Open panel</a></td>
+            <td><span class="yii-debug-badge yii-debug-badge-success">Captured</span> <a class="yii-debug-btn yii-debug-btn-ghost yii-debug-btn-sm" href="/debug/view?tag=target&amp;panel=config">Open panel</a></td>
+            <td class="yii-debug-cell-numeric">0</td>
+            <td class="yii-debug-cell-numeric">0</td>
+            <td class="yii-debug-cell-numeric">1</td>
+            <td class="yii-debug-cell-numeric">0</td>
+            </tr>
+            </tbody>
+            </table>
+            </div>
+            HTML,
+            $this->fragment($html, '<div aria-label="Panel structure comparison"', '</div>'),
+            'The Configuration row must carry its title and open both captures.',
         );
     }
 
@@ -788,6 +839,44 @@ final class DebugPageRendererTest extends TestCase
         );
     }
 
+    public function testConfigSidebarPrefersTheSnapshotSummaryOverTheManifestEntry(): void
+    {
+        $stale = RequestSummary::create('selected')
+            ->withRequest('https://example.test/stale', 'GET', '127.0.0.1', 1.0)
+            ->withProfiling(0.1, 3 * 1024 * 1024);
+        $fresh = RequestSummary::create('selected')
+            ->withRequest('https://example.test/fresh', 'POST', '127.0.0.1', 1.0)
+            ->withProfiling(0.1, 7 * 1024 * 1024);
+
+        $html = $this->renderer()->config(
+            'selected',
+            'light',
+            ['selected' => $stale],
+            new DebugSnapshot($fresh, [], []),
+        );
+
+        $requestTime = date('H:i:s', 1);
+
+        self::assertSame(
+            <<<HTML
+            <div class="yii-debug-history-card" title="POST https://example.test/fresh">
+            <div class="yii-debug-snapshot-line">
+            <span class="yii-debug-snapshot-method yii-debug-verb-post" data-snapshot-field="method">POST</span><span class="yii-debug-snapshot-url" title="https://example.test/fresh" data-snapshot-field="url">/fresh</span>
+            </div><div class="yii-debug-snapshot-meta">
+            <span class="yii-debug-snapshot-status yii-debug-status-none" data-snapshot-field="status">–</span><span class="yii-debug-snapshot-time" data-snapshot-field="time">{$requestTime}</span><span class="yii-debug-snapshot-tag" data-snapshot-field="ajax" hidden>AJAX</span>
+            HTML,
+            $this->fragment($html, '<div class="yii-debug-history-card"', '>AJAX</span>'),
+            'The sidebar card must describe the snapshot summary.',
+        );
+        self::assertSame(
+            <<<HTML
+            <span class="yii-debug-brand-chip yii-debug-brand-chip-mem"><span class="yii-debug-brand-label">Memory</span><span class="yii-debug-brand-value">7.00 MB</span></span>
+            HTML,
+            $this->fragment($html, '<span class="yii-debug-brand-chip yii-debug-brand-chip-mem">', '</span></span>'),
+            'The shell memory must come from the snapshot summary.',
+        );
+    }
+
     public function testConfigurationMethodsPreserveExistingSettings(): void
     {
         $tab = "\t";
@@ -1255,6 +1344,71 @@ final class DebugPageRendererTest extends TestCase
             'title="View Asset Bundles panel"',
             $html,
             'Only the navigation entry disappears.',
+        );
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $panels
+     * @param array<string, PanelFailure> $failures
+     */
+    #[DataProviderExternal(DebugPageRendererProvider::class, 'jsonSnapshots')]
+    public function testExtensionRendersJsonSnapshotView(
+        string $panelId,
+        array $panels,
+        array $failures,
+        string $expected,
+    ): void {
+        $manifest = $this->manifest();
+
+        $html = $this->renderer()->extension(
+            new DebugSnapshot($manifest['request-1'], $panels, $failures),
+            $panelId,
+            'light',
+            $manifest,
+        );
+
+        self::assertSame(
+            $expected,
+            $this->fragment($html, '<main class="yii-debug-main yii-debug-card"', '</main>'),
+            'Heading, failure callout, and pretty-printed payload must match.',
+        );
+    }
+
+    #[DataProviderExternal(DebugPageRendererProvider::class, 'extensionLinks')]
+    public function testExtensionsGroupListsRawCapturesOnceInCaseInsensitiveOrder(
+        string|null $panelId,
+        string $expected,
+    ): void {
+        $manifest = $this->manifest();
+
+        $snapshot = new DebugSnapshot(
+            $manifest['request-1'],
+            [
+                'request' => $this->requestPayload(),
+                'zeta' => ['value' => 1],
+                'Beta' => ['value' => 2],
+                'alpha' => ['value' => 3],
+            ],
+            [
+                'alpha' => PanelFailure::fromThrowable(PanelFailure::HYDRATE, new RuntimeException('Alpha failed.')),
+                'gamma' => PanelFailure::fromThrowable(PanelFailure::CAPTURE, new RuntimeException('Gamma failed.')),
+            ],
+        );
+
+        $renderer = $this->renderer();
+
+        $html = $panelId === null
+            ? $renderer->config('request-1', 'light', $manifest, $snapshot)
+            : $renderer->extension($snapshot, $panelId, 'light', $manifest);
+
+        self::assertSame(
+            $expected,
+            $this->fragment(
+                $html,
+                '<nav class="yii-debug-nav yii-debug-nav-iconed" aria-label="Extensions debug panels">',
+                '</nav>',
+            ),
+            'Raw captures must be listed once, sorted case-insensitively, and active only when shown.',
         );
     }
 
@@ -2484,6 +2638,29 @@ final class DebugPageRendererTest extends TestCase
         }
     }
 
+    #[DataProviderExternal(DebugPageRendererProvider::class, 'snapshotNavigators')]
+    public function testSnapshotNavigatorLinksNeighbourCapturesAndDisablesUnreachableOnes(
+        string $tag,
+        string $expected,
+    ): void {
+        $manifest = [
+            'first' => RequestSummary::create('first'),
+            'second' => RequestSummary::create('second'),
+            'third' => RequestSummary::create('third'),
+            'fourth' => RequestSummary::create('fourth'),
+        ];
+
+        self::assertSame(
+            $expected,
+            $this->fragment(
+                $this->renderer()->config($tag, 'light', $manifest),
+                '<div class="yii-debug-request-nav-row" role="group">',
+                '</div>',
+            ),
+            'Each control must link its target capture or stay disabled.',
+        );
+    }
+
     public function testSnapshotSidebarPreservesFragmentsAndMalformedUrls(): void
     {
         $renderer = $this->renderer();
@@ -2506,6 +2683,25 @@ final class DebugPageRendererTest extends TestCase
             $malformed,
             'A URL that parse_url() rejects must fall back to the captured value.',
         );
+    }
+
+    public function testThrowViewNotFoundExceptionForTrailingSlashViewPath(): void
+    {
+        $viewPath = sys_get_temp_dir() . '/yii3-debug-missing-views';
+        $aliases = new Aliases(['@assets' => sys_get_temp_dir(), '@assetsUrl' => '/debug-assets']);
+        $renderer = new DebugPageRenderer(
+            new WebView(),
+            new AssetManager($aliases, new AssetLoader($aliases)),
+            new ConfigDataFactory(['name' => 'Test application']),
+            "{$viewPath}/",
+        );
+
+        $this->expectException(ViewNotFoundException::class);
+        $this->expectExceptionMessage(
+            "The view file \"{$viewPath}/_shell.php\" does not exist.",
+        );
+
+        $renderer->history([], [], 'light');
     }
 
     /**
@@ -2567,6 +2763,28 @@ final class DebugPageRendererTest extends TestCase
             ->willReturn($name);
 
         return $panel;
+    }
+
+    /**
+     * Extracts the first rendered fragment that opens with the start marker, through the next end marker.
+     *
+     * @param string $html Rendered debugger page.
+     * @param string $start Opening markup of the fragment.
+     * @param string $end Closing markup of the fragment.
+     *
+     * @return string Fragment including both markers.
+     */
+    private function fragment(string $html, string $start, string $end): string
+    {
+        $offset = strpos($html, $start);
+
+        $closing = $offset === false ? false : strpos($html, $end, $offset);
+
+        if ($offset === false || $closing === false) {
+            self::fail('The rendered page must contain the expected fragment.');
+        }
+
+        return substr($html, $offset, $closing - $offset + strlen($end));
     }
 
     /**

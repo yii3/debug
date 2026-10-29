@@ -157,6 +157,22 @@ final class ProfileSearchTest extends TestCase
         }
     }
 
+    public function testTrimsSurroundingWhitespaceFromTheMinimumDuration(): void
+    {
+        $search = ProfileSearch::fromQueryParams(['Profile' => ['duration' => ' 5 ']]);
+
+        self::assertSame(
+            ['duration' => '5'],
+            $search->activeFilters,
+            'The active filter must hold the trimmed bound.',
+        );
+        self::assertSame(
+            '5',
+            $search->duration(),
+            'The numeric input must receive the trimmed bound.',
+        );
+    }
+
     private static function row(string $category, string $info, float $duration = 1.0): ProfileRow
     {
         return new ProfileRow(0.0, $duration, $category, $info, 0, 0, 0, 0, []);

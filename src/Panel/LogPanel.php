@@ -157,14 +157,12 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
                 header: LogMessage::NUMBER->value,
                 content: static fn(LogRow $row): string => (string) $row->id,
                 filter: '',
-                encodeContent: true,
                 bodyClass: 'yii-debug-nowrap',
             ),
             new GridColumn(
                 header: $state->header('time', LogMessage::TIME->value, $url),
                 content: static fn(LogRow $row): string => LogCellRenderer::renderTimeCell($row),
                 filter: '',
-                encodeContent: true,
                 headerClass: 'sort-numerical',
                 bodyClass: 'yii-debug-nowrap',
             ),
@@ -439,7 +437,7 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
         $value = (string) $count;
         $text = " {$label}";
 
-        $queryParams[FilterPrefix::LOG] = ['level' => (string) $level];
+        $queryParams[FilterPrefix::LOG] = ['level' => $level];
 
         return A::tag()
             ->addAriaAttribute('label', sprintf(LogMessage::CHIP_ARIA->value, $count, $label, $levelName))

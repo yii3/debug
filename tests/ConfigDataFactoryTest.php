@@ -4,16 +4,22 @@ declare(strict_types=1);
 
 namespace Yii3\Debug\Tests;
 
+use Composer\Autoload\ClassLoader;
 use Composer\InstalledVersions;
 use PHPForge\Debug\Panel\Config\ConfigSnapshot;
 use PHPUnit\Framework\TestCase;
 use Yii3\Debug\ConfigDataFactory;
+use Yii3\Debug\Tests\Support\TemporaryDirectory;
 
+use function array_key_first;
 use function array_keys;
+use function file_put_contents;
 use function getenv;
 use function is_array;
+use function mkdir;
 use function putenv;
 use function sort;
+use function var_export;
 
 use const PHP_VERSION;
 
@@ -84,6 +90,60 @@ final class ConfigDataFactoryTest extends TestCase
         self::assertFalse(
             self::applicationWith('APP_DEBUG', null, ['on'])['debug'] ?? null,
             'A value that is no scalar must keep debug mode off.',
+        );
+    }
+
+    public function testCreateOrdersPackagesFromSeveralVendorDirectoriesByName(): void
+    {
+        $vendorDir = TemporaryDirectory::create('yii3-debug-config-vendor-');
+
+        mkdir($vendorDir . '/composer');
+        file_put_contents(
+            $vendorDir . '/composer/installed.php',
+            '<?php return ' . var_export(
+                [
+                    'root' => [
+                        'name' => 'acme/fixture',
+                        'pretty_version' => '1.0.0',
+                        'version' => '1.0.0.0',
+                        'reference' => null,
+                        'type' => 'project',
+                        'install_path' => $vendorDir,
+                        'aliases' => [],
+                        'dev' => false,
+                    ],
+                    'versions' => [
+                        'yiisoft/aaa-fixture' => [
+                            'pretty_version' => '1.0.0',
+                            'version' => '1.0.0.0',
+                            'reference' => null,
+                            'type' => 'library',
+                            'install_path' => $vendorDir,
+                            'aliases' => [],
+                            'dev_requirement' => false,
+                        ],
+                    ],
+                ],
+                true,
+            ) . ';',
+        );
+
+        $loader = new ClassLoader($vendorDir);
+
+        $loader->register();
+
+        try {
+            $extensions = self::slice(new ConfigDataFactory(), 'extensions');
+        } finally {
+            $loader->unregister();
+
+            TemporaryDirectory::remove($vendorDir);
+        }
+
+        self::assertSame(
+            'yiisoft/aaa-fixture',
+            array_key_first($extensions),
+            'A package from a later vendor directory must be sorted into the roster.',
         );
     }
 

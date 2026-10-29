@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Yii3\Debug\Tests;
 
 use InvalidArgumentException;
+use PHPForge\Debug\CollectorInterface;
 use PHPForge\Debug\Exception\Message;
 use PHPForge\Debug\Helper\Trace;
 use PHPForge\Debug\Registration\PanelOverride;
@@ -320,6 +321,11 @@ final class ExtensionRegistryTest extends TestCase
             [$requestPanel, $dbPanel],
             $registry->panelsWithBuiltIns([$requestPanel, $dbPanel]),
             'Built-in panels must pass through unchanged.',
+        );
+        self::assertSame(
+            [$requestPanel],
+            $registry->panelsWithBuiltIn($requestPanel),
+            'A single built-in panel must pass through unchanged.',
         );
     }
 
@@ -694,6 +700,38 @@ final class ExtensionRegistryTest extends TestCase
             [],
             new ContainerStub(),
         );
+    }
+
+    public function testThrowInvalidArgumentExceptionForWhitespaceCollectorId(): void
+    {
+        $collector = self::createStub(CollectorInterface::class);
+
+        $collector
+            ->method('id')
+            ->willReturn('  ');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Empty or duplicate debug collector ID:   ',
+        );
+
+        ExtensionRegistry::create(collectors: [$collector]);
+    }
+
+    public function testThrowInvalidArgumentExceptionForWhitespacePanelId(): void
+    {
+        $panel = self::createStub(ExtensionPanelInterface::class);
+
+        $panel
+            ->method('id')
+            ->willReturn('  ');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Empty or duplicate debug panel ID:   ',
+        );
+
+        ExtensionRegistry::create(panels: [$panel]);
     }
 
     public function testThrowInvalidArgumentExceptionWhenRenamingPanelRenderingItsOwnPresentation(): void

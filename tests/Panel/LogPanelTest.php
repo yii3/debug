@@ -361,6 +361,34 @@ final class LogPanelTest extends TestCase
         );
     }
 
+    public function testRenderOffersEverySeverityInTheLevelFilter(): void
+    {
+        self::assertStringContainsString(
+            <<<HTML
+            <select class="yii-debug-select" name="Log[level]" aria-label="Filter by Level">
+            <option selected>
+            </option>
+            <option value="8">
+            Trace
+            </option>
+            <option value="4">
+            Info
+            </option>
+            <option value="2">
+            Warning
+            </option>
+            <option value="1">
+            Error
+            </option>
+            </select>
+            HTML,
+            (new LogPanel(Trace::create()))->render(
+                HelperFactory::createPanelRenderInput(self::payload(), self::context([])),
+            ),
+            'Options: trace, info, warning, and error, in that order.',
+        );
+    }
+
     public function testRenderOrdersRowsByEverySortableAttribute(): void
     {
         $panel = new LogPanel(Trace::create());
@@ -446,6 +474,22 @@ final class LogPanelTest extends TestCase
             'Log%5Bcategory%5D=app&amp;sort=-timeSincePrevious&amp;per-page=1&amp;yii_debug_theme=light',
             $html,
             'The elapsed-time sort link must initially select descending order like the Yii2 grid.',
+        );
+    }
+
+    /**
+     * @param array<array-key, mixed> $query
+     * @param non-empty-string $expectedPrefix
+     */
+    #[DataProviderExternal(LogPanelProvider::class, 'headingStates')]
+    public function testRenderPlacesTheHeadingAboveTheSummaryAndTheResults(array $query, string $expectedPrefix): void
+    {
+        self::assertStringStartsWith(
+            $expectedPrefix,
+            (new LogPanel(Trace::create()))->render(
+                HelperFactory::createPanelRenderInput(self::payload(), self::context($query)),
+            ),
+            'Order: heading, summary, then the results.',
         );
     }
 

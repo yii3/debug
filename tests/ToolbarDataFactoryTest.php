@@ -166,6 +166,85 @@ final class ToolbarDataFactoryTest extends TestCase
             $payload['iconBaseUrl'],
             'AJAX icons must use the published SVG path.',
         );
+        self::assertSame(
+            $payload['logo'],
+            $payload['iconBaseUrl'] . 'yii.svg',
+            'The icon base URL must keep the complete published directory.',
+        );
+    }
+
+    public function testCreateForSnapshotContinuesPastFailedSkippedAndEmptyPanels(): void
+    {
+        $failed = self::createStub(ExtensionPanelInterface::class);
+
+        $failed
+            ->method('id')
+            ->willReturn('failed');
+        $failed
+            ->method('name')
+            ->willReturn('Failed');
+
+        $detailsOnly = self::createStub(ExtensionPanelInterface::class);
+
+        $detailsOnly
+            ->method('id')
+            ->willReturn('details-only');
+
+        $throwing = self::createStub(ToolbarPanelProviderInterface::class);
+
+        $throwing
+            ->method('hasContent')
+            ->willReturn(true);
+        $throwing
+            ->method('id')
+            ->willReturn('throwing');
+        $throwing
+            ->method('toolbarItems')
+            ->willThrowException(new RuntimeException('Broken metrics.'));
+
+        $empty = self::createStub(ToolbarPanelProviderInterface::class);
+
+        $empty
+            ->method('hasContent')
+            ->willReturn(true);
+        $empty
+            ->method('id')
+            ->willReturn('empty');
+        $empty
+            ->method('toolbarItems')
+            ->willReturn([]);
+
+        $snapshot = new DebugSnapshot(
+            RequestSummary::create('request-1'),
+            [
+                'details-only' => ['value' => true],
+                'throwing' => ['value' => true],
+                'empty' => ['value' => true],
+                'event' => (new EventSnapshot(
+                    [new EventRow(1.0, 'App\\Event\\FirstEvent', 'App\\Event\\FirstEvent', '0', '')],
+                ))->jsonSerialize(),
+            ],
+            [
+                'failed' => PanelFailure::fromThrowable(
+                    PanelFailure::CAPTURE,
+                    new RuntimeException('Unable to capture.'),
+                ),
+            ],
+        );
+
+        $payload = (new ToolbarDataFactory($this->assetManager()))
+            ->withExtensionPanels([$failed, $detailsOnly, $throwing, $empty, new EventPanel()])
+            ->createForSnapshot($snapshot)
+            ->jsonSerialize();
+
+        self::assertSame(
+            ['failed', 'throwing', 'event'],
+            array_map(
+                static fn(array $panel): string => $panel['id'],
+                $payload['items'],
+            ),
+            'Panels after a failed, skipped, or empty one must still be listed.',
+        );
     }
 
     public function testCreateForSnapshotExposesOneEventCounter(): void

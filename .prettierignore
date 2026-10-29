@@ -8,11 +8,14 @@
 .github/instructions/**
 .github/prompts/**
 .github/skills/**
+.phpunit.cache/**
 .vscode/**
 code_coverage/**
+internal/**
 runtime/**
 
 # Dependencies.
+node_modules/**
 vendor/**
 
 # Dependency lockfile ignored by git.

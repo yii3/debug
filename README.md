@@ -53,13 +53,18 @@
 
 ### Installation
 
-Requires PHP 8.3 or newer and a Yii3 application using Yii Config Plugin.
+Requires PHP 8.3 or newer and a Yii 3 application using Yii Config Plugin. The package is currently a development
+release, so keep it in the development dependency set:
 
 ```shell
-composer require yii3/debug --dev
+composer require --dev "yii3/debug:^0.1@dev"
 ```
 
-### Enable the debugger
+The application must already provide the `yiisoft/router-implementation` and `yiisoft/db-implementation` virtual
+packages. Keep its existing router and database driver; if either provider is absent, choose one that matches the
+application before retrying installation.
+
+### Integrate the application
 
 Run the application with `APP_ENV=dev`. The debugger also accepts `debug` and `test`; it stays disabled when the
 runtime environment is missing, unknown, or production. Setting the runner's configuration environment alone is
@@ -71,47 +76,9 @@ Rebuild the merged configuration after installing or updating the package:
 composer yii-config-rebuild
 ```
 
-Applications that build their middleware list by hand must spread the merged
-`$params['yiisoft/middleware-dispatcher']['middlewares']` first, so the debugger middlewares stay in the pipeline:
-`DebugRouteMiddleware` answers the `/debug` pages itself, so the debugger publishes no routes and needs none of your
-application's routing, and `RequestCaptureMiddleware` captures the request and injects the toolbar.
-
-The debugger attaches itself to `Yiisoft\Db\Connection\ConnectionInterface` and
-`Psr\EventDispatcher\EventDispatcherInterface` through the container, using the `di-providers` and `bootstrap`
-configuration groups; both must belong to the provider and bootstrap groups your runner loads. Your services keep
-their own definitions and the debugger only decorates them, so a custom PSR dispatcher needs no separate integration.
-
-The Logs panel works through parameters instead: the debugger merges its `debug` target, and a `stream` target, into
-`yiisoft/log.targets`, so your application must build `Psr\Log\LoggerInterface` from
-`$params['yiisoft/log']['targets']`. The `yiisoft/app` template already builds the logger this way:
-
-```php
-'targets' => ReferencesArray::from(
-    array_values($params['yiisoft/log']['targets'] ?? [StreamTarget::class]),
-),
-```
-
-An application that hardcodes its target list keeps working, but its Logs panel stays empty. A template that relies on
-the `?? [StreamTarget::class]` fallback needs no parameters of its own: the merged key bypasses that fallback, yet it
-already carries a `stream` target beside the debugger's. Declare targets under that key to add your own, or to replace
-a merged one under the same name:
-
-```php
-'yiisoft/log' => [
-    'targets' => [
-        'file' => \Yiisoft\Log\Target\File\FileTarget::class,
-    ],
-],
-```
-
-Each Logs row shows the PSR-3 context passed with the message, such as `['id' => 42]`, under the message in a
-collapsed "Context" disclosure. The `category`, `time`, `trace`, and `memory` keys that `yiisoft/log` adds to every
-context are left out, because the row already stores them.
-
-The snapshot itself is written when the application dispatches `Yiisoft\Yii\Http\Event\ApplicationShutdown`, through
-the merged `events-web` listeners the Yii HTTP runner uses. Finalizing there, rather than inside the middleware
-pipeline, is what makes the logs, the profiler spans flushed after emission, and the queries issued while the view is
-rendered lazily complete in the capture. See [Capture lifecycle](docs/configuration.md#capture-lifecycle).
+Installation publishes configuration, but the application still owns its aggregate configuration groups, logger, and
+middleware list. Complete the [Getting started guide](docs/index.md) to connect all of them. Installing the package or
+seeing it in the merge plan alone does not prove that the debugger can resolve from the container or capture a request.
 
 ### Basic usage
 
@@ -125,8 +92,9 @@ changes, then open either capture for its details. Comparison shows structural c
 ## Configuration
 
 The debugger runs with its default options out of the box. See the
-[configuration reference](docs/configuration.md) for registering collectors and panels, provider integrations such as
-Inertia and Vite, database thresholds, and IDE links.
+[configuration reference](docs/configuration.md) for options, collectors and panels, provider integrations such as
+Inertia and Vite, database thresholds, and IDE links. See the [application integration examples](docs/examples.md) for
+copyable container, logger, middleware, and runner recipes.
 
 ## Security
 
@@ -141,9 +109,23 @@ does not affect source traces in Logs or Database.
 
 ## Documentation
 
-- [Configuration reference](docs/configuration.md)
-- [Panel screenshots](docs/screenshots.md)
-- [Default configuration options](config/params.php)
+- 📚 [Getting started](docs/index.md)
+- ⚙️ [Configuration reference](docs/configuration.md)
+- 💡 [Application integration examples](docs/examples.md)
+- 🖼️ [Panel screenshots](docs/screenshots.md)
+- 🤖 [AI assistance](docs/agents.md)
+- 🧪 [Testing guide](docs/testing.md)
+
+## AI assistance
+
+AI agents should start with the [documentation index](docs/index.md) and use the package-owned
+[`yii3-debug-integration` skill](docs/agents.md) for installation, container wiring, and functional verification. The
+Yii 2 documentation portal does not publish this Yii 3 adapter, so do not substitute the similarly named
+`yii2-extensions/debug` guide or its Yii 2 module APIs.
+
+Match the guidance to the installed package files. If a hosted source is unavailable or does not match, use the
+[repository guides](#documentation), [skill source](skills/yii3-debug-integration/SKILL.md), source PHPDoc, and
+[changelog](CHANGELOG.md).
 
 ## Package information
 
@@ -164,6 +146,12 @@ does not affect source traces in Logs or Database.
 [![Follow on Facebook](https://img.shields.io/badge/-Follow%20on%20Facebook-1877F2.svg?style=for-the-badge&logo=facebook&logoColor=white&labelColor=000000)](https://www.facebook.com/wilmer.arambula.9)
 [![Join our Subreddit](https://img.shields.io/badge/-Join%20our%20Subreddit-FF4500.svg?style=for-the-badge&logo=reddit&logoColor=white&labelColor=000000)](https://www.reddit.com/r/Yii2/)
 [![Join on Telegram](https://img.shields.io/badge/-Join%20on%20Telegram-26A5E4.svg?style=for-the-badge&logo=telegram&logoColor=white&labelColor=000000)](https://t.me/yii_framework_in_english)
+
+## Built with AI
+
+[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-D97757.svg?style=for-the-badge&logo=claude&logoColor=white)](https://claude.com/claude-code)
+[![Built with Codex](https://img.shields.io/badge/Built%20with-Codex-10A37F.svg?style=for-the-badge&logo=openaigym&logoColor=white)](https://openai.com/codex)
+[![Reviewed by CodeRabbit](https://img.shields.io/badge/Reviewed%20by-CodeRabbit-FF570A.svg?style=for-the-badge&logo=coderabbit&logoColor=white)](https://www.coderabbit.ai)
 
 ## License
 

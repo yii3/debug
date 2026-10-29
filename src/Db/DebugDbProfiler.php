@@ -13,11 +13,9 @@ use Yiisoft\Db\Profiler\Context\ConnectionContext;
 use Yiisoft\Db\Profiler\{ContextInterface, ProfilerAwareInterface, ProfilerInterface};
 use Yiisoft\Profiler\ProfilerInterface as ApplicationProfilerInterface;
 
-use function array_flip;
-use function array_intersect_key;
 use function debug_backtrace;
 use function microtime;
-use function str_contains;
+use function preg_match;
 
 use const DEBUG_BACKTRACE_IGNORE_ARGS;
 
@@ -85,11 +83,11 @@ final class DebugDbProfiler implements ProfilerInterface
                     if (($frame['class'] ?? '') === self::class
                         || ($frame['class'] ?? '') === InstrumentationGuard::class
                         || $file === ''
-                        || str_contains($file, '/vendor/yiisoft/db')) {
+                        || preg_match('~[/\\\\]vendor[/\\\\]yiisoft[/\\\\]db~', $file) === 1) {
                         continue;
                     }
 
-                    $trace[] = array_intersect_key($frame, array_flip(['file', 'line', 'class', 'function', 'type']));
+                    $trace[] = $frame;
                 }
 
                 $this->collector->begin($token, microtime(true), $trace);

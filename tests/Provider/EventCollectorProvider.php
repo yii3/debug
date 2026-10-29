@@ -27,6 +27,12 @@ final class EventCollectorProvider
         yield 'callback naming an absent method' => [
             AnonymousMiddlewareStubFactory::create(['callback' => [self::class, 'missingAction']]),
         ];
+        yield 'callback with a non-string class' => [
+            AnonymousMiddlewareStubFactory::create(['callback' => [new self(), 'unsupportedActionWrappers']]),
+        ];
+        yield 'callback with a non-string method' => [
+            AnonymousMiddlewareStubFactory::create(['callback' => [self::class, 1]]),
+        ];
         yield 'callback with an empty method' => [
             AnonymousMiddlewareStubFactory::create(['callback' => [self::class, '']]),
         ];
