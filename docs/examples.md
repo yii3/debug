@@ -23,14 +23,16 @@ return [
         'di-site' => ['$di', '$di-web', 'site/di/*.php'],
         'di-api' => ['$di', '$di-web', 'api/di/*.php'],
         'di-providers' => 'common/di-providers.php',
-        'di-providers-site' => '$di-providers',
-        'di-providers-api' => '$di-providers',
+        'di-providers-web' => '$di-providers',
+        'di-providers-site' => '$di-providers-web',
+        'di-providers-api' => '$di-providers-web',
         'events' => [],
         'events-site' => ['$events', '$events-web'],
         'events-api' => ['$events', '$events-web'],
         'bootstrap' => 'common/bootstrap.php',
-        'bootstrap-site' => '$bootstrap',
-        'bootstrap-api' => '$bootstrap',
+        'bootstrap-web' => '$bootstrap',
+        'bootstrap-site' => '$bootstrap-web',
+        'bootstrap-api' => '$bootstrap-web',
     ],
     'config-plugin-options' => [
         'source-directory' => 'config',
@@ -38,8 +40,10 @@ return [
 ];
 ```
 
-If the application already defines these keys, extend them instead of replacing unrelated group members. Run
-`composer yii-config-rebuild` after changing this file.
+`HttpApplicationRunner` reads only the provider and bootstrap groups passed to it; it does not merge `di-providers-web`
+or `bootstrap-web` implicitly. Build the Site and API aliases from the Web aggregates so Web-specific providers and
+bootstrap callbacks stay loaded. If the application already defines these keys, extend them instead of replacing
+unrelated group members. Run `composer yii-config-rebuild` after changing this file.
 
 ## Configure application metadata and log targets
 

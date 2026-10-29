@@ -245,7 +245,12 @@ final class EventCollector implements CollectorInterface
                 $trace = EventCapture::trace(
                     debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 32),
                     $this->traceLimit,
-                    [__FILE__, dirname(__DIR__) . '/Event/DebugEventDispatcher.php'],
+                    [
+                        __FILE__,
+                        dirname(__DIR__)
+                            . DIRECTORY_SEPARATOR . 'Event'
+                            . DIRECTORY_SEPARATOR . 'DebugEventDispatcher.php',
+                    ],
                 );
             } catch (Throwable) {
                 $traceStatus = 'failed';

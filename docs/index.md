@@ -50,9 +50,10 @@ After rebuilding configuration, inspect the application's merge plan. It should 
 `di`, `di-web`, one loaded provider group, `bootstrap`, and `events-web`. A merge-plan entry proves discovery only; it
 does not prove that the application runner consumes the aggregate.
 
-The standard Yii HTTP runner recursively merges its selected parameter and event groups, including the nested groups.
-If a custom bootstrap constructs `Yiisoft\Config\Config` directly, apply `Yiisoft\Config\Modifier\RecursiveMerge` to
-the same group names so nested targets and listeners merge instead of colliding or replacing one another.
+The standard Yii HTTP runner applies `Yiisoft\Config\Modifier\ReverseMerge` to its event groups and then
+`Yiisoft\Config\Modifier\RecursiveMerge` to its parameter and event groups, including the nested groups. If a custom
+bootstrap constructs `Yiisoft\Config\Config` directly, apply both modifiers in that order to the same group names so
+nested targets and listeners merge with the standard precedence instead of colliding or replacing one another.
 
 ## Build the logger from merged targets
 

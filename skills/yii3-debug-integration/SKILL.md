@@ -60,9 +60,10 @@ Ensure each intended runner loads aggregates containing `$params`, `$di` plus `$
 `$bootstrap`, and `$events-web`. Check the exact group names passed to the runner. Presence in `.merge-plan.php` proves
 package discovery, not runner consumption or container resolution.
 
-Standard Yii runners recursively merge the selected parameter and event groups, including their nested groups. If a
-custom bootstrap constructs `Yiisoft\Config\Config` directly, apply `Yiisoft\Config\Modifier\RecursiveMerge` to the
-same parameter and event group names; otherwise duplicate nested keys can fail or replace merged targets and listeners.
+Standard Yii runners apply `Yiisoft\Config\Modifier\ReverseMerge` to the selected event groups and then
+`Yiisoft\Config\Modifier\RecursiveMerge` to the selected parameter and event groups, including their nested groups.
+If a custom bootstrap constructs `Yiisoft\Config\Config` directly, apply both modifiers in that order to the same
+group names; otherwise duplicate nested keys can fail, replace merged targets and listeners, or change listener order.
 
 The application must also do both of the following:
 

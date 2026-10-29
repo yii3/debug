@@ -2687,17 +2687,18 @@ final class DebugPageRendererTest extends TestCase
 
     public function testThrowViewNotFoundExceptionForTrailingSlashViewPath(): void
     {
+        $viewPath = sys_get_temp_dir() . '/yii3-debug-missing-views';
         $aliases = new Aliases(['@assets' => sys_get_temp_dir(), '@assetsUrl' => '/debug-assets']);
         $renderer = new DebugPageRenderer(
             new WebView(),
             new AssetManager($aliases, new AssetLoader($aliases)),
             new ConfigDataFactory(['name' => 'Test application']),
-            '/yii3-debug-missing-views/',
+            "{$viewPath}/",
         );
 
         $this->expectException(ViewNotFoundException::class);
         $this->expectExceptionMessage(
-            'The view file "/yii3-debug-missing-views/_shell.php" does not exist.',
+            "The view file \"{$viewPath}/_shell.php\" does not exist.",
         );
 
         $renderer->history([], [], 'light');

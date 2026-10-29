@@ -15,7 +15,7 @@ use Yiisoft\Profiler\ProfilerInterface as ApplicationProfilerInterface;
 
 use function debug_backtrace;
 use function microtime;
-use function str_contains;
+use function preg_match;
 
 use const DEBUG_BACKTRACE_IGNORE_ARGS;
 
@@ -83,7 +83,7 @@ final class DebugDbProfiler implements ProfilerInterface
                     if (($frame['class'] ?? '') === self::class
                         || ($frame['class'] ?? '') === InstrumentationGuard::class
                         || $file === ''
-                        || str_contains($file, '/vendor/yiisoft/db')) {
+                        || preg_match('~[/\\\\]vendor[/\\\\]yiisoft[/\\\\]db~', $file) === 1) {
                         continue;
                     }
 

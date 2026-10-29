@@ -62,6 +62,7 @@
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0.3",
         "phpunit/phpunit": "^12.5",
+        "xepozz/internal-mocker": "^1.4",
         "yii2-extensions/scaffold": "^0.2",
         "yiisoft/config": "^1.6",
         "yiisoft/db-sqlite": "^2.0",
