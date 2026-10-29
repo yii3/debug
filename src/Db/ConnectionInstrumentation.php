@@ -16,10 +16,11 @@ use Yiisoft\Db\Profiler\ProfilerAwareInterface;
 final readonly class ConnectionInstrumentation
 {
     /**
-     * Gives the application connection the application logger and the debugger profiler.
+     * Attaches available observers to the application connection.
      *
-     * An application without a connection, without a logger, or with a connection no PDO driver backs, is left
-     * untouched. Attaching is idempotent, so an application that already wires the connection itself keeps working.
+     * Logger attachment applies to logger-aware connections. Profiler instrumentation applies independently to
+     * PDO-backed, profiler-aware connections. Missing services or unsupported capabilities leave that operation
+     * untouched. Attaching is idempotent, so application wiring remains valid.
      *
      * @param ContainerInterface $container Container the connection and its observers are resolved from.
      */

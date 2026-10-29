@@ -29,9 +29,13 @@ Then authorize the plugin and install both development dependencies:
 
 ```bash
 composer config allow-plugins.llm/skills true
-composer require --dev llm/skills:1.15.0 "yii3/debug:^0.1@dev"
+composer require --dev llm/skills:1.15.0 "yii3/debug:^0.1"
 composer skills:show
 ```
+
+The `^0.1` constraint selects stable releases from `0.1.0` up to, but not including, `0.2.0`. Keeping the debugger
+under `require-dev` controls where it is installed; it does not mean Composer must select a development build. A
+stable Composer version does not make the 0.x API stable.
 
 The package must contain this bundle and its `composer.json` must declare `extra.skills.source`. With `auto-sync`
 enabled, later installs and updates synchronize trusted bundles. If it is disabled, run `composer skills:update` after
