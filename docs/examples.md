@@ -50,6 +50,9 @@ unrelated group members. Run `composer yii-config-rebuild` after changing this f
 Add application-owned values in `config/common/params.php`. Named target keys allow the Yii Config Plugin merge to
 retain the debugger target while the application adds its own:
 
+The example adds the optional `FileTarget`. Install it with `composer require yiisoft/log-target-file`, or replace the
+`file` entry with a target the application already provides.
+
 ```php
 <?php
 

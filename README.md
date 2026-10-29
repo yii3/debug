@@ -53,12 +53,15 @@
 
 ### Installation
 
-Requires PHP 8.3 or newer and a Yii 3 application using Yii Config Plugin. The package is currently a development
-release, so keep it in the development dependency set:
+Requires PHP 8.3 or newer and a Yii 3 application using Yii Config Plugin. Version 0.1.0 is available as a stable
+Composer release. The debugger is development-only runtime tooling, so keep it in the development dependency set:
 
 ```shell
-composer require --dev "yii3/debug:^0.1@dev"
+composer require --dev "yii3/debug:^0.1"
 ```
+
+The `^0.1` constraint selects stable releases from `0.1.0` up to, but not including, `0.2.0`. A stable Composer version
+does not promise API compatibility with future 0.x minor lines.
 
 The application must already provide the `yiisoft/router-implementation` and `yiisoft/db-implementation` virtual
 packages. Keep its existing router and database driver; if either provider is absent, choose one that matches the

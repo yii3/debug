@@ -30,12 +30,16 @@ every essential integration step and does not require excluded files. Do not sub
 
 ## Install for development only
 
-The current development line requires PHP 8.3 or later and Yii Config Plugin. Keep it outside production installs:
+The published 0.1.0 release requires PHP 8.3 or later and Yii Config Plugin. It is available as a stable Composer
+release, but the debugger is development-only runtime tooling, so keep it outside production installs:
 
 ```bash
-composer require --dev "yii3/debug:^0.1@dev"
+composer require --dev "yii3/debug:^0.1"
 composer yii-config-rebuild
 ```
+
+The `^0.1` constraint selects stable releases from `0.1.0` up to, but not including, `0.2.0`. A stable Composer version
+does not promise API compatibility with future 0.x minor lines.
 
 Run this in an existing Yii 3 application. Composer must be able to resolve providers for the
 `yiisoft/router-implementation` and `yiisoft/db-implementation` virtual packages. Preserve the application's selected
@@ -80,9 +84,10 @@ middleware claims that prefix before the application router; change it when the 
 
 Preserve the application's event dispatcher, asset loader, database, logger, routes, and middleware. The service
 provider decorates `Psr\EventDispatcher\EventDispatcherInterface` and `Yiisoft\Assets\AssetLoaderInterface`; it does
-not define them. Load providers before first resolution. The bootstrap callback instruments an existing PDO-backed
-`Yiisoft\Db\Connection\ConnectionInterface` with the application logger and debugger profiler; an application without
-a database remains valid.
+not define them. Load providers before first resolution. The bootstrap callback attaches the application logger to an
+existing `Yiisoft\Db\Connection\ConnectionInterface` when that connection accepts a logger. Independently, it attaches
+the debugger profiler when the connection is PDO-backed and accepts a profiler. Missing optional services or a missing
+database leave the application valid.
 
 The default snapshot and mail paths are `@runtime/debug` and `@runtime/debug/mail`. Verify that `@runtime` and `@vendor`
 resolve and that storage is writable outside the public Web root. Keep the loopback-only IP allowlist unless the user

@@ -13,12 +13,16 @@ the aggregate groups loaded by each runner, the logger definition, and each midd
   packages.
 - A writable runtime directory outside the public Web root.
 
-The current package line is a development release. Install it only for development:
+Version 0.1.0 is available as a stable Composer release. The debugger remains development-only runtime tooling, so
+install it in the development dependency set:
 
 ```bash
-composer require --dev "yii3/debug:^0.1@dev"
+composer require --dev "yii3/debug:^0.1"
 composer yii-config-rebuild
 ```
+
+The `^0.1` constraint selects stable releases from `0.1.0` up to, but not including, `0.2.0`. A stable Composer version
+does not promise API compatibility with future 0.x minor lines.
 
 Keep the application's existing router and database driver. If Composer reports a missing virtual implementation,
 choose a provider that matches the application, such as `yiisoft/router-fastroute` for FastRoute or the appropriate
@@ -82,11 +86,12 @@ integration.
 `Yiisoft\Assets\AssetLoaderInterface` definitions. It does not own either service. Register the application services
 normally and load the provider group before either one is first resolved.
 
-The bootstrap callback instruments an existing `Yiisoft\Db\Connection\ConnectionInterface` only when it uses a PDO
-driver and the application also resolves its logger and the debugger profiler. Applications without a database remain
-valid. `events-web` finalizes the capture on `ApplicationShutdown`; a shutdown fallback handles runners that never
-dispatch that event, but normal Yii HTTP applications should keep the listener group so late logs, spans, and lazy
-queries reach the snapshot.
+The bootstrap callback attaches the application logger to an existing `Yiisoft\Db\Connection\ConnectionInterface`
+when that connection accepts a logger. Independently, it attaches the debugger profiler when the connection is
+PDO-backed, accepts a profiler, and the profiler resolves. Applications without a database remain valid. `events-web`
+finalizes the capture on `ApplicationShutdown`; a shutdown fallback handles runners that never dispatch that event,
+but normal Yii HTTP applications should keep the listener group so late logs, spans, and lazy queries reach the
+snapshot.
 
 The default storage is `@runtime/debug`, with captured mail under `@runtime/debug/mail`. Ensure the application's alias
 configuration defines writable `@runtime` and `@vendor` paths. Keep both outside the public Web root.

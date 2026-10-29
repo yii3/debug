@@ -317,8 +317,10 @@ needed.
 - `Yiisoft\Assets\AssetLoaderInterface` is decorated by the same provider, so every bundle the application loads reaches
   the Asset Bundles panel. The definition `yiisoft/assets` publishes in the `di` group is kept; the provider only wraps
   what it resolves to.
-- `Yiisoft\Db\Connection\ConnectionInterface` receives the application logger and the debugger profiler from the
-  `bootstrap` group. A connection no PDO driver backs, or an application without a connection, is left untouched.
+- The `bootstrap` group attaches the application logger to `Yiisoft\Db\Connection\ConnectionInterface` when the
+  connection accepts a logger. Independently, it instruments a PDO-backed connection that accepts a profiler with the
+  debugger profiler. Each operation is skipped when its required service or capability is absent; an application
+  without a connection remains valid.
 
 - `Yiisoft\Mailer\Event\AfterSend` reaches `Yii3\Debug\Collector\MailCollector` from the `events-web` group when
   `yiisoft/mailer` is installed; without it the Mail collector is not registered and the Mail panel never appears. The
@@ -381,6 +383,9 @@ the `?? [StreamTarget::class]` fallback needs no parameters of its own: the merg
 already carries a `stream` target beside the debugger's. Declare targets under the same key to add your own, or to
 replace a merged one under the same name:
 
+The example adds the optional `FileTarget`. Install it with `composer require yiisoft/log-target-file`, or replace the
+`file` entry with a target the application already provides.
+
 ```php
 use Yiisoft\Log\Target\File\FileTarget;
 
@@ -410,6 +415,7 @@ For containers or remote environments, map captured paths to your local project:
 
 ## Next steps
 
+- 📚 [Getting started](index.md)
 - 💡 [Application integration examples](examples.md)
 - 🧪 [Testing guide](testing.md)
 
