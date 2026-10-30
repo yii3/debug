@@ -23,4 +23,4 @@ jobs:
     with:
       concurrency-group: phpunit-${{ github.workflow }}-${{ github.ref }}
       extensions: gd, intl, pdo, pdo_sqlite
-      php-version: '["8.3","8.4","8.5"]'
+      php-version: '["8.3","8.4","8.5", "8.6"]'
