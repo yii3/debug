@@ -17,6 +17,8 @@ use function array_key_first;
 final readonly class PhpInfoAction implements DebugActionInterface
 {
     /**
+     * Creates the `phpinfo()` endpoint inside the shared debugger page.
+     *
      * @param SnapshotStore $store Store the captured snapshots are read from.
      * @param DebugPageRenderer $renderer Renderer producing the debugger page markup.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.

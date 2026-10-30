@@ -12,6 +12,8 @@ use Yiisoft\Assets\{AssetBundle, AssetLoaderInterface};
 final readonly class AssetLoaderProxy implements AssetLoaderInterface
 {
     /**
+     * Creates a transparent asset-loader proxy that records each loaded bundle.
+     *
      * @param AssetLoaderInterface $loader Application loader every call is delegated to.
      * @param AssetCollector $collector Collector recording the bundles the application loads.
      */

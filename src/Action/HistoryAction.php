@@ -17,6 +17,8 @@ use function array_key_first;
 final readonly class HistoryAction implements DebugActionInterface
 {
     /**
+     * Creates the request-history endpoint for snapshots retained by the store.
+     *
      * @param SnapshotStore $store Store the captured snapshots are read from.
      * @param DebugPageRenderer $renderer Renderer producing the debugger page markup.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.

@@ -57,6 +57,8 @@ final class DbPanel implements ToolbarPanelProviderInterface
     private int|null $excessiveCallerThreshold = null;
 
     /**
+     * Creates the Database panel with query plans, debugger URLs, and source traces.
+     *
      * @param DbExplain $explain Query-plan runner of the development connection.
      * @param DebugUrlGenerator $urls Adapter-owned URL generator backing the query-plan links.
      * @param Trace $trace Configured renderer of the argument-free source frames shown beside each query.

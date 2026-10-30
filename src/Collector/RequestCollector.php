@@ -61,6 +61,8 @@ final class RequestCollector implements CollectorInterface, RequestObserverInter
     private bool $started = false;
 
     /**
+     * Creates a request collector with routing context and the capture policy.
+     *
      * @param CurrentRoute|null $currentRoute Route matched for the request, or `null` when routing did not run.
      * @param RouteCollectionInterface|null $routes Live route collection, or `null` when it cannot be resolved.
      * @param CapturePolicy $capturePolicy Policy deciding which values are persisted and which are redacted.

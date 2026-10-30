@@ -31,6 +31,8 @@ use const DEBUG_BACKTRACE_IGNORE_ARGS;
 final readonly class DumpHandlerProxy implements HandlerInterface
 {
     /**
+     * Creates a dump-handler proxy that records and then forwards each dump.
+     *
      * @param HandlerInterface $handler Handler that was the default before the proxy, receiving every dump.
      * @param DumpCollector $collector Collector recording the dumps of the request.
      */

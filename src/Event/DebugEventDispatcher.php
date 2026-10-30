@@ -24,6 +24,8 @@ final readonly class DebugEventDispatcher implements EventDispatcherInterface
     private InstrumentationGuard $guard;
 
     /**
+     * Creates an event-dispatcher proxy that records each event before delegation.
+     *
      * @param EventDispatcherInterface $dispatcher Application dispatcher every event is delegated to.
      * @param EventCollector $collector Collector recording the event and its immediate caller.
      * @param InstrumentationGuard|null $guard Guard isolating capture failures, or `null` to build the default.

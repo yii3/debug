@@ -14,6 +14,8 @@ use Yiisoft\Db\Exception\Exception;
 final readonly class DbExplain
 {
     /**
+     * Creates a query-plan runner for the configured development connection.
+     *
      * @param ConnectionInterface|null $connection Development connection the plans run on, or `null` to disable
      * the feature.
      */

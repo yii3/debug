@@ -37,6 +37,8 @@ final class LogCollector implements CollectorInterface
     private bool $started = false;
 
     /**
+     * Creates a log collector that flushes and redacts application messages before capture.
+     *
      * @param DebugLogTarget $target Log target accumulating the messages of the request.
      * @param LoggerInterface|null $logger Application logger flushed before reading, or `null` to skip flushing.
      * @param CapturePolicy $capturePolicy Policy redacting the sensitive keys and string values of the PSR-3 context;

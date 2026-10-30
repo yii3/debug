@@ -18,6 +18,8 @@ use function is_string;
 final readonly class DbExplainAction implements DebugActionInterface
 {
     /**
+     * Creates the query-plan endpoint for statements retained in captured snapshots.
+     *
      * @param SnapshotStore $store Store the captured snapshots are read from.
      * @param DbExplain $explain Runner producing the plan for a stored statement.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.

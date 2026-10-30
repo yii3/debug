@@ -18,6 +18,8 @@ use function trim;
 final readonly class ToolbarRenderer
 {
     /**
+     * Creates a toolbar renderer with Yii3 view and asset services.
+     *
      * @param WebView $view Yii3 PHP view renderer.
      * @param AssetManager $assetManager Yii3 asset publisher.
      * @param string $viewPath Resolved path containing the shared debugger templates.

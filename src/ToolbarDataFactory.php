@@ -46,6 +46,8 @@ final class ToolbarDataFactory
     private array $extensionPanels = [];
 
     /**
+     * Creates a toolbar-data factory with asset URL and debugger route configuration.
+     *
      * @param AssetManager $assetManager Manager resolving the published URLs of the toolbar assets.
      * @param ToolbarOptions $options Settings carrying the route prefix every debugger URL is built on and the toolbar
      * presentation.

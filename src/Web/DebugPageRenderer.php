@@ -61,6 +61,8 @@ final class DebugPageRenderer
     private readonly string $viewPath;
 
     /**
+     * Creates the page renderer with its view, assets, configuration, templates, and debugger routes.
+     *
      * @param WebView $view View rendering the debugger templates.
      * @param AssetManager $assetManager Manager resolving the published URLs of the debugger assets.
      * @param ConfigDataFactory $configDataFactory Factory building the live configuration payload.

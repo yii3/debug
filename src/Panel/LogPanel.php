@@ -39,6 +39,8 @@ final readonly class LogPanel implements ToolbarPanelProviderInterface
     ];
 
     /**
+     * Creates the Logs panel with its configured source-frame renderer.
+     *
      * @param Trace $trace Configured renderer of the argument-free source frames shown in the message cells.
      */
     public function __construct(private Trace $trace) {}

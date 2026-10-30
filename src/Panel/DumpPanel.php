@@ -42,6 +42,8 @@ final readonly class DumpPanel implements ToolbarPanelProviderInterface
     ];
 
     /**
+     * Creates the Dump panel with its configured call-site renderer.
+     *
      * @param Trace $trace Configured renderer of the call-site frames shown in the dump cards.
      */
     public function __construct(private Trace $trace) {}

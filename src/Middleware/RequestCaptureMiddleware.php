@@ -43,6 +43,8 @@ use function uniqid;
 final readonly class RequestCaptureMiddleware implements MiddlewareInterface
 {
     /**
+     * Creates request-capture middleware with toolbar rendering, storage, policy, and optional collectors.
+     *
      * @param ToolbarRenderer $renderer Renderer producing the toolbar markup injected into the response.
      * @param StreamFactoryInterface $streamFactory Factory building the rewritten response body.
      * @param SnapshotStore $store Store the capture is written to.

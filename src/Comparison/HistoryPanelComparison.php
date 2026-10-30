@@ -13,6 +13,8 @@ namespace Yii3\Debug\Comparison;
 final readonly class HistoryPanelComparison
 {
     /**
+     * Creates a comparison summary for one panel across two captures.
+     *
      * @param string $id Stable panel ID.
      * @param string $label Panel display name.
      * @param HistoryPanelStates $states Panel state on each side of the comparison.
