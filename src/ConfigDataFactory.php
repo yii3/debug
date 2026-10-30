@@ -28,6 +28,8 @@ use const PHP_VERSION;
 final readonly class ConfigDataFactory
 {
     /**
+     * Creates the configuration-data factory with optional application metadata.
+     *
      * @param array<string, mixed> $application Optional application metadata.
      */
     public function __construct(private array $application = []) {}

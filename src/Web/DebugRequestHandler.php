@@ -48,6 +48,8 @@ final class DebugRequestHandler
     ];
 
     /**
+     * Creates the debugger endpoint handler resolved through the container.
+     *
      * @param ContainerInterface $container Container the endpoint is resolved from when the path matches.
      * @param ResponseFactoryInterface $responseFactory Factory building the rejection responses.
      * @param ToolbarOptions $options Settings carrying the route prefix the debugger endpoints are served under.

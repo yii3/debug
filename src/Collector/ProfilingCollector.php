@@ -41,6 +41,8 @@ final class ProfilingCollector implements CollectorInterface
     private bool $started = false;
 
     /**
+     * Creates a profiling collector for live and already flushed spans.
+     *
      * @param ProfilerInterface|null $profiler Application profiler supplying the spans, or `null` when none is
      * configured.
      * @param DebugProfilerTarget|null $target Target keeping the spans the profiler already flushed, or `null` when

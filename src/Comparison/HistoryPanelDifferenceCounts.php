@@ -10,6 +10,8 @@ namespace Yii3\Debug\Comparison;
 final readonly class HistoryPanelDifferenceCounts
 {
     /**
+     * Creates the JSON-leaf difference counts for one panel.
+     *
      * @param int $added JSON leaves present only in the target.
      * @param int $removed JSON leaves present only in the baseline.
      * @param int $changed JSON leaves present in both with a different value.

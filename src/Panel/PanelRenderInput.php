@@ -13,6 +13,8 @@ use PHPForge\Debug\Storage\RequestSummary;
 final readonly class PanelRenderInput
 {
     /**
+     * Creates the complete input for rendering one captured panel page.
+     *
      * @param array<string, mixed> $payload Serialized panel payload.
      * @param PanelRenderContext $context State of the debugger request being rendered.
      * @param RequestSummary $summary Manifest entry of the capture being rendered.

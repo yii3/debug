@@ -10,6 +10,8 @@ namespace Yii3\Debug\Comparison;
 final readonly class HistoryMetricValues
 {
     /**
+     * Creates the formatted values and trend for one request metric.
+     *
      * @param string $baseline Formatted baseline value.
      * @param string $target Formatted target value.
      * @param string $delta Formatted difference from baseline to target.

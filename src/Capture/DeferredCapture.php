@@ -46,6 +46,8 @@ final class DeferredCapture
     private readonly Closure $shutdownRegistrar;
 
     /**
+     * Creates a deferred finalizer using the supplied shutdown registrar or PHP's default registrar.
+     *
      * @param (Closure(callable(): void): void)|null $shutdownRegistrar Registrar receiving the shutdown fallback, or
      * `null` to register it with PHP itself.
      */
@@ -114,6 +116,8 @@ final class DeferredCapture
     }
 
     /**
+     * Reports whether a deferred finalizer is waiting to run.
+     *
      * @return bool `true` when a finalizer is waiting to run; `false` otherwise.
      */
     public function isPending(): bool

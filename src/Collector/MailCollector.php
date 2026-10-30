@@ -48,6 +48,8 @@ final class MailCollector implements CollectorInterface
     private array $storedFiles = [];
 
     /**
+     * Creates a mail collector that stores message files and reports conversion failures.
+     *
      * @param MailFileStore $files Store the `.eml` files are written to and removed from.
      * @param (Closure(MessageInterface): Email)|null $emailFactory Converter building the Symfony email the
      * `yiisoft/mailer-symfony` adapter sends, or `null` when the adapter is not installed and the message accessors are

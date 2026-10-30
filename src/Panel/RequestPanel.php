@@ -19,6 +19,8 @@ use function is_string;
 final readonly class RequestPanel implements ToolbarPanelProviderInterface
 {
     /**
+     * Creates the Request panel with the optional live route collection.
+     *
      * @param RouteCollectionInterface|null $routes Live route collection the overview reads its matched definition and
      * configuration badges from, or `null` when the application registers no router.
      */

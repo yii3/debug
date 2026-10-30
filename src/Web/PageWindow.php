@@ -19,6 +19,8 @@ use function min;
 final readonly class PageWindow
 {
     /**
+     * Maximum number of rows exposed on the resolved page.
+     *
      * @var positive-int
      */
     public int $limit;
@@ -27,6 +29,8 @@ final readonly class PageWindow
      */
     public int $offset;
     /**
+     * One-based resolved page number, clamped to the available pages.
+     *
      * @var positive-int
      */
     public int $page;
@@ -36,6 +40,8 @@ final readonly class PageWindow
     public int $pageCount;
 
     /**
+     * Creates a bounded pagination window from raw query values and the collection size.
+     *
      * @param int $total Rows in the collection.
      * @param string|null $perPage Raw `per-page` query value, or `null` to keep every row on one page.
      * @param string|null $page Raw `page` query value, or `null` to start on the first page.

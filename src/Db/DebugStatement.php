@@ -18,6 +18,8 @@ use Yii3\Debug\Collector\DbCollector;
 final class DebugStatement extends PDOStatement
 {
     /**
+     * Creates a statement observer that reports row counts to the request collector.
+     *
      * @param DbCollector $collector Collector receiving the row count of every execution.
      */
     protected function __construct(private readonly DbCollector $collector) {}

@@ -123,8 +123,8 @@ does not affect source traces in Logs or Database.
 
 AI agents should start with the [documentation index](docs/index.md) and use the package-owned
 [`yii3-debug-integration` skill](docs/agents.md) for installation, container wiring, and functional verification. The
-Yii 2 documentation portal does not publish this Yii 3 adapter, so do not substitute the similarly named
-`yii2-extensions/debug` guide or its Yii 2 module APIs.
+[hosted Yii3 Debug documentation](https://yii2-framework.github.io/docs/extensions/yii3-debug/) publishes this adapter;
+do not substitute the similarly named `yii2-extensions/debug` guide or its Yii 2 module APIs.
 
 Match the guidance to the installed package files. If a hosted source is unavailable or does not match, use the
 [repository guides](#documentation), [skill source](skills/yii3-debug-integration/SKILL.md), source PHPDoc, and

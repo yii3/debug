@@ -37,6 +37,8 @@ class ProviderPanel implements ToolbarPanelProviderInterface
     private PanelView|null $memoizedView = null;
 
     /**
+     * Creates an adapter for a provider-owned declarative panel.
+     *
      * @param PortablePanel $provider Declarative panel supplying the identity and presentation.
      */
     public function __construct(private readonly PortablePanel $provider) {}
@@ -132,7 +134,7 @@ class ProviderPanel implements ToolbarPanelProviderInterface
      * Returns a copy presenting the panel under the metadata the application configured.
      *
      * The detail heading, the sidebar entry, and the toolbar chip all read the effective title, so the panel keeps
-     * one name across the debugger while {@see self::id()} stays the stable capture key.
+     * one name across the debugger while {@see ProviderPanel::id()} stays the stable capture key.
      *
      * @param string $title Effective display title.
      * @param string $icon Effective icon key.

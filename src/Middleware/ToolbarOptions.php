@@ -29,6 +29,8 @@ final readonly class ToolbarOptions
     public string $routePrefix;
 
     /**
+     * Normalizes the shared route, retention, AJAX, and toolbar presentation settings.
+     *
      * @param string $routePrefix Base path the debugger endpoints are served under; a trailing slash is trimmed.
      * @param int $historySize Captures kept before the oldest are rotated out.
      * @param int|null $excessiveCallerThreshold Statements per call site that flag it as excessive, or `null` to

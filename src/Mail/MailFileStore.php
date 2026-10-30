@@ -41,6 +41,8 @@ final readonly class MailFileStore
     private const int ORPHAN_GRACE_PERIOD = 86_400;
 
     /**
+     * Creates a mail-file store with its directory, permissions, and optional failure logger.
+     *
      * @param string $path Directory holding the `.eml` files, already resolved from any alias.
      * @param int $dirMode Permission bits applied to the directory when it is created.
      * @param int|null $fileMode Permission bits applied to every written file, or `null` to keep the process umask.

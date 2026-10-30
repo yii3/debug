@@ -18,6 +18,8 @@ use function is_string;
 final readonly class DownloadMailAction implements DebugActionInterface
 {
     /**
+     * Creates the download endpoint for `.eml` files resolved by the mail store.
+     *
      * @param MailFileStore $files Store resolving the requested file inside the mail directory.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.
      * @param StreamFactoryInterface $streamFactory Factory building the PSR-7 response body.

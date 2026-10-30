@@ -18,6 +18,8 @@ use Yiisoft\Yii\DataView\GridView\Column\ColumnInterface;
 final readonly class GridColumn implements ColumnInterface
 {
     /**
+     * Creates a grid-column definition from pre-rendered cells and presentation options.
+     *
      * @param string|SortHeader $header Header cell HTML, already rendered and encoded by the caller, or the header
      * cell of a sortable column.
      * @param Closure(TRow, DataContext): string $content Builds the body cell content for one row.

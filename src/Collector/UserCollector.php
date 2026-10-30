@@ -50,6 +50,8 @@ final class UserCollector implements CollectorInterface, RequestObserverInterfac
     private bool $started = false;
 
     /**
+     * Creates a user collector that resolves identity and RBAC data through the container.
+     *
      * @param ContainerInterface $container Container resolving the current user and the optional RBAC manager.
      * @param CapturePolicy $capturePolicy Policy naming the identity attributes, at any depth, stored as the redaction
      * placeholder.

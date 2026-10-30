@@ -19,6 +19,8 @@ use function is_string;
 final readonly class ConfigAction implements DebugActionInterface
 {
     /**
+     * Creates the configuration endpoint for retained snapshots and the shared page renderer.
+     *
      * @param SnapshotStore $store Store the captured snapshots are read from.
      * @param DebugPageRenderer $renderer Renderer producing the debugger page markup.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.

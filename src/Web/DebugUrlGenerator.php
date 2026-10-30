@@ -22,6 +22,8 @@ final readonly class DebugUrlGenerator implements DebugUrlGeneratorInterface
     private string $routePrefix;
 
     /**
+     * Creates a URL generator for the normalized debugger route prefix.
+     *
      * @param string $routePrefix Base path every debugger URL is built on; a trailing slash is trimmed.
      */
     public function __construct(string $routePrefix = '/debug')

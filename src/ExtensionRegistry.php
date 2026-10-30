@@ -21,8 +21,8 @@ use function trim;
 /**
  * Holds the collectors and panels an application registered, ordered by the shared registration policy.
  *
- * Panels reach {@see self::panels()} in the order {@see PanelRegistry} computes: built-in IDs keep their registration
- * order and every extension follows by position, then by effective title, then by ID.
+ * Panels reach {@see ExtensionRegistry::panels()} in the order {@see PanelRegistry} computes: built-in IDs keep their
+ * registration order and every extension follows by position, then by effective title, then by ID.
  */
 final readonly class ExtensionRegistry
 {
@@ -211,7 +211,7 @@ final readonly class ExtensionRegistry
      *
      * Every entry is a class string, or an array declaring a `class` string plus options. A collector accepts the
      * `enabled` option alone; a panel accepts the keys {@see PanelOverride::KEYS}. An entry the configuration
-     * disabled is reported by {@see self::disabled()} and its class is never resolved.
+     * disabled is reported by {@see ExtensionRegistry::disabled()} and its class is never resolved.
      *
      * @param iterable<array-key, mixed> $collectors Collector entries indexed by configuration ID.
      * @param iterable<array-key, mixed> $panels Panel entries indexed by configuration ID.

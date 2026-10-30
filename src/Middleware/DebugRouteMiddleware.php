@@ -22,6 +22,8 @@ use function is_string;
 final readonly class DebugRouteMiddleware implements MiddlewareInterface
 {
     /**
+     * Creates debugger-route middleware with IP restrictions and optional deferred-capture finalization.
+     *
      * @param IpRanges $allowedIpRanges Ranges allowed to reach the debugger.
      * @param DebugRequestHandler $debugRequestHandler Handler serving the debugger endpoints.
      * @param DeferredCapture|null $deferredCapture Holder of a capture still pending from an earlier request, or

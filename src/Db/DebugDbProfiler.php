@@ -37,6 +37,8 @@ final class DebugDbProfiler implements ProfilerInterface
     private readonly InstrumentationGuard $guard;
 
     /**
+     * Creates a DB profiler that records statements while optionally forwarding spans.
+     *
      * @param DbCollector $collector Collector receiving the captured statements and failures.
      * @param ApplicationProfilerInterface|null $profiler Application profiler to keep feeding, or `null` when the
      * debugger is the only observer.

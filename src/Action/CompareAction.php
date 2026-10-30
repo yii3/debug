@@ -21,6 +21,8 @@ use function count;
 final readonly class CompareAction implements DebugActionInterface
 {
     /**
+     * Creates the comparison endpoint backed by retained snapshots and the shared page renderer.
+     *
      * @param SnapshotStore $store Store the captured snapshots are read from.
      * @param DebugPageRenderer $renderer Renderer producing the debugger page markup.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.

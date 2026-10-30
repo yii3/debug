@@ -23,6 +23,8 @@ use const JSON_UNESCAPED_UNICODE;
 final readonly class ToolbarDataAction implements DebugActionInterface
 {
     /**
+     * Creates the toolbar-data endpoint, optionally backed by retained captures.
+     *
      * @param ToolbarDataFactory $dataFactory Factory building the toolbar payload.
      * @param ResponseFactoryInterface $responseFactory Factory building the PSR-7 response.
      * @param StreamFactoryInterface $streamFactory Factory building the PSR-7 response body.
