@@ -11,14 +11,14 @@ use Yiisoft\Yii\DataView\GridView\Column\Base\DataContext;
 use Yiisoft\Yii\DataView\GridView\Column\ColumnInterface;
 
 /**
- * Represents a panel grid column whose header, filter, and body content are pre-rendered by the caller.
+ * Represents a panel grid column with pre-rendered header and filter content and a per-row body-content callback.
  *
  * @template TRow of array|object
  */
 final readonly class GridColumn implements ColumnInterface
 {
     /**
-     * Creates a grid-column definition from pre-rendered cells and presentation options.
+     * Creates a grid-column definition from a header, a row-content callback, and presentation options.
      *
      * @param string|SortHeader $header Header cell HTML, already rendered and encoded by the caller, or the header
      * cell of a sortable column.
